@@ -1,0 +1,102 @@
+/*
+ * EF design tokens (EF-DesignSystem: EF blue, Roboto). Light and dark palettes;
+ * <html data-theme="light|dark"> selects one. Components never use raw colours:
+ * Tailwind classes resolve to these variables via @theme in index.css.
+ * Tenant branding may override --primary / --primary-h / --primary-lt at runtime.
+ */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+  --primary: #1a50a3;
+  --primary-h: #1e5bb9;
+  --primary-lt: #ecf3ff;
+  --on-primary: #ffffff;
+
+  --canvas: #eef1f5;
+  --surface: #ffffff;
+  --sec: #f4f6f8;
+  --sec-2: #e9edf2;
+
+  --border: #e3e7ed;
+  --border-p: #c9d7ec;
+  --border-i: #c5c9cf;
+
+  --body: #212121;
+  --medium: #555a61;
+  /* #8a9099 from the mockup fails WCAG AA on white; darkened to 4.9:1. */
+  --muted-text: #646a73;
+
+  --success: #1fb57e;
+  --success-text: #137a54;
+  --success-lt: #e3f7ef;
+  --warn: #fdb635;
+  --warn-text: #8a6000;
+  --warn-lt: #fff4dc;
+  --on-warn: #1f1600;
+  --error: #e5484d;
+  --error-text: #c23b3b;
+  --error-lt: #ffecec;
+  --on-error: #ffffff;
+
+  --bubble-c: #efefef;
+  --bubble-a: #ecf3ff;
+
+  --shadow: 0 8px 28px rgba(16, 32, 64, 0.18);
+
+  /* Brand surfaces (login panel) keep EF blue in both themes. */
+  --brand: #1a50a3;
+  --brand-2: #1e5bb9;
+  --on-brand: #ffffff;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --primary: #5b8fe0;
+  --primary-h: #76a2e8;
+  --primary-lt: #1a2d4a;
+  --on-primary: #0b1424;
+
+  --canvas: #121315;
+  --surface: #1d1f22;
+  --sec: #26292d;
+  --sec-2: #2d3136;
+
+  --border: #2e3238;
+  --border-p: #3b4d6b;
+  --border-i: #454a52;
+
+  --body: #e6e8eb;
+  --medium: #b3bac5;
+  --muted-text: #9aa1ab;
+
+  --success: #34c88f;
+  --success-text: #5fd9a8;
+  --success-lt: #133528;
+  --warn: #fdb635;
+  --warn-text: #fdc55a;
+  --warn-lt: #3a2e12;
+  --on-warn: #1f1600;
+  --error: #ff6767;
+  --error-text: #ff9a9a;
+  --error-lt: #3a1f1f;
+  --on-error: #1a0606;
+
+  --bubble-c: #2a2d31;
+  --bubble-a: #1c2e4b;
+
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+
+  --brand: #163f80;
+  --brand-2: #1a4a96;
+  --on-brand: #ffffff;
+}
+
+/* Density: compact replaces unified-agent compact-view.scss. */
+:root {
+  --density-font: 14px;
+  --density-row: 40px;
+}
+:root[data-density="compact"] {
+  --density-font: 13px;
+  --density-row: 32px;
+}

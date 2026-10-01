@@ -1,0 +1,46 @@
+# Rendered from /etc/nginx/templates by the nginx image (only BASE_PATH*,
+# FRAME_ANCESTORS are substituted, see 05-agent-desk-env.envsh).
+server {
+  listen 8080;
+  server_name _;
+  root /usr/share/nginx/html;
+  disable_symlinks off;
+
+  server_tokens off;
+  gzip on;
+  gzip_types text/css application/javascript application/json image/svg+xml;
+  gzip_min_length 1024;
+
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+  add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+  add_header Permissions-Policy "camera=(self), microphone=(self), display-capture=(self), geolocation=()" always;
+  # Backends share the origin (the app rewrites hosts); https:/wss: cover SIP and
+  # external KB/LLM endpoints. frame-ancestors lists the Finesse / CRM hosts.
+  add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https: wss:; frame-src 'self' https:; worker-src 'self' blob:; frame-ancestors 'self' ${FRAME_ANCESTORS}; base-uri 'self'; form-action 'self'" always;
+
+  location = /healthz {
+    access_log off;
+    default_type text/plain;
+    return 200 "ok";
+  }
+
+  location = ${BASE_PATH_NOSLASH} {
+    return 301 ${BASE_PATH};
+  }
+
+  # Locations use `expires` (not add_header) so the security headers above are
+  # inherited everywhere.
+
+  # Fingerprinted assets: cache for a year.
+  location ^~ ${BASE_PATH}assets/ {
+    expires 1y;
+    try_files $uri =404;
+  }
+
+  # Shell + runtime config must always revalidate; client routes fall back to the shell.
+  location ${BASE_PATH} {
+    expires -1;
+    try_files $uri $uri/ ${BASE_PATH}index.html;
+  }
+}

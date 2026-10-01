@@ -1,0 +1,115 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./tokens.css";
+
+/* Dark variant follows the resolved theme on <html data-theme>, not the OS
+   media query, so "light"/"dark"/"system" preferences all work. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme inline {
+  --font-sans: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
+
+  --color-background: var(--surface);
+  --color-foreground: var(--body);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--sec);
+  --color-surface-3: var(--sec-2);
+
+  --color-card: var(--surface);
+  --color-card-foreground: var(--body);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--body);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-h);
+  --color-primary-soft: var(--primary-lt);
+  --color-primary-foreground: var(--on-primary);
+
+  --color-secondary: var(--sec-2);
+  --color-secondary-foreground: var(--body);
+  --color-muted: var(--sec);
+  --color-muted-foreground: var(--muted-text);
+  --color-medium: var(--medium);
+  --color-accent: var(--sec);
+  --color-accent-foreground: var(--body);
+
+  --color-destructive: var(--error);
+  --color-destructive-foreground: var(--on-error);
+  --color-destructive-text: var(--error-text);
+  --color-destructive-soft: var(--error-lt);
+  --color-success: var(--success);
+  --color-success-text: var(--success-text);
+  --color-success-soft: var(--success-lt);
+  --color-warning: var(--warn);
+  --color-warning-text: var(--warn-text);
+  --color-warning-soft: var(--warn-lt);
+  --color-on-warning: var(--on-warn);
+
+  --color-border: var(--border);
+  --color-border-strong: var(--border-i);
+  --color-border-primary: var(--border-p);
+  --color-input: var(--border-i);
+  --color-ring: var(--primary);
+
+  --color-bubble-customer: var(--bubble-c);
+  --color-bubble-agent: var(--bubble-a);
+
+  --color-brand: var(--brand);
+  --color-brand-2: var(--brand-2);
+  --color-on-brand: var(--on-brand);
+
+  --color-sidebar: var(--surface);
+  --color-sidebar-foreground: var(--medium);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  --shadow-pop: var(--shadow);
+}
+
+@layer base {
+  *,
+  ::after,
+  ::before {
+    border-color: var(--color-border);
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--canvas);
+    color: var(--body);
+    font-family: var(--font-sans);
+    font-size: var(--density-font, 14px);
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--primary-lt);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}

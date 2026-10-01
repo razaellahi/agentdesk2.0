@@ -1,0 +1,6 @@
+dist
+coverage
+pnpm-lock.yaml
+public/i18n
+public/vendor
+public/dictionaries

@@ -1,0 +1,149 @@
+variables:
+  IMAGE_NAME: "${CI_REGISTRY_IMAGE}/build:${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}-${TIME_TOKEN}"
+  IMAGE_NAME_BRANCH: "${CI_REGISTRY_IMAGE}/build:${CI_COMMIT_BRANCH}-${CI_COMMIT_SHA}"
+  GIT_DEPTH: 0
+  NODE_IMAGE: "node:22-alpine"
+  PNPM_STORE: "${CI_PROJECT_DIR}/.pnpm-store"
+
+include:
+  - project: "cim/ci-templates"
+    ref: "main"
+    file:
+      - trivy.yaml
+      - grype.yaml
+      - trivy-merge.yaml
+      - grype-merge.yaml
+      - build_time.yml
+      - gitlab-publish-v2.yaml
+      - cleanup-reg.yaml
+
+stages:
+  - quality
+  - test
+  - init
+  - artifacts
+  - e2e
+  - sonarqube-scan
+  - build-gitlab
+  - cleanup
+  - scan
+
+.rules-branch-mr: &rules-branch-mr
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: "$CI_COMMIT_BRANCH =~ /^.+_f-.+$/ || $CI_COMMIT_BRANCH =~ /^.+_b-.+$/"
+    - if: '$CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"'
+    - if: "$CI_COMMIT_TAG"
+
+.node:
+  image: $NODE_IMAGE
+  before_script:
+    - corepack enable
+    - pnpm config set store-dir "$PNPM_STORE"
+    - pnpm install --frozen-lockfile
+  cache:
+    key:
+      files: [pnpm-lock.yaml]
+    paths: [.pnpm-store]
+
+# ===================== QUALITY (blocking) =====================
+lint-typecheck:
+  extends: .node
+  stage: quality
+  <<: *rules-branch-mr
+  script:
+    - pnpm lint
+    - pnpm typecheck
+    - pnpm format:check
+    - pnpm i18n:check
+
+# ===================== UNIT TESTS =====================
+unit-test:
+  extends: .node
+  stage: test
+  <<: *rules-branch-mr
+  script:
+    - pnpm coverage
+  coverage: '/All files[^|]*\|[^|]*\s+([\d\.]+)/'
+  artifacts:
+    when: always
+    paths: [coverage]
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
+
+# ===================== INIT =====================
+time_build:
+  stage: init
+  image: alpine:3.20
+  script:
+    - mkdir -p .ci_status
+    - date +"%d_%m_%Y-%H_%M_%S" > .ci_status/ci_time
+  artifacts:
+    paths: [.ci_status/]
+  <<: *rules-branch-mr
+
+# ===================== BUILD ARTIFACTS =====================
+build-dist:
+  extends: .node
+  stage: artifacts
+  dependencies: [time_build]
+  <<: *rules-branch-mr
+  script:
+    - pnpm build
+  artifacts:
+    name: "$CI_PROJECT_TITLE"
+    paths: [dist, .ci_status/]
+
+# ===================== E2E (mocked backend) =====================
+e2e:
+  image: mcr.microsoft.com/playwright:v1.63.0-noble
+  stage: e2e
+  <<: *rules-branch-mr
+  before_script:
+    - corepack enable
+    - pnpm install --frozen-lockfile
+  script:
+    - pnpm e2e
+  artifacts:
+    when: on_failure
+    paths: [playwright-report, test-results]
+  allow_failure: true
+
+# ===================== SONARQUBE =====================
+sonarqube:
+  stage: sonarqube-scan
+  image: sonarsource/sonar-scanner-cli:latest
+  dependencies: [unit-test]
+  script:
+    - >
+      sonar-scanner
+      -Dsonar.projectKey=agent-desk
+      -Dsonar.sources=src
+      -Dsonar.exclusions=src/**/*.test.ts,src/**/*.test.tsx,src/test/**
+      -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+  rules:
+    - if: '$SONAR_HOST_URL && $CI_PIPELINE_SOURCE == "merge_request_event"'
+  allow_failure: true
+
+# ===================== DOCKER IMAGE =====================
+build-image:
+  image: docker:latest
+  stage: build-gitlab
+  services: [docker:dind]
+  dependencies: [build-dist]
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+  script:
+    - cp -r dist ./docker/
+    - cd docker
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        docker build --pull -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG" .
+        docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
+      else
+        docker build --pull -t "$IMAGE_NAME_BRANCH" .
+        docker push "$IMAGE_NAME_BRANCH"
+      fi
+  <<: *rules-branch-mr

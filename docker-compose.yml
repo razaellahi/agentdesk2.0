@@ -1,0 +1,8 @@
+services:
+  agent-desk:
+    build: .
+    image: gitlab.expertflow.com:9242/cim/agent-desk:local
+    ports:
+      - "8080:8080"
+    env_file:
+      - environment_variables.env

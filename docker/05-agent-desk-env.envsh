@@ -1,0 +1,11 @@
+#!/bin/sh
+# Sourced by the nginx entrypoint before templates are rendered (*.envsh files
+# are sourced, so exports reach the 20-envsubst-on-templates step).
+BASE_PATH="${BASE_PATH:-/agent-desk/}"
+case "$BASE_PATH" in */) ;; *) BASE_PATH="$BASE_PATH/" ;; esac
+case "$BASE_PATH" in /*) ;; *) BASE_PATH="/$BASE_PATH" ;; esac
+export BASE_PATH
+export BASE_PATH_NOSLASH="${BASE_PATH%/}"
+export FRAME_ANCESTORS="${FRAME_ANCESTORS:-}"
+# Only substitute our variables; nginx's own $uri etc. must survive.
+export NGINX_ENVSUBST_FILTER="^(BASE_PATH|BASE_PATH_NOSLASH|FRAME_ANCESTORS)$"
