@@ -15,11 +15,12 @@ export function HomeRedirect() {
   const prefs = usePreferences();
   const user = useSessionStore((s) => s.user);
   const realmRoles = useSessionStore((s) => s.realmRoles);
+  const clientRoles = useSessionStore((s) => s.clientRoles);
 
   const permitted = (path: string | null) => {
     if (!path) return false;
     const item = ALL_NAV_ITEMS.find((i) => i.path === path);
-    return Boolean(item && isNavItemAvailable(item, { user, realmRoles }));
+    return Boolean(item && isNavItemAvailable(item, { user, realmRoles, clientRoles }));
   };
 
   const legacy = legacyHashTarget();

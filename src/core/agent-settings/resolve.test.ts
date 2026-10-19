@@ -32,7 +32,7 @@ describe("resolveDeskSettings", () => {
       { isCallingComplianceEnabled: true, DASHBOARD_REFRESH_TIME: 5000 },
     );
     expect(s.spellCheck).toBe(true);
-    expect(s.autoAnswerDelayMs).toBe(5000);
+    expect(s.autoAnswerDelayMs).toBe(0);
     expect(s.inactivityTimeoutSeconds).toBe(100);
     expect(s.smsPrefixCode).toBe("+1");
     expect(s.callingCompliance).toBe(true);

@@ -27,6 +27,12 @@ export default defineConfig(({ mode, command }) => {
     resolve: {
       alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
     },
+    // Dev only: the dependency scan does not follow `new Worker(...)`, so a package
+    // used only in a worker (nspell for spell check) was found on first use and Vite
+    // reloaded the whole page, dropping the socket and phone. Scan workers up front.
+    optimizeDeps: {
+      entries: ["index.html", "src/**/*.worker.ts"],
+    },
     server: {
       port: 4200,
       // Proxy service paths to a real environment so config.json can use the dev origin.

@@ -1,9 +1,9 @@
 import type { SchemaAttribute } from "../api";
 
 /**
- * PII masking (unified-agent maskPIIAttribute pipe). Values are shown in full
- * when the user holds `permission` on `customer`; masked when they only hold
- * `masked_pii`; otherwise shown as-is.
+ * PII masking, exactly as unified-agent's maskPIIAttribute pipe: values are shown
+ * in full when the user holds the screen's permission on `customer`, masked by
+ * schema type when they hold `masked_pii`, and otherwise shown as they are.
  */
 export function maskString(value: string) {
   return value
@@ -39,6 +39,28 @@ export function maskBySchema(value: string, attr: SchemaAttribute | null) {
   return value;
 }
 
+/** Privacy-safe identity defaults while schema is loading or unavailable. */
+export function piiAttribute(key: string, attr: SchemaAttribute | null): SchemaAttribute | null {
+  if (attr) return attr;
+  const normalized = key.toLowerCase();
+  if (
+    ["firstname", "lastname", "email", "phone", "phonenumber", "voice", "sms", "whatsapp"].includes(
+      normalized,
+    )
+  ) {
+    return {
+      key,
+      type:
+        normalized === "email"
+          ? "email"
+          : ["phone", "phonenumber", "voice", "sms", "whatsapp"].includes(normalized)
+            ? "phonenumber"
+            : "string",
+      isPii: true,
+    };
+  }
+  return null;
+}
 export function maskPii(
   value: unknown,
   attr: SchemaAttribute | null,

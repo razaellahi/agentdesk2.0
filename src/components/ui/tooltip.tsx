@@ -1,4 +1,4 @@
-"use client";
+import { usePortalContainer } from "./portal-container";
 
 import * as React from "react";
 import { cn } from "@/shared/lib/utils";
@@ -25,8 +25,9 @@ function TooltipContent({
   children,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Content>) {
+  const container = usePortalContainer();
   return (
-    <TooltipPrimitive.Portal>
+    <TooltipPrimitive.Portal container={container}>
       <TooltipPrimitive.Content
         data-slot="tooltip-content"
         sideOffset={sideOffset}

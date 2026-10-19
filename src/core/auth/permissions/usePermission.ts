@@ -3,8 +3,8 @@ import { PERMISSIONS, satisfies, type PermissionKey, type Requirement } from "./
 import { hasScope, type PermissionSubject } from "./scopes";
 
 export function currentSubject(): PermissionSubject {
-  const { user, realmRoles } = useSessionStore.getState();
-  return { user, realmRoles };
+  const { user, realmRoles, clientRoles } = useSessionStore.getState();
+  return { user, realmRoles, clientRoles };
 }
 
 export function can(permission: PermissionKey | Requirement): boolean {
@@ -16,9 +16,10 @@ export function can(permission: PermissionKey | Requirement): boolean {
 export function usePermission(permission: PermissionKey | Requirement | undefined): boolean {
   const user = useSessionStore((s) => s.user);
   const realmRoles = useSessionStore((s) => s.realmRoles);
+  const clientRoles = useSessionStore((s) => s.clientRoles);
   if (!permission) return true;
   const req = typeof permission === "string" ? PERMISSIONS[permission] : permission;
-  return satisfies({ user, realmRoles }, req);
+  return satisfies({ user, realmRoles, clientRoles }, req);
 }
 
 /** Ad-hoc resource/scope check for fine-grained UI (e.g. agent-conversation-control:view_consult). */

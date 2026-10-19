@@ -1,4 +1,6 @@
+import { track } from "@/core/analytics/gtm";
 import { agentManagerApi, ApiError, configureApiAuth } from "@/core/api";
+import { t } from "@/core/i18n";
 import { createLogger } from "@/core/logging/logger";
 import { getTenantId } from "@/core/tenant/tenantStore";
 import { tenantOfUser } from "@/core/tenant/resolveTenant";
@@ -60,7 +62,8 @@ function isPasswordUpdateRequired(error: ApiError): { required: boolean; userId:
 /** `reason` is the agent-manager logout reason code object (or a session-end reason string). */
 type SessionHook = (reason: unknown) => void | Promise<void>;
 const beforeLogoutHooks = new Set<SessionHook>();
-const afterLoginHooks = new Set<(method: LoginMethod, credentials: Partial<PasswordCredentials>) => void>();
+export type LoginCredentials = Partial<PasswordCredentials> & { authToken?: string; authWithSSO?: boolean };
+const afterLoginHooks = new Set<(method: LoginMethod, credentials: LoginCredentials) => void>();
 
 /** Runs before the session is cleared (e.g. SIP unregister, emit LOGOUT agent state). */
 export function onBeforeLogout(hook: SessionHook): () => void {
@@ -69,14 +72,14 @@ export function onBeforeLogout(hook: SessionHook): () => void {
 }
 
 /** Runs after a fresh login (not after a reload restore). */
-export function onAfterLogin(hook: (method: LoginMethod, credentials: Partial<PasswordCredentials>) => void) {
+export function onAfterLogin(hook: (method: LoginMethod, credentials: LoginCredentials) => void) {
   afterLoginHooks.add(hook);
   return () => afterLoginHooks.delete(hook);
 }
 
 // ---------------------------------------------------------------------------
 
-function completeLogin(data: LoginData, method: LoginMethod, credentials: Partial<PasswordCredentials> = {}) {
+function completeLogin(data: LoginData, method: LoginMethod, credentials: LoginCredentials = {}) {
   const tenant = getTenantId();
   const userTenant = tenantOfUser(data.keycloak_User);
   // Tenant ids come back either as a name or an opaque id; only a *named* mismatch is conclusive.
@@ -96,6 +99,10 @@ function completeLogin(data: LoginData, method: LoginMethod, credentials: Partia
     method,
   });
   useSessionStore.getState().setPasswordExpiryMessage(data.passwordExpiration ?? null);
+  track("login", {
+    agent_name: data.keycloak_User.username,
+    message: t("snackbar.Agent-Logged-In-Successfully"),
+  });
   afterLoginHooks.forEach((hook) => {
     try {
       hook(method, credentials);
@@ -128,6 +135,7 @@ export async function loginWithPassword(credentials: PasswordCredentials): Promi
       const { required, userId } = isPasswordUpdateRequired(error);
       if (required) return { kind: "passwordChangeRequired", userId };
     }
+    track("error", { message: t("snackbar.error-on-login-request"), error });
     throw error;
   }
 }
@@ -172,7 +180,12 @@ export async function resendOtp(username: string): Promise<void> {
 
 export async function loginWithFinesse(payload: FinesseLoginPayload): Promise<void> {
   const response = await agentManagerApi.post<LoginResponse>("/agent/login", payload, { auth: false });
-  completeLogin(response.data, "finesse", { username: payload.username, password: payload.password });
+  completeLogin(response.data, "finesse", {
+    username: payload.username,
+    password: payload.password,
+    authToken: payload.authToken,
+    authWithSSO: payload.authWithSSO,
+  });
 }
 
 export async function loginWithExternalService(payload: ExternalServiceLoginPayload): Promise<void> {
@@ -216,6 +229,7 @@ let refreshInFlight: Promise<boolean> | null = null;
 export function refreshAccessToken(): Promise<boolean> {
   if (refreshInFlight) return refreshInFlight;
   const refreshToken = sessionPersistence.readRefreshToken();
+  const owner = getSession().user?.id;
   if (!refreshToken) return Promise.resolve(false);
 
   refreshInFlight = agentManagerApi
@@ -225,6 +239,8 @@ export function refreshAccessToken(): Promise<boolean> {
       { auth: false },
     )
     .then((response) => {
+      if (getSession().user?.id !== owner || sessionPersistence.readRefreshToken() !== refreshToken)
+        return false;
       const token = response?.data?.access_token;
       if (!token) return false;
       useSessionStore.getState().setAccessToken(token, response.data?.refresh_token);

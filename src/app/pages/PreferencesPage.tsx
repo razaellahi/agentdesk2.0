@@ -53,8 +53,8 @@ export function PreferencesPage() {
 
   return (
     <div className="mx-auto w-full max-w-3xl p-4 sm:p-6">
-      <p className="mb-4 text-sm text-muted-foreground">{t("preferences.description")}</p>
-      <div className="rounded-xl border bg-surface px-5">
+      <p className="desk-enter mb-4 text-sm text-muted-foreground">{t("preferences.description")}</p>
+      <div className="desk-panel desk-enter-delay rounded-2xl px-5">
         <Row label={t("globals.select-language")} htmlFor="pref-language">
           <Select
             value={language}

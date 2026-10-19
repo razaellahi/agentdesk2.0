@@ -12,7 +12,7 @@ export interface ApiAuthBridge {
   getAgentId(): string | null;
   /** Refreshes the access token; resolves true on success. Must de-duplicate concurrent calls. */
   refresh(): Promise<boolean>;
-  /** Called when a request is still unauthorised after a refresh. */
+  /** Called when the identity session cannot be refreshed. */
   onUnauthorized(): void;
 }
 
@@ -81,6 +81,13 @@ async function toApiError(error: unknown): Promise<ApiError> {
         body = undefined;
       }
     }
+    if (typeof body === "string") {
+      try {
+        body = JSON.parse(body);
+      } catch {
+        body = { message: body };
+      }
+    }
     const { message, code } = messageFromBody(
       body,
       error.response.statusText || `HTTP ${error.response.status}`,
@@ -92,7 +99,8 @@ async function toApiError(error: unknown): Promise<ApiError> {
   return new ApiError((error as Error)?.message || "Network error", 0, "NETWORK");
 }
 
-export type ResponseKind = "json" | "text" | "blob" | "none";
+/** "response" hands back the raw Response (headers such as Content-Disposition, body unread). */
+export type ResponseKind = "json" | "text" | "blob" | "none" | "response";
 
 /** A client bound to one backend service URL from config.json. */
 export function createServiceClient(service: ServiceKey | (() => string)) {
@@ -101,8 +109,10 @@ export function createServiceClient(service: ServiceKey | (() => string)) {
 
   async function send<T>(method: string, path: string, body: Body, opts: RequestOptions, kind: ResponseKind) {
     const base = baseUrl();
-    if (!base) throw new ApiError(`Service URL ${String(service)} is not configured`, 0, "NOT_CONFIGURED");
-    const url = /^https?:\/\//.test(path) ? path : `${base}${path.startsWith("/") ? "" : "/"}${path}`;
+    const absolute = /^https?:\/\//.test(path);
+    if (!absolute && !base)
+      throw new ApiError(`Service URL ${String(service)} is not configured`, 0, "NOT_CONFIGURED");
+    const url = absolute ? path : `${base}${path.startsWith("/") ? "" : "/"}${path}`;
 
     const attempt = () => {
       const options: Options = {
@@ -118,14 +128,16 @@ export function createServiceClient(service: ServiceKey | (() => string)) {
       return ky(url, options);
     };
 
+    const owner = bridge.getAgentId();
     let response: Response;
     try {
       response = await attempt();
     } catch (error) {
       const apiError = await toApiError(error);
       if (!apiError.isUnauthorized || opts.auth === false) throw apiError;
-      // One refresh + one retry, then give up and end the session.
+      // One identity refresh + one retry. A service rejection must stay local to that service.
       const refreshed = await bridge.refresh().catch(() => false);
+      if (bridge.getAgentId() !== owner) throw new ApiError("Identity session changed", 0, "ABORTED");
       if (!refreshed) {
         bridge.onUnauthorized();
         throw apiError;
@@ -134,14 +146,24 @@ export function createServiceClient(service: ServiceKey | (() => string)) {
         response = await attempt();
       } catch (retryError) {
         const retryApiError = await toApiError(retryError);
-        if (retryApiError.isUnauthorized) bridge.onUnauthorized();
         throw retryApiError;
       }
     }
 
+    const checkOwner = () => {
+      if (opts.auth !== false && bridge.getAgentId() !== owner)
+        throw new ApiError("Identity session changed", 0, "ABORTED");
+    };
+    checkOwner();
+    if (kind === "response") return response as T;
     if (kind === "none" || response.status === 204) return undefined as T;
-    if (kind === "blob") return (await response.blob()) as T;
+    if (kind === "blob") {
+      const blob = await response.blob();
+      checkOwner();
+      return blob as T;
+    }
     const text = await response.text();
+    checkOwner();
     if (kind === "text") return text as T;
     if (!text) return undefined as T;
     try {

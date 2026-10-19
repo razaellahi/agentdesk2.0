@@ -33,6 +33,9 @@ const LEGACY: Record<string, string> = {
   "agent-desk/languages": "/admin/languages",
   "agent-desk/translations": "/admin/translations",
   "general/locale-settings": "/admin/languages",
+  teams: "/admin/teams",
+  form: "/admin/qm-models",
+  forms: "/admin/qm-models",
 };
 
 export function mapLegacyPath(path: string | null | undefined): string | null {

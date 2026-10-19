@@ -27,6 +27,42 @@ describe("permission matrix", () => {
     expect(satisfies(subject([], [[" customer ", [" view "]]]), PERMISSIONS.customerList)).toBe(true);
   });
 
+  it("teams and QM models need an admin or supervisor role and the resource", () => {
+    const supervisor = subject(
+      ["supervisor"],
+      [
+        ["teams", ["view"]],
+        ["forms", ["view"]],
+      ],
+    );
+    expect(satisfies(supervisor, PERMISSIONS.teams)).toBe(true);
+    expect(satisfies(supervisor, PERMISSIONS.teamsManage)).toBe(false);
+    expect(satisfies(supervisor, PERMISSIONS.qmModels)).toBe(true);
+    expect(satisfies(supervisor, PERMISSIONS.qmModelsManage)).toBe(false);
+
+    const admin = subject(
+      ["admin"],
+      [
+        ["teams", ["manage"]],
+        ["forms", ["manage"]],
+      ],
+    );
+    expect(satisfies(admin, PERMISSIONS.teamsManage)).toBe(true);
+    expect(satisfies(admin, PERMISSIONS.qmModelsManage)).toBe(true);
+
+    const agent = subject(
+      ["agent"],
+      [
+        ["teams", ["manage"]],
+        ["forms", ["manage"]],
+      ],
+    );
+    expect(satisfies(agent, PERMISSIONS.teams)).toBe(false);
+    expect(satisfies(agent, PERMISSIONS.qmModelsManage)).toBe(false);
+    expect(satisfies(subject(["supervisor"]), PERMISSIONS.teams)).toBe(false);
+    expect(satisfies(subject(["admin"]), PERMISSIONS.qmModels)).toBe(false);
+  });
+
   it("admin settings: view shows, manage edits", () => {
     const viewer = subject([], [["agent-desk-setting", ["view"]]]);
     expect(satisfies(viewer, PERMISSIONS.adminSettings)).toBe(true);
@@ -52,5 +88,27 @@ describe("permission matrix", () => {
       false,
     );
     expect(satisfies(subject(["agent"]), PERMISSIONS.agentSession)).toBe(true);
+  });
+  it("VRS realm roles cannot start an agent session or read agent history", () => {
+    const vrs = subject([], [], ["agent", "supervisor"]);
+    expect(satisfies(vrs, PERMISSIONS.recordings)).toBe(true);
+    expect(satisfies(vrs, PERMISSIONS.agentSession)).toBe(false);
+    expect(satisfies(vrs, PERMISSIONS.conversations)).toBe(false);
+    expect(satisfies(vrs, PERMISSIONS.recentConversations)).toBe(false);
+    expect(satisfies(subject(["admin", "download"]), PERMISSIONS.recordingsManage)).toBe(false);
+    expect(satisfies(subject(["download"]), PERMISSIONS.recordingsDownload)).toBe(false);
+  });
+
+  it("Case Management reads case-* roles from realm, token client roles and keycloak_User.roles", () => {
+    const client = (roles: string[]): PermissionSubject => ({ ...subject([]), clientRoles: roles });
+    expect(satisfies(client(["case-cc-agent"]), PERMISSIONS.casesInConversation)).toBe(true);
+    expect(satisfies(client(["case-cc-agent"]), PERMISSIONS.casesReports)).toBe(false);
+    expect(satisfies(subject(["agent"]), PERMISSIONS.casesInConversation)).toBe(true);
+    expect(satisfies(subject(["agent"]), PERMISSIONS.cases)).toBe(false);
+    expect(satisfies(subject([], [], ["CASE-BACKOFFICE-MANAGER"]), PERMISSIONS.casesReports)).toBe(true);
+    expect(satisfies(subject(["supervisor"]), PERMISSIONS.cases)).toBe(true);
+    expect(satisfies(subject(["supervisor"]), PERMISSIONS.casesAdmin)).toBe(false);
+    expect(satisfies(client(["case-admin"]), PERMISSIONS.casesAdmin)).toBe(true);
+    expect(satisfies({ user: null, realmRoles: ["case-admin"] }, PERMISSIONS.casesAdmin)).toBe(false);
   });
 });

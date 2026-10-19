@@ -14,6 +14,8 @@ interface SessionState {
   accessToken: string | null;
   /** Realm roles from the access token (VRS: admin/supervisor/agent/download/export/viewtag/evaluatetag). */
   realmRoles: string[];
+  /** Client roles from the access token (resource_access.*.roles; Case Management reads case-* roles here too). */
+  clientRoles: string[];
   method: LoginMethod | null;
   passwordExpiryMessage: string | null;
   /** Why the last session ended when it was not a plain user logout (expired, another-session, inactivity…). */
@@ -43,11 +45,22 @@ export function realmRolesFromToken(token: string | null): string[] {
   }
 }
 
+export function clientRolesFromToken(token: string | null): string[] {
+  if (!token) return [];
+  try {
+    const claims = jwtDecode<{ resource_access?: Record<string, { roles?: string[] }> }>(token);
+    return [...new Set(Object.values(claims.resource_access ?? {}).flatMap((client) => client.roles ?? []))];
+  } catch {
+    return [];
+  }
+}
+
 export const useSessionStore = create<SessionState & SessionActions>()((set) => ({
   status: "unknown",
   user: null,
   accessToken: null,
   realmRoles: [],
+  clientRoles: [],
   method: null,
   passwordExpiryMessage: null,
   endReason: null,
@@ -61,13 +74,18 @@ export const useSessionStore = create<SessionState & SessionActions>()((set) => 
       user,
       accessToken,
       realmRoles: realmRolesFromToken(accessToken),
+      clientRoles: clientRolesFromToken(accessToken),
       method,
       endReason: null,
     });
   },
   setAccessToken(token, refreshToken) {
     if (refreshToken) storage.setString(KEYS.refreshToken, refreshToken);
-    set({ accessToken: token, realmRoles: realmRolesFromToken(token) });
+    set({
+      accessToken: token,
+      realmRoles: realmRolesFromToken(token),
+      clientRoles: clientRolesFromToken(token),
+    });
   },
   setPasswordExpiryMessage(message) {
     set({ passwordExpiryMessage: message });
@@ -81,6 +99,7 @@ export const useSessionStore = create<SessionState & SessionActions>()((set) => 
       user: null,
       accessToken: null,
       realmRoles: [],
+      clientRoles: [],
       method: null,
       passwordExpiryMessage: null,
       endReason,

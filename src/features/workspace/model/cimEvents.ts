@@ -195,6 +195,7 @@ export function applyCimEvent(conversation: Conversation, event: CimEvent, ctx: 
     }
     case "conversation_data_changed":
       conversation.activeConversationData = event.data;
+      pushSystem(conversation, event, ctx);
       effects.push({ kind: "conversationData", payload: event });
       break;
     case "associated_customer_changed":

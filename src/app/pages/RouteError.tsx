@@ -9,6 +9,19 @@ import { createLogger } from "@/core/logging/logger";
 const log = createLogger("route");
 const newReference = () => Math.random().toString(36).slice(2, 10).toUpperCase();
 
+function describe(error: unknown): string {
+  if (error instanceof Error)
+    return [`${error.name}: ${error.message}`, error.stack?.split("\n").slice(1, 7).join("\n")]
+      .filter(Boolean)
+      .join("\n");
+  if (isRouteErrorResponse(error)) return `${error.status} ${error.statusText}`;
+  try {
+    return JSON.stringify(error) ?? String(error);
+  } catch {
+    return String(error);
+  }
+}
+
 /** Route-level error boundary: shows a reference id that support can match in logs. */
 export function RouteError() {
   const error = useRouteError();
@@ -31,7 +44,18 @@ export function RouteError() {
         icon={AlertTriangle}
         title={t("errors.unexpected-title")}
         description={t("errors.unexpected-description", { ref })}
-        action={<Button onClick={() => globalThis.location.reload()}>{t("errors.reload")}</Button>}
+        action={
+          <div className="flex max-w-xl flex-col items-center gap-3">
+            <Button onClick={() => globalThis.location.reload()}>{t("errors.reload")}</Button>
+            {/* The cause, so a report can say more than the reference alone. */}
+            <details className="w-full text-start text-xs text-muted-foreground">
+              <summary className="cursor-pointer text-center">{t("errors.details")}</summary>
+              <pre className="mt-2 max-h-48 overflow-auto rounded-lg bg-surface-2 p-3 break-words whitespace-pre-wrap">
+                {describe(error)}
+              </pre>
+            </details>
+          </div>
+        }
       />
     </div>
   );

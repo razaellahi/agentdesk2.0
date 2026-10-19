@@ -2,6 +2,7 @@ import { AlertTriangle, RotateCw } from "lucide-react";
 import { ConfigError } from "@/config";
 import { ApiError } from "@/core/api";
 import { i18n } from "@/core/i18n";
+import { Button } from "@/components/ui/button";
 
 interface StartupErrorProps {
   error: unknown;
@@ -36,29 +37,25 @@ function describe(error: unknown): { title: string; detail: string; issues: stri
 export function StartupError({ error, onRetry }: StartupErrorProps) {
   const { title, detail, issues } = describe(error);
   return (
-    <main className="grid h-full place-items-center bg-canvas p-4">
-      <div className="w-full max-w-md rounded-xl border bg-surface p-6 text-center shadow-pop">
-        <div className="mx-auto mb-4 grid size-12 place-items-center rounded-full bg-destructive-soft text-destructive-text">
+    <main className="desk-canvas grid h-full place-items-center p-4">
+      <div className="desk-panel desk-enter w-full max-w-md rounded-2xl p-7 text-center">
+        <div className="mx-auto mb-4 grid size-12 place-items-center rounded-2xl bg-destructive-soft text-destructive-text">
           <AlertTriangle className="size-6" aria-hidden />
         </div>
-        <h1 className="text-lg font-semibold">Unable to start Agent Desk</h1>
+        <h1 className="font-display text-xl tracking-tight">Unable to start Agent Desk</h1>
         <p className="mt-1 text-sm font-medium text-medium">{title}</p>
         {detail && <p className="mt-2 text-sm break-words text-muted-foreground">{detail}</p>}
         {issues.length > 0 && (
-          <ul className="mt-3 max-h-40 overflow-auto rounded-md bg-surface-2 p-3 text-start font-mono text-xs text-medium">
+          <ul className="mt-3 max-h-40 overflow-auto rounded-xl bg-muted p-3 text-start font-mono text-xs text-medium">
             {issues.map((issue) => (
               <li key={issue}>{issue}</li>
             ))}
           </ul>
         )}
-        <button
-          type="button"
-          onClick={onRetry}
-          className="mt-5 inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary-hover"
-        >
+        <Button type="button" onClick={onRetry} className="mt-5">
           <RotateCw className="size-4" aria-hidden />
           Retry
-        </button>
+        </Button>
       </div>
     </main>
   );

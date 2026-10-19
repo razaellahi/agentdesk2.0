@@ -3,6 +3,9 @@ import type { AgentDeskSettingsDoc, DeskSettings } from "./types";
 type Partialish<T> = { [K in keyof T]?: T[K] extends object ? Partialish<T[K]> : T[K] };
 
 /** Same defaults as the unified-admin model, used when a group or field is missing. */
+/** Legacy groups carry untyped extras; only accept real numbers from them. */
+const numberOr = (value: unknown): number | undefined => (typeof value === "number" ? value : undefined);
+
 export function resolveDeskSettings(
   raw: Partialish<AgentDeskSettingsDoc>,
   fallbacks: { isCallingComplianceEnabled?: boolean; DASHBOARD_REFRESH_TIME?: number } = {},
@@ -29,11 +32,11 @@ export function resolveDeskSettings(
 
   return {
     id: String(raw.id ?? (raw as { _id?: string })._id ?? ""),
-    messageFormatting: m.isMessageFormattingEnabled ?? false,
+    messageFormatting: m.isMessageFormattingEnabled ?? true,
     textRefine: m.isTextRefineEnabled ?? false,
     spellCheck: m.isSpellCheckEnabled ?? true,
-    emojis: m.isEmojisEnabled ?? false,
-    fileSharing: m.isFileSharingEnabled ?? false,
+    emojis: m.isEmojisEnabled ?? true,
+    fileSharing: m.isFileSharingEnabled ?? true,
     knowledgeBaseSearch: k.isKnowledgeBaseSearchEnabled ?? false,
     knowledgeBaseUrl: k.knowledgeBaseUrl ?? "",
     voicemail: v.isVoicemailEnabled ?? false,
@@ -47,7 +50,12 @@ export function resolveDeskSettings(
     crmEvents: c.isCrmEventsEnabled ?? false,
     crmVoiceEvents: c.enableVoiceEventsForCrm ?? false,
     autoAnswer: h.isAutoAnswerEnabled ?? false,
-    autoAnswerDelayMs: h.autoAnswerDelay ?? 5000,
+    // Source order: conversationHandling → voiceTelephony → ciscoSettings, else answer at once.
+    autoAnswerDelayMs:
+      h.autoAnswerDelay ??
+      numberOr((v as Record<string, unknown>).autoAnswerDelay) ??
+      numberOr((cisco as Record<string, unknown>).autoAnswerDelay) ??
+      0,
     wrapUp: h.isWrapUpEnabled ?? false,
     wrapUpSeconds: h.wrapUpTime ?? 60,
     conversationParticipants: h.isConversationParticipantsEnabled ?? false,

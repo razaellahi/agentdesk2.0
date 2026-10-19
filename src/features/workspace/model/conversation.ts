@@ -298,6 +298,10 @@ export function buildConversation(payload: TopicDataPayload, ctx: ModelContext, 
         "agent_unsubscribed",
         "task_state_changed",
         "participant_role_changed",
+        "call_leg_ended",
+        "voice_activity",
+        "voice_mail_activity",
+        "conversation_data_changed",
       ].includes(name)
     ) {
       const message = systemMessageFor(event, ctx);

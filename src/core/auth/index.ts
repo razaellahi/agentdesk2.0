@@ -5,6 +5,7 @@ export {
   useCurrentUser,
   sessionPersistence,
   realmRolesFromToken,
+  clientRolesFromToken,
 } from "./sessionStore";
 export {
   loginWithPassword,

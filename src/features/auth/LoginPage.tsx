@@ -1,15 +1,23 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Eye, EyeOff, Loader2, LogIn } from "lucide-react";
-import { lazy, Suspense, useCallback, useMemo, useState } from "react";
+import {
+  AlertCircle,
+  ArrowBigUpDash,
+  ArrowRight,
+  Eye,
+  EyeOff,
+  Loader2,
+  LockKeyhole,
+  UserRound,
+} from "lucide-react";
+import { lazy, Suspense, useCallback, useMemo, useState, type KeyboardEvent } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 import { BrandLogo } from "@/components/common/BrandLogo";
-import { LanguageMenu } from "@/components/common/LanguageMenu";
-import { ThemeMenu } from "@/components/common/ThemeMenu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { applyPreferences, fetchPreferences } from "@/core/agent-settings";
 import { ApiError } from "@/core/api";
 import {
   loginWithPassword,
@@ -17,9 +25,10 @@ import {
   type LoginOutcome,
   type PasswordCredentials,
 } from "@/core/auth";
+import { cn } from "@/shared/lib/utils";
 import { useBootError } from "./bootError";
 import { ChangePasswordDialog } from "./components/ChangePasswordDialog";
-// Phone-number metadata (libphonenumber) is only needed for SMS 2FA.
+
 const TwoFactorStep = lazy(() =>
   import("./components/TwoFactorStep").then((m) => ({ default: m.TwoFactorStep })),
 );
@@ -29,6 +38,15 @@ type Step =
   | { kind: "twoFactor"; challenge: Extract<LoginOutcome, { kind: "twoFactor" }> }
   | { kind: "changePassword" };
 
+function FieldError({ id, message }: { id: string; message?: string }) {
+  if (!message) return null;
+  return (
+    <p id={id} className="text-[13px] text-destructive-text">
+      {message}
+    </p>
+  );
+}
+
 export function LoginPage() {
   const { t } = useTranslation();
   const bootError = useBootError();
@@ -36,6 +54,7 @@ export function LoginPage() {
   const [credentials, setCredentials] = useState<PasswordCredentials>({ username: "", password: "" });
   const [error, setError] = useState<string | null>(bootError);
   const [reveal, setReveal] = useState(false);
+  const [capsLock, setCapsLock] = useState(false);
 
   const schema = useMemo(
     () =>
@@ -62,8 +81,15 @@ export function LoginPage() {
     try {
       const outcome = await loginWithPassword(values);
       if (outcome.kind === "twoFactor") setStep({ kind: "twoFactor", challenge: outcome });
-      else if (outcome.kind === "passwordChangeRequired") setStep({ kind: "changePassword" });
-      // "authenticated": the router redirects away from /login.
+      else if (outcome.kind === "passwordChangeRequired") {
+        // As unified-agent: show the forced change in the user's saved theme/language.
+        if (outcome.userId) {
+          await fetchPreferences(outcome.userId, { anonymous: true })
+            .then((prefs) => prefs && applyPreferences(prefs))
+            .catch(() => undefined);
+        }
+        setStep({ kind: "changePassword" });
+      }
     } catch (err) {
       showError(err);
     }
@@ -86,46 +112,34 @@ export function LoginPage() {
     }
   };
 
+  const { errors, isSubmitting } = form.formState;
+  const fieldClass =
+    "h-12 rounded-xl border-transparent bg-muted/70 ps-11 text-[15px] hover:border-border hover:bg-muted focus-visible:border-primary focus-visible:bg-surface focus-visible:ring-4 focus-visible:ring-primary/12";
+  const iconClass =
+    "pointer-events-none absolute start-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground transition-colors peer-focus-visible:text-primary";
+  const trackCapsLock = (event: KeyboardEvent<HTMLInputElement>) =>
+    setCapsLock(event.getModifierState?.("CapsLock") ?? false);
+
   return (
-    <div className="grid min-h-full bg-canvas lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-      {/* Brand panel */}
-      <section
+    <div className="relative isolate flex min-h-full flex-col bg-canvas">
+      <div
         aria-hidden
-        className="relative hidden overflow-hidden bg-brand text-on-brand lg:flex lg:flex-col lg:justify-between lg:p-12"
-      >
-        <div className="pointer-events-none absolute -end-24 -top-24 size-96 rounded-full bg-brand-2 opacity-70" />
-        <div className="pointer-events-none absolute -start-16 -bottom-32 size-[28rem] rounded-full border-[48px] border-on-brand/10" />
-        <div className="relative flex items-center gap-3">
-          <BrandLogo inverted className="h-9" />
-          <span className="border-s border-on-brand/30 ps-3 text-lg font-semibold tracking-tight">
-            Agent Desk
-          </span>
-        </div>
-        <div className="relative max-w-md">
-          <h2 className="text-4xl leading-tight font-bold tracking-tight">{t("login.agent-desk")}</h2>
-          <p className="mt-3 text-lg opacity-85">{t("auth.tagline")}</p>
-        </div>
-        <p className="relative text-sm opacity-70">{t("login.call-center-experts")}</p>
-      </section>
+        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px]"
+        style={{
+          background:
+            "radial-gradient(55% 100% at 30% 0%, color-mix(in oklab, var(--primary) 10%, transparent), transparent 75%), radial-gradient(45% 80% at 75% 10%, color-mix(in oklab, var(--accent-cool) 8%, transparent), transparent 75%)",
+        }}
+      />
 
-      {/* Form panel */}
-      <main className="flex min-h-full flex-col">
-        <div className="flex items-center justify-between gap-2 p-4">
-          <div className="flex items-center gap-2 lg:invisible">
-            <BrandLogo className="h-7" />
-          </div>
-          <div className="flex items-center gap-1">
-            <LanguageMenu />
-            <ThemeMenu />
-          </div>
-        </div>
+      <main className="flex flex-1 flex-col items-center justify-center px-4 py-10">
+        <div className="desk-enter w-full max-w-[420px]">
+          <BrandLogo className="mx-auto mb-10 h-14 w-auto max-w-[280px]" />
 
-        <div className="flex flex-1 items-center justify-center px-4 pb-12">
-          <div className="w-full max-w-sm">
+          <div className="rounded-3xl border border-border/50 bg-surface/90 p-8 shadow-[0_2px_4px_rgba(16,24,40,.03),0_24px_60px_-24px_rgba(16,24,40,.18)] backdrop-blur-xl sm:p-10 dark:shadow-none">
             {error && (
               <div
                 role="alert"
-                className="mb-5 flex items-start gap-2 rounded-md bg-destructive-soft px-3 py-2.5 text-sm text-destructive-text"
+                className="mb-6 flex items-start gap-2.5 rounded-lg border border-destructive/20 bg-destructive-soft px-3.5 py-3 text-sm text-destructive-text"
               >
                 <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
                 <span>{error}</span>
@@ -142,54 +156,96 @@ export function LoginPage() {
                 />
               </Suspense>
             ) : (
-              <form onSubmit={submit} className="flex flex-col gap-5" noValidate>
-                <div>
-                  <h1 className="text-2xl font-bold tracking-tight">{t("auth.welcome")}</h1>
-                  <p className="mt-1 text-sm text-muted-foreground">{t("login.valid-credentials")}</p>
+              <form onSubmit={submit} className="flex flex-col gap-7" noValidate>
+                <div className="text-center">
+                  <h1 className="font-display text-[1.65rem] font-semibold tracking-[-0.025em]">
+                    {t("auth.welcome")}
+                  </h1>
+                  <p className="mt-2 text-sm leading-relaxed text-balance text-muted-foreground">
+                    {t("auth.sign-in-hint")}
+                  </p>
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="username">{t("login.username")}</Label>
-                  <Input
-                    id="username"
-                    autoComplete="username"
-                    autoFocus
-                    className="h-10"
-                    aria-invalid={Boolean(form.formState.errors.username) || undefined}
-                    {...form.register("username")}
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="password">{t("login.password")}</Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={reveal ? "text" : "password"}
-                      autoComplete="current-password"
-                      className="h-10 pe-10"
-                      aria-invalid={Boolean(form.formState.errors.password) || undefined}
-                      {...form.register("password")}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setReveal((r) => !r)}
-                      className="absolute end-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
-                      aria-label={reveal ? t("auth.hide-password") : t("auth.show-password")}
-                    >
-                      {reveal ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                    </button>
+
+                <div className="space-y-5">
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="username" className="text-[13px] font-medium text-medium">
+                      {t("login.username")}
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="username"
+                        autoComplete="username"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                        autoFocus
+                        className={cn(fieldClass, "peer")}
+                        aria-invalid={Boolean(errors.username) || undefined}
+                        aria-describedby={errors.username ? "username-error" : undefined}
+                        {...form.register("username")}
+                      />
+                      <UserRound className={iconClass} aria-hidden />
+                    </div>
+                    <FieldError id="username-error" message={errors.username?.message} />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="password" className="text-[13px] font-medium text-medium">
+                      {t("login.password")}
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={reveal ? "text" : "password"}
+                        autoComplete="current-password"
+                        className={cn(fieldClass, "peer pe-11")}
+                        aria-invalid={Boolean(errors.password) || undefined}
+                        aria-describedby={errors.password ? "password-error" : undefined}
+                        onKeyDown={trackCapsLock}
+                        onKeyUp={trackCapsLock}
+                        {...form.register("password", { onBlur: () => setCapsLock(false) })}
+                      />
+                      <LockKeyhole className={iconClass} aria-hidden />
+                      <button
+                        type="button"
+                        onClick={() => setReveal((r) => !r)}
+                        className="absolute end-1.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none"
+                        aria-label={reveal ? t("auth.hide-password") : t("auth.show-password")}
+                        aria-pressed={reveal}
+                      >
+                        {reveal ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      </button>
+                    </div>
+                    <FieldError id="password-error" message={errors.password?.message} />
+                    {capsLock && (
+                      <p className="flex items-center gap-1.5 text-[13px] text-warning-text" role="status">
+                        <ArrowBigUpDash className="size-3.5" aria-hidden />
+                        {t("auth.caps-lock-on")}
+                      </p>
+                    )}
                   </div>
                 </div>
-                <Button type="submit" size="lg" disabled={form.formState.isSubmitting}>
-                  {form.formState.isSubmitting ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <LogIn className="size-4 rtl:rotate-180" />
-                  )}
+
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="group mt-1 h-12 w-full rounded-xl bg-gradient-to-b from-primary to-primary-hover text-[15px] font-medium shadow-[inset_0_1px_0_rgba(255,255,255,.18),0_10px_24px_-12px_var(--primary)] transition-[box-shadow,transform] hover:shadow-[inset_0_1px_0_rgba(255,255,255,.18),0_14px_28px_-12px_var(--primary)] active:scale-[0.99]"
+                  disabled={isSubmitting}
+                  aria-busy={isSubmitting || undefined}
+                >
+                  {isSubmitting && <Loader2 className="size-4 animate-spin" aria-hidden />}
                   {t("login.login")}
+                  {!isSubmitting && (
+                    <ArrowRight
+                      className="size-4 transition-transform group-hover:translate-x-0.5 rtl:rotate-180 rtl:group-hover:-translate-x-0.5"
+                      aria-hidden
+                    />
+                  )}
                 </Button>
               </form>
             )}
           </div>
+
+          <p className="mt-6 text-center text-[13px] text-muted-foreground">{t("auth.trouble-signing-in")}</p>
         </div>
       </main>
 

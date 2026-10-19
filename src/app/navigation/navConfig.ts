@@ -3,10 +3,13 @@ import {
   Archive,
   AudioLines,
   BarChart3,
+  Briefcase,
+  ClipboardCheck,
   ClipboardList,
   Contact,
+  FilePlus2,
+  FileSpreadsheet,
   Gauge,
-  Languages,
   LayoutDashboard,
   ListChecks,
   ListOrdered,
@@ -15,6 +18,7 @@ import {
   ScrollText,
   Settings2,
   ShieldCheck,
+  SlidersHorizontal,
   Tags,
   TableProperties,
   Tag,
@@ -40,23 +44,30 @@ export interface NavItem {
   permission?: PermissionKey;
   /** Extra availability rule (feature flag, deployment profile, desk setting). */
   enabled?: (ctx: NavContext) => boolean;
+  /** Routed and permission-guarded, but reached from inside its module rather than the menu. */
+  hidden?: boolean;
 }
 
 export interface NavSection {
   id: string;
   labelKey: string;
+  icon: LucideIcon;
   items: NavItem[];
 }
+
+/** Case Management lives on its own backend; no CASE_API_URL, no Cases module. */
+export const caseManagementEnabled = ({ config }: NavContext) => Boolean(config.CASE_API_URL);
 
 /**
  * The single source of truth for navigation, page titles and route permissions
  * (replaces unified-agent menu-config.service.ts, VRS app-header menu and the
- * unified-admin "Agent Desk" sidebar panel).
+ * unified-admin Agent Desk settings, Teams and QM models).
  */
 export const NAV_SECTIONS: NavSection[] = [
   {
     id: "workspace",
     labelKey: "nav.workspace",
+    icon: MessagesSquare,
     items: [
       {
         id: "conversations",
@@ -70,6 +81,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     id: "customers",
     labelKey: "nav.customers",
+    icon: Contact,
     items: [
       {
         id: "customers",
@@ -110,8 +122,57 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    id: "cases",
+    labelKey: "nav.cases",
+    icon: Briefcase,
+    items: [
+      {
+        id: "cases-workbench",
+        path: "/cases",
+        labelKey: "nav.cases-workbench",
+        icon: Briefcase,
+        permission: "cases",
+        enabled: caseManagementEnabled,
+      },
+      {
+        id: "cases-new",
+        path: "/cases/new",
+        labelKey: "cases.create.title",
+        icon: FilePlus2,
+        permission: "cases",
+        enabled: caseManagementEnabled,
+        hidden: true,
+      },
+      {
+        id: "cases-dashboard",
+        path: "/cases/dashboard",
+        labelKey: "nav.cases-dashboard",
+        icon: LayoutDashboard,
+        permission: "casesReports",
+        enabled: caseManagementEnabled,
+      },
+      {
+        id: "cases-reports",
+        path: "/cases/reports",
+        labelKey: "nav.cases-reports",
+        icon: FileSpreadsheet,
+        permission: "casesReports",
+        enabled: caseManagementEnabled,
+      },
+      {
+        id: "cases-admin",
+        path: "/cases/admin",
+        labelKey: "nav.cases-admin",
+        icon: SlidersHorizontal,
+        permission: "casesAdmin",
+        enabled: caseManagementEnabled,
+      },
+    ],
+  },
+  {
     id: "supervise",
     labelKey: "nav.supervise",
+    icon: Activity,
     items: [
       {
         id: "live",
@@ -153,6 +214,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     id: "insights",
     labelKey: "nav.insights",
+    icon: BarChart3,
     items: [
       {
         id: "summary",
@@ -195,6 +257,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     id: "recordings",
     labelKey: "nav.recordings",
+    icon: AudioLines,
     items: [
       {
         id: "recordings",
@@ -242,6 +305,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     id: "administration",
     labelKey: "nav.administration",
+    icon: Settings2,
     items: [
       {
         id: "admin-settings",
@@ -251,18 +315,18 @@ export const NAV_SECTIONS: NavSection[] = [
         permission: "adminSettings",
       },
       {
-        id: "admin-languages",
-        path: "/admin/languages",
-        labelKey: "nav.languages",
-        icon: Languages,
-        permission: "adminSettings",
+        id: "teams",
+        path: "/admin/teams",
+        labelKey: "nav.teams",
+        icon: Users,
+        permission: "teams",
       },
       {
-        id: "admin-translations",
-        path: "/admin/translations",
-        labelKey: "nav.translations",
-        icon: ScrollText,
-        permission: "adminSettings",
+        id: "qm-models",
+        path: "/admin/qm-models",
+        labelKey: "nav.qm-models",
+        icon: ClipboardCheck,
+        permission: "qmModels",
       },
     ],
   },

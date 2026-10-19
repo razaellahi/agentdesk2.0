@@ -3,7 +3,7 @@ import { Navigate, useLocation } from "react-router";
 import { useDeskSettingsStore } from "@/core/agent-settings";
 import { useSessionStore } from "@/core/auth";
 import { navItemById } from "../navigation/navConfig";
-import { isNavItemAvailable } from "../navigation/useNavigation";
+import { navItemAccess } from "../navigation/useNavigation";
 import { ForbiddenPage } from "../pages/ForbiddenPage";
 
 export function RequireAuth({ children }: { children: ReactNode }) {
@@ -29,7 +29,9 @@ export function RedirectIfAuthenticated({ children }: { children: ReactNode }) {
 export function RequireNavItem({ id, children }: { id: string; children: ReactNode }) {
   const user = useSessionStore((s) => s.user);
   const realmRoles = useSessionStore((s) => s.realmRoles);
+  const clientRoles = useSessionStore((s) => s.clientRoles);
   const settings = useDeskSettingsStore((s) => s.settings);
-  if (!isNavItemAvailable(navItemById(id), { user, realmRoles }, settings)) return <ForbiddenPage />;
+  const access = navItemAccess(navItemById(id), { user, realmRoles, clientRoles }, settings);
+  if (access !== "allowed") return <ForbiddenPage reason={access} />;
   return children;
 }

@@ -1,4 +1,4 @@
-"use client";
+import { usePortalContainer } from "./portal-container";
 
 import * as React from "react";
 import { cn } from "@/shared/lib/utils";
@@ -50,8 +50,9 @@ function SelectContent({
   align = "center",
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Content>) {
+  const container = usePortalContainer();
   return (
-    <SelectPrimitive.Portal>
+    <SelectPrimitive.Portal container={container}>
       <SelectPrimitive.Content
         data-slot="select-content"
         className={cn(

@@ -12,7 +12,7 @@ export interface AgentPreferences {
   theme?: "light" | "dark" | "system";
   language?: string;
   home_page?: string;
-  pinned_quick_links?: string[];
+  pinned_quick_links?: Array<string | { _id: string }>;
   /** Agent Desk 2.0 additions; older backends ignore unknown fields. */
   density?: "comfortable" | "compact";
   board?: { maxPanes?: number; autoPlace?: boolean };
@@ -31,12 +31,22 @@ export const usePreferencesStore = create<PreferencesState>()((set) => ({
   setPrefs: (prefs) => set({ prefs, loaded: true }),
 }));
 
+/** Reads a user's /agentSetting without touching the signed-in preference store. */
+export async function fetchPreferences(
+  userId: string,
+  { anonymous = false }: { anonymous?: boolean } = {},
+): Promise<AgentPreferences | null> {
+  // Before sign-in (forced password change) there is no session to refresh or end.
+  const response = await cimCustomerApi.get<AgentPreferences | AgentPreferences[]>("/agentSetting", {
+    searchParams: { user_Id: userId },
+    ...(anonymous && { auth: false }),
+  });
+  return (Array.isArray(response) ? response[0] : response) ?? null;
+}
+
 export async function loadPreferences(userId: string): Promise<AgentPreferences | null> {
   try {
-    const response = await cimCustomerApi.get<AgentPreferences | AgentPreferences[]>("/agentSetting", {
-      searchParams: { user_Id: userId },
-    });
-    const prefs = (Array.isArray(response) ? response[0] : response) ?? null;
+    const prefs = await fetchPreferences(userId);
     usePreferencesStore.getState().setPrefs(prefs);
     return prefs;
   } catch (error) {

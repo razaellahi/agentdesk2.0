@@ -1,4 +1,4 @@
-import { Check, ChevronDown, LogOut, Wifi, WifiOff } from "lucide-react";
+import { Check, ChevronDown, LogOut, WifiOff } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -37,14 +37,76 @@ function mrdLabel(name: string) {
   return n === "cx voice" ? "CX Voice" : n === "cisco cc" ? "Cisco CC" : titleCase(n);
 }
 
+function StatusDot({
+  offline,
+  connecting,
+  ready,
+}: {
+  offline: boolean;
+  connecting: boolean;
+  ready: boolean;
+}) {
+  return (
+    <span className="relative flex size-2.5 shrink-0">
+      <span
+        className={cn(
+          "relative size-2.5 rounded-full shadow-2xs",
+          offline && "bg-muted-foreground",
+          connecting && "bg-primary",
+          !offline && !connecting && ready && "bg-success",
+          !offline && !connecting && !ready && "bg-warning",
+        )}
+      />
+    </span>
+  );
+}
+
+/** One clock: a short label over a fixed-width time. */
+function TimeStat({
+  label,
+  value,
+  tone = "quiet",
+}: {
+  label: string;
+  value: string;
+  tone?: "ready" | "away" | "quiet";
+}) {
+  return (
+    <span
+      className="flex min-w-[4.25rem] flex-col gap-0.5 text-start leading-none"
+      title={`${label} ${value}`}
+    >
+      <span
+        className={cn(
+          "max-w-[7.5rem] truncate text-[10px] font-medium tracking-wide text-muted-foreground",
+          tone === "ready" && "font-semibold text-success-text",
+          tone === "away" && "font-semibold text-warning-text",
+        )}
+      >
+        {label}
+      </span>
+      <span
+        className={cn(
+          "font-mono text-[12.5px] tracking-tight tabular-nums",
+          tone === "quiet" ? "font-medium text-foreground/80" : "font-semibold text-foreground",
+        )}
+      >
+        {value}
+      </span>
+    </span>
+  );
+}
+
 /**
  * Agent state control (unified-agent app-header state menu): Ready / Not Ready
- * with reason, per-channel (MRD) toggles, state timer and logout with reason.
+ * with reason, per-channel (MRD) toggles, and logout with reason.
+ * The bar shows how long the current state has lasted, and how long the agent has been logged in.
  */
 export function AgentStateMenu() {
   const { t } = useTranslation();
   const presence = useAgentStore((s) => s.presence);
   const since = useAgentStore((s) => s.stateSince);
+  const loginAt = useAgentStore((s) => s.loginAt);
   const reasons = useAgentStore((s) => s.reasonCodes);
   const pending = useAgentStore((s) => s.pending);
   const canChangeMrd = usePermission({ scope: ["state-change", "manage_state_change"] });
@@ -55,7 +117,9 @@ export function AgentStateMenu() {
 
   const state = presence?.state?.name ?? null;
   const ready = state === "READY";
-  const elapsed = since ? formatDuration((now - since) / 1000, true) : "--:--:--";
+  const notReady = state === "NOT_READY";
+  const loggedIn = loginAt ? formatDuration((now - loginAt) / 1000, true) : "--:--:--";
+  const stateClock = since ? formatDuration((now - since) / 1000, true) : "--:--:--";
   const blocked = logoutBlocked(presence);
   const notReadyReasons = reasons.filter((r) => r.type?.toLowerCase() === "not_ready");
   const logoutReasons = reasons.filter((r) => r.type?.toLowerCase() === "logout");
@@ -77,7 +141,21 @@ export function AgentStateMenu() {
   };
 
   const offline = socket !== "connected";
-  const stateLabel = offline ? t("workspace.offline") : state ? titleCase(state) : t("workspace.connecting");
+  const connecting = socket === "connecting";
+  const reasonName =
+    state === "NOT_READY"
+      ? (presence?.state?.reasonCode?.name ?? reasons.find((r) => r.id === activeReason)?.name ?? null)
+      : null;
+  const stateLabel = offline
+    ? t("workspace.offline")
+    : connecting
+      ? t("workspace.connecting")
+      : state
+        ? titleCase(state)
+        : t("workspace.connecting");
+  const live = !offline && !connecting;
+  const stateClockLabel = !live ? stateLabel : reasonName || stateLabel;
+  const ariaTimes = `${stateClockLabel} ${live ? stateClock : ""}. ${t("workspace.logged-in-time")} ${loggedIn}`;
 
   return (
     <DropdownMenu>
@@ -85,50 +163,49 @@ export function AgentStateMenu() {
         <Button
           variant="outline"
           className={cn(
-            "h-9 gap-2 rounded-full ps-1.5 pe-3",
-            !offline && ready && "border-success/50 bg-success-soft",
-            !offline && state === "NOT_READY" && "border-warning/50 bg-warning-soft",
+            "h-9 gap-2.5 rounded-xl border-border/80 bg-surface px-3 font-normal shadow-2xs transition-all hover:bg-surface-2",
+            pending && "opacity-80",
           )}
-          aria-label={t("workspace.agent-state", { state: stateLabel })}
+          aria-label={`${t("workspace.agent-state", { state: stateLabel })}. ${ariaTimes}`}
         >
-          <span
-            className={cn(
-              "grid size-6 place-items-center rounded-full text-primary-foreground",
-              offline ? "bg-muted-foreground" : ready ? "bg-success" : "bg-warning",
-            )}
-          >
-            {offline ? (
-              <WifiOff className="size-3.5" />
-            ) : ready ? (
-              <Check className="size-3.5" />
-            ) : (
-              <Wifi className="size-3.5" />
-            )}
-          </span>
-          <span className="hidden text-sm font-medium sm:inline">{stateLabel}</span>
-          <span className="text-xs text-muted-foreground tabular">{elapsed}</span>
-          <ChevronDown className="size-3.5 opacity-60" />
+          <StatusDot offline={offline} connecting={connecting} ready={ready} />
+          <TimeStat
+            label={stateClockLabel}
+            value={live ? stateClock : "--:--:--"}
+            tone={live && ready ? "ready" : live && notReady ? "away" : "quiet"}
+          />
+          <TimeStat label={t("workspace.logged-in-time")} value={loggedIn} />
+          <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-72">
-        <DropdownMenuLabel className="text-xs text-muted-foreground">
-          {t("workspace.my-state")}
-        </DropdownMenuLabel>
-        <DropdownMenuItem disabled={pending || offline} onSelect={() => setState("READY", null)}>
+      <DropdownMenuContent
+        align="end"
+        className="w-64 rounded-2xl border-border/60 bg-surface/95 p-1.5 shadow-lift backdrop-blur-xl"
+      >
+        <DropdownMenuItem
+          disabled={pending || offline || connecting}
+          onSelect={(e) => {
+            e.preventDefault();
+            setState("READY", null);
+          }}
+        >
           <span className="size-2 rounded-full bg-success" />
           <span className="flex-1">{t("app-header.ready")}</span>
-          {ready && <span className="text-xs text-muted-foreground tabular">{elapsed}</span>}
+          {ready && !offline && <Check className="size-4 text-muted-foreground" />}
         </DropdownMenuItem>
         {notReadyReasons.map((reason) => (
           <DropdownMenuItem
             key={reason.id}
-            disabled={pending || offline}
-            onSelect={() => setState("NOT_READY", reason)}
+            disabled={pending || offline || connecting}
+            onSelect={(e) => {
+              e.preventDefault();
+              setState("NOT_READY", reason);
+            }}
           >
             <span className="size-2 rounded-full bg-warning" />
             <span className="flex-1 truncate">{reason.name}</span>
             {state === "NOT_READY" && (presence?.state?.reasonCode?.id ?? activeReason) === reason.id && (
-              <span className="text-xs text-muted-foreground tabular">{elapsed}</span>
+              <Check className="size-4 text-muted-foreground" />
             )}
           </DropdownMenuItem>
         ))}
@@ -136,7 +213,7 @@ export function AgentStateMenu() {
         {canChangeMrd && (presence?.agentMrdStates?.length ?? 0) > 0 && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuLabel className="text-xs text-muted-foreground">
+            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
               {t("app-header.channel-categories")}
             </DropdownMenuLabel>
             {presence!.agentMrdStates.map((m) => (
@@ -147,7 +224,7 @@ export function AgentStateMenu() {
                 </span>
                 <Switch
                   checked={isMrdOn(m.state)}
-                  disabled={pending || offline}
+                  disabled={pending || offline || connecting}
                   aria-label={mrdLabel(m.mrd.name)}
                   onCheckedChange={(on) => {
                     useAgentStore.getState().setPending(true);
@@ -197,6 +274,12 @@ export function AgentStateMenu() {
         {openConversations > 0 && blocked === "active" && (
           <p className="px-2 pb-1.5 text-xs text-muted-foreground">
             {t("app-header.logout-disabled-active")}
+          </p>
+        )}
+        {(offline || connecting) && (
+          <p className="flex items-center gap-1.5 px-2 pb-1.5 text-xs text-muted-foreground">
+            <WifiOff className="size-3.5 shrink-0" aria-hidden />
+            {offline ? t("workspace.connection-lost-hint") : t("workspace.connection-reconnecting-hint")}
           </p>
         )}
       </DropdownMenuContent>

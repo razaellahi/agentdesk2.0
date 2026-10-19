@@ -26,6 +26,7 @@ interface ConversationActions {
   showWrapUp(conversationId: string, durationSeconds: number, now: number): void;
   hideWrapUp(conversationId: string): void;
   closeSlaPopup(conversationId: string): void;
+  setCustomer(conversationId: string, customer: Conversation["customer"]): void;
   reset(): void;
 }
 
@@ -65,7 +66,6 @@ export const useConversationStore = create<ConversationState & ConversationActio
         const c = s.byId[conversationId];
         if (c) {
           effects = applyCimEvent(c, event, ctx);
-          if (s.activeId === conversationId) c.unread = 0;
         }
       });
       return effects;
@@ -88,7 +88,6 @@ export const useConversationStore = create<ConversationState & ConversationActio
     setActive(conversationId) {
       set((s) => {
         s.activeId = conversationId;
-        if (conversationId && s.byId[conversationId]) s.byId[conversationId].unread = 0;
       });
     },
 
@@ -137,6 +136,13 @@ export const useConversationStore = create<ConversationState & ConversationActio
       set((s) => {
         const c = s.byId[conversationId];
         if (c) c.wrapUp = { show: false, deadline: null };
+      });
+    },
+
+    setCustomer(conversationId, customer) {
+      set((s) => {
+        const c = s.byId[conversationId];
+        if (c) c.customer = customer;
       });
     },
 

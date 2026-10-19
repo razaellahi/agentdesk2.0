@@ -6,7 +6,7 @@ export async function notify(title: string, body: string) {
     if (Notification.permission !== "granted") return;
     const n = new Notification(title, {
       body,
-      icon: `${import.meta.env.BASE_URL}images/ef-mark.svg`,
+      icon: `${import.meta.env.BASE_URL}images/icon-192.png`,
       tag: title,
     });
     n.onclick = () => {

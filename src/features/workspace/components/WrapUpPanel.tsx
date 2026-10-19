@@ -48,9 +48,9 @@ function CategoryOptions({
   const loading = queries.some((q) => q.isLoading);
 
   return (
-    <div className="rounded-lg border p-2">
-      <p className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{label}</p>
-      <div className="flex flex-wrap gap-1">
+    <div className="space-y-2 rounded-xl border border-border bg-surface-2/40 p-3">
+      <p className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">{label}</p>
+      <div className="flex flex-wrap gap-1.5">
         {options.map((option) => {
           const value = optionLabel(option);
           if (!value) return null;
@@ -60,20 +60,20 @@ function CategoryOptions({
               type="button"
               disabled={disabled}
               onClick={() => onPick(label, value)}
-              className="rounded-full border px-2 py-0.5 text-xs hover:bg-primary-soft disabled:opacity-50"
+              className="hover:bg-primary-lt rounded-full border border-border bg-surface px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-50"
             >
               {value}
             </button>
           );
         })}
-        {loading && <Loader2 className="size-4 animate-spin" />}
+        {loading && <Loader2 className="size-4 animate-spin text-primary" />}
       </div>
       {options.length < total && (
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          className="mt-1"
+          className="hover:bg-primary-lt mt-1 h-7 text-xs font-medium text-primary"
           onClick={() => setPages((p) => p + 1)}
         >
           {t("chat-features.interactions.load-more")}
@@ -89,11 +89,14 @@ export function WrapUpPanel({
   onSave,
   onSkip,
   onClose,
+  chrome = true,
 }: {
   deadline: number | null;
   onSave: (wrapups: WrapUpSelection[], note: string) => void;
   onSkip?: () => void;
   onClose?: () => void;
+  /** When false, omit outer card chrome (used inside a Sheet). */
+  chrome?: boolean;
 }) {
   const { t } = useTranslation();
   const seconds = useSecondsLeft(deadline);
@@ -146,34 +149,53 @@ export function WrapUpPanel({
 
   return (
     <section
-      className="flex max-h-[50%] flex-col gap-2 overflow-auto border-t bg-surface p-3"
+      className={cn(
+        "flex flex-col gap-3.5",
+        chrome && "max-h-[50%] overflow-auto border-t border-border bg-surface p-4 shadow-lg",
+      )}
       aria-label={t("chat-features.interactions.wrapup")}
     >
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold">{t("chat-features.interactions.wrapup")}</h3>
-        {seconds !== null && (
-          <span className="text-sm font-semibold text-warning-text tabular">{formatDuration(seconds)}</span>
-        )}
-      </div>
+      {chrome && (
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold tracking-tight text-foreground">
+            {t("chat-features.interactions.wrapup")}
+          </h3>
+          {seconds !== null && (
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium tabular-nums",
+                seconds <= 30
+                  ? "animate-pulse border border-destructive/30 bg-destructive-soft text-destructive-text"
+                  : "border border-warning/30 bg-warning-soft text-warning-text",
+              )}
+            >
+              ⏱️ {formatDuration(seconds)}
+            </span>
+          )}
+        </div>
+      )}
+      {!chrome && seconds !== null && (
+        <p className="text-sm font-medium text-warning-text tabular">{formatDuration(seconds)}</p>
+      )}
       <Input
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder={t("workspace.search-wrapup")}
         aria-label={t("workspace.search-wrapup")}
+        className="h-9 rounded-lg"
       />
       {selected.length > 0 && (
-        <ul className="flex flex-wrap gap-1">
+        <ul className="flex flex-wrap gap-1.5">
           {selected.map((item) => (
             <li
               key={`${item.categoryName}:${item.value}`}
-              className={cn(
-                "inline-flex items-center gap-1 rounded-full bg-primary-soft px-2 py-0.5 text-xs text-primary",
-              )}
+              className="bg-primary-lt inline-flex animate-in items-center gap-1.5 rounded-full border border-primary/20 px-3 py-1 text-xs font-medium text-primary zoom-in-95 fade-in"
             >
-              {item.value}
+              <span>{item.value}</span>
               <button
                 type="button"
                 aria-label={t("globals.close")}
+                className="rounded-full p-0.5 text-primary hover:bg-primary/20"
                 onClick={() => setSelected((c) => c.filter((x) => x !== item))}
               >
                 <X className="size-3" />
@@ -183,14 +205,14 @@ export function WrapUpPanel({
         </ul>
       )}
       {query ? (
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1.5">
           {(searchQuery.data?.results ?? []).map((option) => {
             const value = optionLabel(option);
             return (
               <button
                 key={`${option.categoryName}-${value}`}
                 type="button"
-                className="rounded-full border px-2 py-0.5 text-xs"
+                className="hover:bg-primary-lt rounded-full border border-border bg-surface px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary"
                 onClick={() => pick(String(option.categoryName ?? ""), value)}
               >
                 {option.categoryName ? `${option.categoryName}: ` : ""}
@@ -200,7 +222,7 @@ export function WrapUpPanel({
           })}
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2.5">
           {(categories.data?.categories ?? []).map((category, index) => (
             <CategoryOptions
               key={category._categoryIndex ?? index}
@@ -211,7 +233,13 @@ export function WrapUpPanel({
             />
           ))}
           {categories.data?.hasMore && (
-            <Button type="button" variant="ghost" size="sm" onClick={() => setPages((p) => p + 1)}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="hover:bg-primary-lt text-xs font-medium text-primary"
+              onClick={() => setPages((p) => p + 1)}
+            >
               {t("chat-features.interactions.load-more")}
             </Button>
           )}
@@ -223,20 +251,35 @@ export function WrapUpPanel({
         rows={2}
         placeholder={t("chat-features.interactions.notes")}
         aria-label={t("chat-features.interactions.notes")}
+        className="rounded-lg"
       />
-      <div className="flex justify-end gap-2">
+      <div className="flex justify-end gap-2 pt-1">
         {onClose && (
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="rounded-lg text-xs font-medium"
+            onClick={onClose}
+          >
             {t("chat-features.interactions.cancel")}
           </Button>
         )}
         {onSkip && (
-          <Button type="button" variant="outline" onClick={onSkip}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-lg text-xs font-medium"
+            onClick={onSkip}
+          >
             {t("workspace.skip-wrapup")}
           </Button>
         )}
         <Button
           type="button"
+          size="sm"
+          className="rounded-lg text-xs font-medium"
           onClick={() => onSave(selected, note)}
           disabled={!selected.length && !note.trim()}
         >

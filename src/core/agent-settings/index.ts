@@ -9,8 +9,10 @@ export {
 } from "./deskSettings";
 export {
   usePreferencesStore,
+  fetchPreferences,
   loadPreferences,
   savePreferences,
   usePreferences,
   type AgentPreferences,
 } from "./userPreferences";
+export { applyPreferences } from "./applyPreferences";

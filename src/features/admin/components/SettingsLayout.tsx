@@ -31,7 +31,10 @@ export function SectionIndex({ sections }: { sections: SectionMeta[] }) {
   }, [sections]);
 
   return (
-    <nav className="sticky top-4 hidden w-56 shrink-0 self-start xl:block" aria-label="Sections">
+    <nav
+      className="sticky top-4 hidden w-56 shrink-0 self-start rounded-xl border border-border bg-surface p-2 xl:block"
+      aria-label="Sections"
+    >
       <ul className="flex flex-col gap-0.5">
         {sections.map((s) => (
           <li key={s.id}>
@@ -42,11 +45,12 @@ export function SectionIndex({ sections }: { sections: SectionMeta[] }) {
                 document.getElementById(s.id)?.scrollIntoView({ behavior: "smooth", block: "start" });
               }}
               className={cn(
-                "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm text-medium hover:bg-surface-2",
-                active === s.id && "bg-primary-soft font-medium text-primary hover:bg-primary-soft",
+                "flex items-center gap-2.5 rounded-full px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground",
+                active === s.id &&
+                  "bg-primary-lt hover:bg-primary-lt font-medium text-primary hover:text-primary",
               )}
             >
-              <s.icon className="size-4" aria-hidden />
+              <s.icon className="size-4 shrink-0" aria-hidden />
               {s.title}
             </a>
           </li>
@@ -70,19 +74,23 @@ export function SettingsSection({
   children: ReactNode;
 }) {
   return (
-    <section id={id} className="scroll-mt-4 rounded-xl border bg-surface" aria-labelledby={`${id}-title`}>
-      <header className="flex items-start gap-3 border-b px-5 py-4">
-        <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary">
+    <section
+      id={id}
+      className="scroll-mt-4 rounded-xl border border-border bg-surface"
+      aria-labelledby={`${id}-title`}
+    >
+      <header className="flex items-start gap-3 border-b border-border px-5 py-4">
+        <div className="bg-primary-lt grid size-9 shrink-0 place-items-center rounded-full text-primary">
           <Icon className="size-4.5" aria-hidden />
         </div>
         <div>
-          <h3 id={`${id}-title`} className="font-semibold">
+          <h3 id={`${id}-title`} className="text-base font-semibold tracking-tight text-foreground">
             {title}
           </h3>
-          <p className="text-sm text-muted-foreground">{description}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
         </div>
       </header>
-      <div className="divide-y">{children}</div>
+      <div className="divide-y divide-border">{children}</div>
     </section>
   );
 }
@@ -139,11 +147,14 @@ interface FieldProps {
 /** Label + control + help/error, used for inputs inside sections and nested blocks. */
 export function Field({ label, description, error, htmlFor, children, className }: FieldProps) {
   return (
-    <div className={cn("flex flex-col gap-1.5", className)}>
-      <Label htmlFor={htmlFor} className="text-sm font-medium">
+    <div
+      className={cn("flex flex-col gap-1.5", className)}
+      data-settings-invalid={error ? htmlFor : undefined}
+    >
+      <Label htmlFor={htmlFor} className={cn("text-sm font-medium", error && "text-destructive-text")}>
         {label}
       </Label>
-      {children}
+      <div className={cn(error && "rounded-xl ring-2 ring-destructive/50")}>{children}</div>
       {error ? (
         <p className="text-sm text-destructive-text" role="alert">
           {error}

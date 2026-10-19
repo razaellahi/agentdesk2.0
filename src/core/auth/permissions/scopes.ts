@@ -3,6 +3,8 @@ import type { KeycloakUser } from "../types";
 export interface PermissionSubject {
   user: Pick<KeycloakUser, "roles" | "permittedResources"> | null;
   realmRoles: string[];
+  /** Token client roles (resource_access); optional for callers that only know realm roles. */
+  clientRoles?: string[];
 }
 
 /** Keycloak UMA check: does the user hold `scope` on resource `rsname`? (unified-agent AuthService.checkScope) */

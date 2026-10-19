@@ -13,6 +13,8 @@ const SECRET_KEYS = /pass(word)?|token|secret|otp|authorization|ctiParam|extStat
 
 /** Masks credential-like fields so secrets never reach the console or a reporter. */
 export function redact(value: unknown, depth = 0): unknown {
+  // An Error has no enumerable fields; copying it would log an empty object.
+  if (value instanceof Error) return value;
   if (depth > 4 || value === null || typeof value !== "object") return value;
   if (Array.isArray(value)) return value.map((item) => redact(item, depth + 1));
   return Object.fromEntries(

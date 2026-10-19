@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { focusedOverlayContainer } from "@/components/ui/portal-container";
 
 export interface ConfirmOptions {
   title: string;
@@ -6,6 +7,7 @@ export interface ConfirmOptions {
   confirmLabel?: string;
   cancelLabel?: string;
   destructive?: boolean;
+  container?: HTMLElement;
 }
 
 interface ConfirmState {
@@ -27,4 +29,5 @@ export const useConfirmStore = create<ConfirmState>()((set, get) => ({
 }));
 
 /** Imperative confirmation: `if (await confirm({ title })) …`. Rendered by <ConfirmHost/>. */
-export const confirm = (options: ConfirmOptions) => useConfirmStore.getState().open(options);
+export const confirm = (options: ConfirmOptions) =>
+  useConfirmStore.getState().open({ container: focusedOverlayContainer(), ...options });

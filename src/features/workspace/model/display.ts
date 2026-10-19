@@ -3,7 +3,8 @@ import { messageText } from "./outgoing";
 import type { CimMessage, Conversation, SlaColor } from "./types";
 
 export function customerDisplayName(c: Conversation["customer"] | undefined): string {
-  return (c?.firstName ?? "").trim();
+  if (!c) return "";
+  return [c.firstName, c.lastName].filter(Boolean).join(" ").trim();
 }
 
 /** One-line preview of the last visible message for the conversation rail. */
@@ -40,4 +41,37 @@ export function waitingLevel(seconds: number | null): "ok" | "warn" | "breach" |
   if (seconds >= 120) return "breach";
   if (seconds >= 60) return "warn";
   return "ok";
+}
+
+const CHANNEL_LABELS: Record<string, string> = {
+  WHATSAPP: "WhatsApp",
+  WEB: "Web chat",
+  SMS: "SMS",
+  EMAIL: "Email",
+  FACEBOOK: "Facebook",
+  INSTAGRAM: "Instagram",
+  TWITTER: "X (Twitter)",
+  LINKEDIN: "LinkedIn",
+  YOUTUBE: "YouTube",
+  TELEGRAM: "Telegram",
+  VIBER: "Viber",
+  PLAY_STORE: "Play Store",
+  APPLE_STORE: "App Store",
+  CX_VOICE: "Voice",
+  CISCO_CC: "Voice",
+  WEB_RTC: "Video",
+};
+
+/** Friendly channel-type name for people ("WHATSAPP" → "WhatsApp"); unknown types are tidied. */
+export function channelLabel(name: string | undefined | null): string {
+  const key = (name ?? "").trim().toUpperCase();
+  if (!key) return "";
+  return (
+    CHANNEL_LABELS[key] ??
+    key
+      .toLowerCase()
+      .split("_")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ")
+  );
 }

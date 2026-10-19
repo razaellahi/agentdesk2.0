@@ -1,11 +1,9 @@
 import { useEffect } from "react";
 import { toast } from "sonner";
 import { getConfig } from "@/config";
-import { loadPreferences } from "@/core/agent-settings";
+import { applyPreferences, loadPreferences } from "@/core/agent-settings";
 import { useSessionStore } from "@/core/auth";
-import { changeLanguage, supportedCodes, t, useLocaleStore } from "@/core/i18n";
-import { localStore } from "@/core/storage/storage";
-import { useThemeStore, type ThemePreference } from "@/core/theme";
+import { t } from "@/core/i18n";
 import { queryClient } from "./queryClient";
 
 /**
@@ -22,20 +20,7 @@ export function SessionEffects() {
     if (!userId) return;
     let cancelled = false;
     void loadPreferences(userId).then((prefs) => {
-      if (cancelled || !prefs) return;
-      if (prefs.theme && ["light", "dark", "system"].includes(prefs.theme)) {
-        useThemeStore.getState().setPreference(prefs.theme as ThemePreference);
-      }
-      if (prefs.density) useThemeStore.getState().setDensity(prefs.density);
-      const codes = supportedCodes(useLocaleStore.getState().setting);
-      if (
-        prefs.language &&
-        codes.includes(prefs.language) &&
-        prefs.language !== useLocaleStore.getState().language
-      ) {
-        localStore.setString("language", prefs.language);
-        void changeLanguage(prefs.language);
-      }
+      if (!cancelled && prefs) applyPreferences(prefs);
     });
     return () => {
       cancelled = true;

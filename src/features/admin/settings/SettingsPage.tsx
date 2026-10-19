@@ -43,6 +43,37 @@ import {
 import { CISCO_FIELDS, CX_VOICE_FIELDS, HOLD_SPANS, type ConfigField } from "./fields";
 import { settingsSchema, toForm, toPayload, type SettingsForm } from "./model";
 
+const SETTINGS_ERROR_TOGGLES: Partial<Record<FieldPath<SettingsForm>, FieldPath<SettingsForm>>> = {
+  "knowledgeAiAssistance.knowledgeBaseUrl": "knowledgeAiAssistance.isKnowledgeBaseSearchEnabled",
+  "conversationHandling.wrapUpTime": "conversationHandling.isWrapUpEnabled",
+  "conversationHandling.inactivityTimeoutSeconds": "conversationHandling.isInactivityTimerEnabled",
+  "conversationHandling.prefixCode": "conversationHandling.isOutboundSmsEnabled",
+  "conversationHandling.autoAnswerDelay": "conversationHandling.isAutoAnswerEnabled",
+  "voiceTelephony.cxVoiceSettings.autoCallAnswerTimer": "voiceTelephony.isCxVoiceEnabled",
+};
+
+const SETTINGS_FIELD_IDS: Partial<Record<string, string>> = {
+  "knowledgeAiAssistance.knowledgeBaseUrl": "f-kb-url",
+  "conversationHandling.prefixCode": "f-prefix",
+  "conversationHandling.holdConversation": "f-hold",
+  "voiceTelephony.cxVoiceSettings.autoCallAnswerTimer": "f-cxVoiceSettings-autoCallAnswerTimer",
+};
+
+function settingsFieldLabel(path: string, t: (key: string) => string) {
+  const keys: Record<string, string> = {
+    "knowledgeAiAssistance.knowledgeBaseUrl": "admin-settings.fields.kbUrl.label",
+    "conversationHandling.wrapUpTime": "admin-settings.fields.wrapUpTime.label",
+    "conversationHandling.inactivityTimeoutSeconds": "admin-settings.fields.inactivityTime.label",
+    "conversationHandling.prefixCode": "admin-settings.fields.prefixCode.label",
+    "conversationHandling.holdConversation": "admin-settings.fields.hold.label",
+    "conversationHandling.autoAnswerDelay": "admin-settings.fields.autoAnswerDelay.label",
+    "workspacePreferences.dashboardRefreshTime": "admin-settings.fields.dashboardRefresh.label",
+    "voiceTelephony.cxVoiceSettings.autoCallAnswerTimer": "admin-settings.cx.autoCallAnswerTimer.label",
+  };
+  const key = keys[path];
+  return key ? t(key) : (path.split(".").at(-1) ?? path);
+}
+
 function SecretInput({ id, disabled, ...props }: React.ComponentProps<typeof Input>) {
   const { t } = useTranslation();
   const [reveal, setReveal] = useState(false);
@@ -138,13 +169,43 @@ export default function SettingsPage() {
   const ro = !canManage;
   const opts = { shouldDirty: true, shouldValidate: true } as const;
   const v = watch.voiceTelephony;
-  const ch = watch.conversationHandling;
   const hasVoice = Boolean(v?.isCiscoEnabled || v?.isCxVoiceEnabled);
   const errorOf = (path: FieldPath<SettingsForm>) => {
     const parts = path.split(".");
     let node: unknown = formState.errors;
     for (const p of parts) node = (node as Record<string, unknown> | undefined)?.[p];
-    return (node as { message?: string } | undefined)?.message;
+    if (!node || typeof node !== "object") return undefined;
+    const record = node as { message?: unknown; root?: { message?: unknown } };
+    if (typeof record.message === "string") return record.message;
+    if (typeof record.root?.message === "string") return record.root.message;
+    return undefined;
+  };
+
+  // isValid from the form library stays false even when these values pass the schema,
+  // which left Save disabled behind a generic "unsaved changes" line.
+  const parsedSettings = schema.safeParse(form.getValues());
+  const invalidFields = parsedSettings.success
+    ? []
+    : [
+        ...new Map(
+          parsedSettings.error.issues.map((issue) => {
+            const path = issue.path.map(String).join(".");
+            return [path, { path, message: issue.message, label: settingsFieldLabel(path, t) }] as const;
+          }),
+        ).values(),
+      ];
+
+  const revealInvalid = (path: string) => {
+    const fieldPath = path as FieldPath<SettingsForm>;
+    const parent = SETTINGS_ERROR_TOGGLES[fieldPath];
+    if (parent) setValue(parent, true, opts);
+    window.setTimeout(
+      () => {
+        const id = SETTINGS_FIELD_IDS[fieldPath] ?? `f-${path}`;
+        document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      },
+      parent ? 50 : 0,
+    );
   };
 
   const toggle = (
@@ -269,8 +330,8 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-6xl p-4 sm:p-6">
-      <PageHeader description={t("admin-settings.description")} className="mb-4" />
+    <div className="mx-auto w-full max-w-6xl p-4">
+      <PageHeader description={t("admin-settings.description")} className="mb-5" />
       {ro && <ReadOnlyNotice />}
       <div className="mt-4 flex gap-8">
         <SectionIndex sections={sections} />
@@ -343,7 +404,7 @@ export default function SettingsPage() {
                 <ToggleRow
                   label={t("admin-settings.fields.cisco.label")}
                   description={t("admin-settings.fields.cisco.description")}
-                  checked={field.value}
+                  checked={Boolean(field.value)}
                   disabled={ro || Boolean(v?.isCxVoiceEnabled)}
                   onChange={(on) => {
                     field.onChange(on);
@@ -367,7 +428,7 @@ export default function SettingsPage() {
                 <ToggleRow
                   label={t("admin-settings.fields.cxVoice.label")}
                   description={t("admin-settings.fields.cxVoice.description")}
-                  checked={field.value}
+                  checked={Boolean(field.value)}
                   disabled={ro || Boolean(v?.isCiscoEnabled)}
                   onChange={(on) => {
                     field.onChange(on);
@@ -440,7 +501,17 @@ export default function SettingsPage() {
                           {all ? t("globals.unselect-all") : t("globals.Select-All")}
                         </Button>
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-1.5" role="group">
+                      <div
+                        id="f-hold"
+                        data-settings-invalid={
+                          errorOf("conversationHandling.holdConversation") ? "f-hold" : undefined
+                        }
+                        className={cn(
+                          "mt-3 flex flex-wrap gap-1.5 rounded-xl",
+                          errorOf("conversationHandling.holdConversation") && "ring-2 ring-destructive/50",
+                        )}
+                        role="group"
+                      >
                         {HOLD_SPANS.map((n) => {
                           const on = selected.has(n);
                           return (
@@ -502,6 +573,7 @@ export default function SettingsPage() {
                       id="f-prefix"
                       maxLength={4}
                       readOnly={ro}
+                      aria-invalid={Boolean(errorOf("conversationHandling.prefixCode")) || undefined}
                       {...register("conversationHandling.prefixCode")}
                     />
                   </Field>
@@ -520,7 +592,7 @@ export default function SettingsPage() {
                         </div>
                         <Switch
                           id="f-sms-close"
-                          checked={field.value}
+                          checked={Boolean(field.value)}
                           onCheckedChange={field.onChange}
                           disabled={ro}
                         />
@@ -550,10 +622,27 @@ export default function SettingsPage() {
             <SaveBar
               visible={dirty}
               saving={save.isPending}
-              canSave={formState.isValid}
+              canSave={parsedSettings.success}
               onDiscard={() => reset(loaded)}
               onSave={() => void handleSubmit((values) => save.mutate(values))()}
-              message={ch && !formState.isValid ? t("admin-settings.fix-errors") : undefined}
+              message={
+                invalidFields.length > 0 ? (
+                  <span>
+                    {t("admin-settings.fix-errors")}{" "}
+                    {invalidFields.map((field, index) => (
+                      <button
+                        key={field.path}
+                        type="button"
+                        className="font-semibold text-destructive-text underline underline-offset-2"
+                        onClick={() => revealInvalid(field.path)}
+                      >
+                        {field.label}
+                        {index < invalidFields.length - 1 ? ", " : ""}
+                      </button>
+                    ))}
+                  </span>
+                ) : undefined
+              }
             />
           )}
         </form>

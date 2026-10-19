@@ -78,17 +78,20 @@ test.describe("authentication", () => {
 
 test.describe("language, direction and theme", () => {
   test("switching to Arabic flips the document to RTL", async ({ page }) => {
-    await page.goto("./");
-    await page.getByRole("button", { name: "Choose Language" }).click();
-    await page.getByRole("menuitem", { name: "العربية" }).click();
+    await login(page, "agent");
+    await expectShell(page);
+    await page.goto("./preferences");
+    await page.getByRole("combobox", { name: "Choose Language" }).click();
+    await page.getByRole("option", { name: /العربية/ }).click();
     await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
     await expect(page.locator("html")).toHaveAttribute("lang", "ar");
   });
 
   test("dark theme applies data-theme and persists", async ({ page }) => {
-    await page.goto("./");
-    await page.getByRole("button", { name: "Theme" }).click();
-    await page.getByRole("menuitem", { name: "Dark" }).click();
+    await login(page, "agent");
+    await expectShell(page);
+    await page.goto("./preferences");
+    await page.getByRole("radio", { name: "Dark" }).click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     await page.reload();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");

@@ -9,7 +9,7 @@ const localId = () => `sys-${Date.now().toString(36)}-${(seq++).toString(36)}`;
 
 function base(event: CimEvent): CimMessage {
   return {
-    id: localId(),
+    id: event.id ? `system:${event.id}` : localId(),
     header: {
       timestamp: event.timestamp as number,
       sender: { type: "system" },
@@ -87,6 +87,10 @@ export function systemMessageFor(event: CimEvent, ctx: { agentId: string; t: Tra
       : t("socket-service.has-joined-the-conversation");
 
   switch (name) {
+    case "conversation_data_changed":
+      msg.body.type = "conversationData";
+      msg.body.conversationData = event.data;
+      return msg;
     case "channel_session_started":
       msg.body.displayText = event.data.channel.channelType.name;
       msg.body.markdownText = t("socket-service.session-started");

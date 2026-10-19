@@ -1,102 +1,130 @@
 /*
- * EF design tokens (EF-DesignSystem: EF blue, Roboto). Light and dark palettes;
- * <html data-theme="light|dark"> selects one. Components never use raw colours:
- * Tailwind classes resolve to these variables via @theme in index.css.
- * Tenant branding may override --primary / --primary-h / --primary-lt at runtime.
+ * Agent Desk 2.0 — Google Workspace & Material Design 3 Design System Tokens.
+ * Professional, accessible, high-density enterprise contact-centre workspace.
  */
 :root,
 :root[data-theme="light"] {
   color-scheme: light;
-  --primary: #1a50a3;
-  --primary-h: #1e5bb9;
-  --primary-lt: #ecf3ff;
+
+  /* Google Blue (Primary) */
+  --primary: #1a73e8;
+  --primary-h: #1765c9;
+  --primary-lt: #e8f0fe;
+  --primary-container: #d2e3fc;
   --on-primary: #ffffff;
+  --on-primary-container: #041e49;
 
-  --canvas: #eef1f5;
+  /* Google Workspace Surfaces */
+  --canvas: #f8f9fa;
   --surface: #ffffff;
-  --sec: #f4f6f8;
-  --sec-2: #e9edf2;
+  --sec: #f1f3f4;
+  --sec-2: #e8eaed;
 
-  --border: #e3e7ed;
-  --border-p: #c9d7ec;
-  --border-i: #c5c9cf;
+  /* Google Hairline Borders & Dividers */
+  --border: #dadce0;
+  --border-subtle: #e8eaed;
+  --border-p: #bfdbfe;
+  --border-i: #dadce0;
 
-  --body: #212121;
-  --medium: #555a61;
-  /* #8a9099 from the mockup fails WCAG AA on white; darkened to 4.9:1. */
-  --muted-text: #646a73;
+  /* Google Typography Neutrals */
+  --body: #202124;
+  --medium: #3c4043;
+  --muted-text: #5f6368;
 
-  --success: #1fb57e;
-  --success-text: #137a54;
-  --success-lt: #e3f7ef;
-  --warn: #fdb635;
-  --warn-text: #8a6000;
-  --warn-lt: #fff4dc;
-  --on-warn: #1f1600;
-  --error: #e5484d;
-  --error-text: #c23b3b;
-  --error-lt: #ffecec;
+  /* Google Semantic Accents */
+  --success: #1e8e3e;
+  --success-text: #137333;
+  --success-lt: #e6f4ea;
+  --warn: #f9ab00;
+  --warn-text: #b06000;
+  --warn-lt: #fef7e0;
+  --on-warn: #202124;
+  --error: #d93025;
+  --error-text: #c5221f;
+  --error-lt: #fce8e6;
   --on-error: #ffffff;
 
-  --bubble-c: #efefef;
-  --bubble-a: #ecf3ff;
+  /* Google Chat Message Bubbles */
+  --bubble-c: #f1f3f4;
+  --bubble-a: #e8f0fe;
 
-  --shadow: 0 8px 28px rgba(16, 32, 64, 0.18);
+  /* Material Design 3 Elevation Shadows */
+  --shadow-soft: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15);
+  --shadow-lift: 0 1px 3px 0 rgba(60, 64, 67, 0.3), 0 4px 8px 3px rgba(60, 64, 67, 0.15);
+  --shadow: 0 2px 6px 2px rgba(60, 64, 67, 0.15), 0 1px 2px 0 rgba(60, 64, 67, 0.3);
 
-  /* Brand surfaces (login panel) keep EF blue in both themes. */
-  --brand: #1a50a3;
-  --brand-2: #1e5bb9;
+  --brand: #1a73e8;
+  --brand-2: #1557d0;
   --on-brand: #ffffff;
+  --accent-cool: #007b83;
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --primary: #5b8fe0;
-  --primary-h: #76a2e8;
-  --primary-lt: #1a2d4a;
-  --on-primary: #0b1424;
 
-  --canvas: #121315;
-  --surface: #1d1f22;
-  --sec: #26292d;
-  --sec-2: #2d3136;
+  /* Google Light Blue (Dark Mode) */
+  --primary: #8ab4f8;
+  --primary-h: #aecbfa;
+  --primary-lt: #172b4d;
+  --primary-container: #004a77;
+  --on-primary: #04101f;
+  --on-primary-container: #c2e7ff;
 
-  --border: #2e3238;
-  --border-p: #3b4d6b;
-  --border-i: #454a52;
+  /* Google Workspace Dark Surfaces */
+  --canvas: #1e1f20;
+  --surface: #282a2c;
+  --sec: #303134;
+  --sec-2: #3c4043;
 
-  --body: #e6e8eb;
-  --medium: #b3bac5;
-  --muted-text: #9aa1ab;
+  /* Google Workspace Dark Dividers */
+  --border: #3c4043;
+  --border-subtle: #444746;
+  --border-p: #3d567a;
+  --border-i: #5f6368;
 
-  --success: #34c88f;
-  --success-text: #5fd9a8;
-  --success-lt: #133528;
-  --warn: #fdb635;
-  --warn-text: #fdc55a;
-  --warn-lt: #3a2e12;
-  --on-warn: #1f1600;
-  --error: #ff6767;
-  --error-text: #ff9a9a;
-  --error-lt: #3a1f1f;
-  --on-error: #1a0606;
+  /* Google Dark Typography */
+  --body: #e8eaed;
+  --medium: #bdc1c6;
+  --muted-text: #9aa0a6;
 
-  --bubble-c: #2a2d31;
-  --bubble-a: #1c2e4b;
+  /* Google Semantic Accents (Dark) */
+  --success: #81c995;
+  --success-text: #a8dab5;
+  --success-lt: #0f381e;
+  --warn: #fdd663;
+  --warn-text: #fde293;
+  --warn-lt: #3a2e05;
+  --on-warn: #202124;
+  --error: #f28b82;
+  --error-text: #f6aea9;
+  --error-lt: #3c1614;
+  --on-error: #1a0608;
 
-  --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  /* Google Chat Dark Message Bubbles */
+  --bubble-c: #303134;
+  --bubble-a: #172b4d;
 
-  --brand: #163f80;
-  --brand-2: #1a4a96;
-  --on-brand: #ffffff;
+  /* Material Design 3 Dark Shadows */
+  --shadow-soft: 0 1px 3px 0 rgba(0, 0, 0, 0.3);
+  --shadow-lift: 0 4px 12px 0 rgba(0, 0, 0, 0.4);
+  --shadow: 0 8px 24px 0 rgba(0, 0, 0, 0.5);
+
+  --brand: #8ab4f8;
+  --brand-2: #aecbfa;
+  --on-brand: #04101f;
+  --accent-cool: #78d9ec;
 }
 
-/* Density: compact replaces unified-agent compact-view.scss. */
 :root {
-  --density-font: 14px;
+  --chart-3: #7c3aed;
+  --density-font: 13.5px;
   --density-row: 40px;
-}
-:root[data-density="compact"] {
-  --density-font: 13px;
-  --density-row: 32px;
+
+  /* Google Typography Stack */
+  --font-ui:
+    "Inter", "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "Google Sans Text", Helvetica, Arial,
+    sans-serif;
+  --font-display:
+    "Inter", "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "Google Sans", Helvetica, Arial,
+    sans-serif;
 }

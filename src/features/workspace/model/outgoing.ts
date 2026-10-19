@@ -1,4 +1,5 @@
 import type { ChannelSession, CimMessage, Conversation } from "./types";
+import type { EmailPayload } from "./email";
 
 /** UTF-8 safe base64 (Buffer.from(text, "utf-8").toString("base64") in unified-agent). */
 export function encodeBase64(text: string): string {
@@ -78,7 +79,7 @@ export interface OutgoingEvent {
  * session moves to the event, and the sender becomes the event emitter.
  */
 export function toCimEvent(
-  name: "AGENT_MESSAGE" | "WHISPER_MESSAGE",
+  name: "AGENT_MESSAGE" | "WHISPER_MESSAGE" | "MESSAGE_DELIVERY_NOTIFICATION",
   conversation: Conversation,
   message: CimMessage,
   options: { keepLocal?: boolean } = {},
@@ -94,7 +95,7 @@ export function toCimEvent(
   const cimEvent = {
     id: crypto.randomUUID(),
     name,
-    type: "MESSAGE",
+    type: name === "MESSAGE_DELIVERY_NOTIFICATION" ? "NOTIFICATION" : "MESSAGE",
     conversationId: conversation.conversationId,
     roomInfo: conversation.roomInfo,
     timestamp: Date.now(),
@@ -131,12 +132,13 @@ export function buildTextMessage(
     intent?: string | null;
     url?: string;
     secureLink?: boolean;
+    email?: EmailPayload;
   } = {},
 ): CimMessage {
   const message = newAgentMessage(conversation);
-  if (options.originalMessageId) {
+  if (options.originalMessageId || options.intent) {
     message.header.intent = options.intent ?? null;
-    message.header.originalMessageId = options.originalMessageId;
+    if (options.originalMessageId) message.header.originalMessageId = options.originalMessageId;
   }
   const clean = cleanSession(session);
   message.header.channelSession = clean;
@@ -146,7 +148,32 @@ export function buildTextMessage(
     isEncoded: true,
     ...(options.secureLink ? { secureWebRTCLink: true } : {}),
   };
-  if (options.url) {
+  if (options.email) {
+    message.body.type = "EMAIL";
+    message.body.subject = options.email.subject;
+    message.body.htmlBody = options.email.htmlBody;
+    message.body.recipientsTo = options.email.to
+      .split(/[,;]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    message.body.recipientsCc = (options.email.cc ?? "")
+      .split(/[,;]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    message.body.recipientsBcc = (options.email.bcc ?? "")
+      .split(/[,;]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    message.body.from =
+      options.email.from ?? session.channel.serviceIdentifier ?? session.channelData.serviceIdentifier;
+    message.body.replyTo = options.email.replyTo ?? [message.body.from];
+    message.body.emailThreads = options.email.emailThreads ?? [];
+    message.body.attachments = options.email.attachments ?? [];
+    message.body.receivingDate = message.header.timestamp;
+    // The EMAIL contract uses plain markdownText; only normal messages are base64 encoded.
+    message.body.markdownText = text.trim();
+    delete message.header.additionalData;
+  } else if (options.url) {
     message.body.type = "URL";
     message.body.mediaUrl = options.url;
   } else {

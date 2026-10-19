@@ -4,9 +4,13 @@ import type { KeycloakUser } from "@/core/auth";
 const r = (rsname: string, ...scopes: string[]) => ({ rsname, scopes });
 
 /** Mock users: log in with these usernames (any password) in `pnpm mock`. */
-export const MOCK_USERS: Record<string, { user: KeycloakUser; realmRoles: string[]; twoFA?: string }> = {
+export const MOCK_USERS: Record<
+  string,
+  { user: KeycloakUser; realmRoles: string[]; clientRoles?: string[]; twoFA?: string }
+> = {
   agent: {
     realmRoles: ["agent", "download"],
+    clientRoles: ["case-cc-agent"],
     user: {
       id: "u-agent-1",
       username: "agent",
@@ -15,6 +19,7 @@ export const MOCK_USERS: Record<string, { user: KeycloakUser; realmRoles: string
       roles: ["agent"],
       tenant: { id: "t-1", name: "expertflow" },
       attributes: { agentExtension: ["1001"] },
+      userTeam: { teamId: "team-1", teamName: "Support" },
       permittedResources: {
         Resources: [
           r("customer", "view", "manage", "manage_in_conversation", "masked_pii"),
@@ -38,6 +43,7 @@ export const MOCK_USERS: Record<string, { user: KeycloakUser; realmRoles: string
   },
   supervisor: {
     realmRoles: ["supervisor", "agent", "download", "export", "viewtag"],
+    clientRoles: ["case-backoffice-manager"],
     user: {
       id: "u-sup-1",
       username: "supervisor",
@@ -63,12 +69,15 @@ export const MOCK_USERS: Record<string, { user: KeycloakUser; realmRoles: string
           r("state-change", "manage_state_change"),
           r("recording-link", "view_all"),
           r("call_recording_control", "manage_call_recording_control"),
+          r("teams", "view", "manage"),
+          r("forms", "view"),
         ],
       },
     },
   },
   admin: {
     realmRoles: ["admin", "evaluatetag"],
+    clientRoles: ["case-admin"],
     user: {
       id: "u-admin-1",
       username: "admin",
@@ -76,7 +85,13 @@ export const MOCK_USERS: Record<string, { user: KeycloakUser; realmRoles: string
       lastName: "Malik",
       roles: ["admin"],
       tenant: { id: "t-1", name: "expertflow" },
-      permittedResources: { Resources: [r("agent-desk-setting", "view", "manage")] },
+      permittedResources: {
+        Resources: [
+          r("agent-desk-setting", "view", "manage"),
+          r("teams", "view", "manage"),
+          r("forms", "view", "manage"),
+        ],
+      },
     },
   },
   viewer: {
@@ -105,11 +120,35 @@ export const MOCK_USERS: Record<string, { user: KeycloakUser; realmRoles: string
   },
 };
 
-/** Unsigned JWT carrying realm roles (the app only decodes, never verifies). */
-export function fakeJwt(realmRoles: string[]): string {
+/**
+ * Unsigned JWT carrying realm roles, `cim` client roles and the user id (the app only
+ * decodes, never verifies; the Case Management mock reads roles and `sub` from it).
+ */
+export function fakeJwt(
+  realmRoles: string[],
+  options: { clientRoles?: string[]; sub?: string; username?: string } = {},
+): string {
   const enc = (o: object) =>
     btoa(JSON.stringify(o)).replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
-  return `${enc({ alg: "none", typ: "JWT" })}.${enc({ realm_access: { roles: realmRoles }, exp: Math.floor(Date.now() / 1000) + 3600 })}.`;
+  const claims = {
+    sub: options.sub,
+    preferred_username: options.username,
+    realm_access: { roles: realmRoles },
+    resource_access: options.clientRoles?.length ? { cim: { roles: options.clientRoles } } : undefined,
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  };
+  return `${enc({ alg: "none", typ: "JWT" })}.${enc(claims)}.`;
+}
+
+/** JWT for a mock user, as the login and refresh mocks issue it. */
+export function mockUserJwt(username: string): string {
+  const entry = MOCK_USERS[username];
+  if (!entry) return fakeJwt([]);
+  return fakeJwt(entry.realmRoles, {
+    clientRoles: entry.clientRoles,
+    sub: entry.user.id,
+    username: entry.user.username,
+  });
 }
 
 export const MOCK_DESK_SETTINGS: AgentDeskSettingsDoc = {

@@ -1,10 +1,15 @@
+import { useComposerStore } from "../store/composerStore";
+import { usePopoutStore } from "../store/popout";
+import { useBoardStore } from "../store/boardStore";
+import { resetSeenMessages } from "./seen";
+import { transcriptPosition } from "../store/transcriptPosition";
 import { toast } from "sonner";
 import { getDeskSettings } from "@/core/agent-settings";
-import { forceEndSession, getSession, onBeforeLogout } from "@/core/auth";
+import { can, forceEndSession, getSession, onBeforeLogout } from "@/core/auth";
 import { postConversationData, postCrmEvent, setCrmEventsEnabled } from "@/core/crm-bridge";
 import { t } from "@/core/i18n";
 import { createLogger } from "@/core/logging/logger";
-import { notify, sounds } from "@/core/notifications";
+import { notify, notifyRealtimeConnected, sounds } from "@/core/notifications";
 import { socketManager, useSocketStore } from "@/core/realtime";
 import { getCustomerSchema, getPullModeLists, getReasonCodes } from "../api";
 import type { Effect } from "../model/cimEvents";
@@ -31,7 +36,25 @@ let hooks: SessionHooks = { openWorkspace: () => {}, isWorkspaceVisible: () => f
 const autoAnswerTimers = new Map<string, ReturnType<typeof setTimeout>>();
 let unsubscribers: (() => void)[] = [];
 let running = false;
+let sessionGeneration = 0;
 let loggingOutResolver: (() => void) | null = null;
+/**
+ * Conversations removed moments ago. Late events for them (delivery receipts, state
+ * changes after leaving) are expected and must not raise "conversation not present".
+ */
+const recentlyRemoved = new Map<string, number>();
+const REMOVED_GRACE_MS = 30_000;
+function wasRemovedRecently(conversationId: string) {
+  const at = recentlyRemoved.get(conversationId);
+  if (at === undefined) return false;
+  if (Date.now() - at < REMOVED_GRACE_MS) return true;
+  recentlyRemoved.delete(conversationId);
+  return false;
+}
+
+/** The socket dropped after connecting: the next connect is announced as "back online". */
+let connectionDropped = false;
+let everConnected = false;
 
 function ctx(): ModelContext {
   const user = getSession().user!;
@@ -109,7 +132,15 @@ export const sessionBus = new EventTarget();
 export function emitHandRaise(conversationId: string) {
   const c = getConversation(conversationId);
   const user = getSession().user;
-  if (!c || !user) return;
+  if (
+    !c ||
+    !user ||
+    !can("conversations") ||
+    c.topicParticipant.role !== "PRIMARY" ||
+    c.state !== "ACTIVE" ||
+    !socketManager.connected
+  )
+    return;
   publishCimEvent(c, {
     id: crypto.randomUUID(),
     name: !c.handRaised ? "HAND_RAISED" : "HAND_DOWN",
@@ -125,6 +156,38 @@ export function emitHandRaise(conversationId: string) {
     data: { agentId: user.id, userName: user.username },
     roomInfo: c.roomInfo,
   });
+}
+
+/**
+ * Supervisor role changes from inside a monitored chat (unified-agent
+ * moveToWhisperMode / BargeIn). The server answers with participantRoleChanged.
+ */
+export function canChangeSupervisorRole(
+  conversationId: string | null,
+  target: "WHISPER" | "BARGE_IN",
+): boolean {
+  const c = conversationId ? getConversation(conversationId) : undefined;
+  if (!c || c.roomInfo === "FAKE_CONVERSATION" || !can("supervisor")) return false;
+  const role = c.topicParticipant.role;
+  return target === "WHISPER" ? role === "SILENT_MONITOR" : role === "SILENT_MONITOR" || role === "WHISPER";
+}
+
+function emitRoleChange(conversationId: string, event: "joinAsWhisper" | "JoinAsBargin") {
+  const c = getConversation(conversationId);
+  if (!c || !socketManager.connected) return;
+  socketManager.emit(event, {
+    participantId: c.topicParticipant.participant.id,
+    conversationId: c.conversationId,
+    roomInfo: c.roomInfo,
+  });
+}
+
+export function switchToWhisper(conversationId: string) {
+  if (canChangeSupervisorRole(conversationId, "WHISPER")) emitRoleChange(conversationId, "joinAsWhisper");
+}
+
+export function bargeIntoConversation(conversationId: string) {
+  if (canChangeSupervisorRole(conversationId, "BARGE_IN")) emitRoleChange(conversationId, "JoinAsBargin");
 }
 
 // ---------------------------------------------------------------------------
@@ -199,13 +262,16 @@ function onCimEvent(res: { cimEvent: string; roomInfo: unknown; conversationId: 
     const event = JSON.parse(res.cimEvent) as CimEvent;
     const effects = useConversationStore.getState().applyEvent(res.conversationId, event, ctx());
     if (effects === null) {
-      toast.error(t("snackbar.Unable-to-process-event-as-conversation-is-not-present"));
+      if (!wasRemovedRecently(res.conversationId))
+        toast.error(t("snackbar.Unable-to-process-event-as-conversation-is-not-present"), {
+          id: "event-conversation-missing",
+        });
       return;
     }
     runEffects(effects);
   } catch (error) {
     log.error("onCimEvent failed", error);
-    toast.error(t("snackbar.Malfunction-event"));
+    toast.error(t("snackbar.Malfunction-event"), { id: "event-malfunction" });
   }
 }
 
@@ -243,7 +309,9 @@ function unsubscriptionMessage(reason: string): { variant: "success" | "error"; 
 function onTopicUnsubscription(res: { conversationId: string; reason?: string }) {
   postCrmEvent(res);
   const message = unsubscriptionMessage(res.reason ?? "");
-  if (message) toast[message.variant](message.text);
+  // One closing message at a time: leaving several conversations replaces, not stacks.
+  if (message) toast[message.variant](message.text, { id: "conversation-ended" });
+  recentlyRemoved.set(res.conversationId, Date.now());
   const removed = useConversationStore.getState().remove(res.conversationId);
   if (removed) sessionBus.dispatchEvent(new CustomEvent("conversationRemoved", { detail: removed }));
 }
@@ -262,7 +330,13 @@ function register() {
   unsubscribers = [
     on("connect", () => {
       useRequestStore.getState().clearPush();
-      toast.success(t("snackbar.Socket-Connected"), { duration: 1500 });
+      // Only a recovery is news; the first connect after sign-in is expected.
+      if (connectionDropped) notifyRealtimeConnected();
+      connectionDropped = false;
+      everConnected = true;
+    }),
+    on("disconnect", () => {
+      if (everConnected) connectionDropped = true;
     }),
     on(
       "connect_error",
@@ -308,7 +382,8 @@ function register() {
           : res.requestAction === "conference"
             ? t("snackbar.Conference-request-placed-successfully")
             : null;
-      if (msg) setTimeout(() => toast.success(msg), 1000);
+      // The unsubscription that follows a transfer says the same thing; show it once.
+      if (msg) setTimeout(() => toast.success(msg, { id: "conversation-ended" }), 1000);
     }),
     on("agentAssignedForAssistance", (res: unknown) =>
       sessionBus.dispatchEvent(new CustomEvent("namedAssistance", { detail: res })),
@@ -371,8 +446,9 @@ function register() {
   ];
 }
 
-async function preload() {
+async function preload(version: number) {
   const results = await Promise.allSettled([getReasonCodes(), getCustomerSchema(), getPullModeLists()]);
+  if (!running || version !== sessionGeneration) return;
   if (results[0].status === "fulfilled") useAgentStore.getState().setReasonCodes(results[0].value ?? []);
   if (results[1].status === "fulfilled") useSchemaStore.getState().setSchema(results[1].value);
   if (results[2].status === "fulfilled") usePullModeStore.getState().setLists(results[2].value ?? []);
@@ -390,13 +466,17 @@ let removeLogoutHook: (() => void) | null = null;
 export function startAgentSession(sessionHooks: SessionHooks, fcmKey: string | null) {
   if (running) return;
   const user = getSession().user;
-  if (!user) return;
+  if (!user || !can("agentSession")) return;
   running = true;
+  connectionDropped = false;
+  everConnected = false;
+  useAgentStore.getState().markLogin();
+  const version = ++sessionGeneration;
   hooks = sessionHooks;
   setCrmEventsEnabled(getDeskSettings().crmEvents);
   register();
   socketManager.connect(user, { desktopFcmKey: null, mobileFcmKey: fcmKey });
-  void preload();
+  void preload(version);
 
   // Logout: tell agent-manager first (LOGOUT agent state with reason), wait for the
   // LOGOUT presence (or a short timeout), then let auth clear the session.
@@ -412,8 +492,13 @@ export function startAgentSession(sessionHooks: SessionHooks, fcmKey: string | n
 }
 
 export function stopAgentSession() {
+  resetSeenMessages();
+  transcriptPosition.reset();
   if (!running) return;
   running = false;
+  sessionGeneration++;
+  recentlyRemoved.clear();
+  usePopoutStore.getState().closeAll();
   unsubscribers.forEach((u) => u());
   unsubscribers = [];
   autoAnswerTimers.forEach((timer) => clearTimeout(timer));
@@ -422,6 +507,8 @@ export function stopAgentSession() {
   removeLogoutHook = null;
   socketManager.disconnect();
   sounds.stopRing();
+  useComposerStore.getState().reset();
+  useBoardStore.getState().reset();
   useConversationStore.getState().reset();
   useAgentStore.getState().reset();
   useRequestStore.getState().reset();

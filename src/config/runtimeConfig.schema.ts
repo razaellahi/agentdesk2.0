@@ -52,10 +52,16 @@ export const runtimeConfigSchema = z.object({
   QM_URL: optionalUrl,
   LLM_CONNECTOR_URL: optionalUrl,
   VRS_URL: optionalUrl,
+  /** Case Management API (`/case-api`). Empty hides the Cases module and the conversation Cases tab. */
+  CASE_API_URL: optionalUrl,
 
   // --- Voice
   SIP_SOCKET_URL: str(),
   SIP_URI: str(),
+  /** Static extension password the CX Voice wrapper registers with (UA EXT_STATIC). */
+  EXT_STATIC: str(),
+  ENABLE_SIP_LOGS: bool(false),
+  SIP_MONITORING_DN: str(),
   ROOT_DOMAIN: str(),
 
   // --- Behaviour
@@ -112,7 +118,8 @@ export const runtimeConfigSchema = z.object({
   feature_CIM_32834_customisedDashboard: bool(false),
   feature_CIM_33144_quick_replies: bool(false),
   feature_multiPaneBoard: bool(true),
-  feature_aiWidgetGenerator: bool(false),
+  // On by default like unified-agent; the model downloads only when an agent generates.
+  feature_aiWidgetGenerator: bool(true),
   feature_recordings: bool(true),
 });
 
@@ -135,4 +142,5 @@ export const HOST_REWRITE_KEYS = [
   "QM_URL",
   "LLM_CONNECTOR_URL",
   "VRS_URL",
+  "CASE_API_URL",
 ] as const satisfies readonly (keyof RuntimeConfig)[];

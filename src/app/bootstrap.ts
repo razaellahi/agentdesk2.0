@@ -1,15 +1,19 @@
 import { getConfig, loadConfig, setConfig } from "@/config";
+import { installGtm } from "@/core/analytics/gtm";
 import { loadDeskSettings, getDeskSettings } from "@/core/agent-settings";
 import {
+  getSession,
   installApiAuth,
   loginWithExternalService,
   loginWithFinesse,
+  onAfterLogin,
   readFcmKey,
   readSsoRequest,
   restoreSession,
   stripSsoParams,
   type SsoRequest,
 } from "@/core/auth";
+import { postCrmEvent, setCrmEventsEnabled } from "@/core/crm-bridge";
 import { initI18n } from "@/core/i18n";
 import { setSsoFailure } from "@/features/auth";
 import { createLogger, setLogLevel } from "@/core/logging/logger";
@@ -38,6 +42,7 @@ export async function bootstrap(): Promise<BootContext> {
   const config = await loadConfig();
   setConfig(config);
   setLogLevel(config.LOG_LEVEL);
+  installGtm(config.GTM_ID);
 
   const tenantId = resolveTenant(config);
   useTenantStore.getState().setTenant(tenantId);
@@ -51,6 +56,14 @@ export async function bootstrap(): Promise<BootContext> {
     initI18n({ defaultLanguage: config.DEFAULT_LANGUAGE, preferred: localStore.getString("language") }),
   ]);
   log.debug("Desk settings loaded", { cisco: deskSettings.cisco, cxVoice: deskSettings.cxVoice });
+
+  // CRM AGENT_LOGIN on every fresh login (password, 2FA, Finesse, CRM SSO) but not
+  // on a reload restore, as unified-agent IsLoggedInService.loginFlow.
+  setCrmEventsEnabled(deskSettings.crmEvents);
+  onAfterLogin(() => {
+    const user = getSession().user;
+    if (user) postCrmEvent({ keycloak_User: user });
+  });
 
   const fcmKey = readFcmKey();
   const sso = readSsoRequest();
