@@ -9,7 +9,7 @@ import { lower } from "../../model/systemMessages";
 import type { Conversation } from "../../model/types";
 import { publishSeen } from "../../session/seen";
 import { useActiveConversationId, useConversationStore } from "../../store/conversationStore";
-import { transcriptPosition } from "../../store/transcriptPosition";
+import { useTranscriptFocus } from "../../store/transcriptFocus";
 import type { PastActivities } from "../../hooks/usePastActivities";
 import { MessageBoundary } from "./MessageBoundary";
 import { MessageRow } from "./MessageBody";
@@ -89,7 +89,16 @@ export function MessageStream({
   const activeId = useActiveConversationId();
   const root = useRef<HTMLDivElement>(null);
   const list = useRef<VirtuosoHandle>(null);
+  const scrollTimer = useRef<number | undefined>(undefined);
   const [atBottom, setAtBottom] = useState(true);
+  // Mouse movement or scrolling shows the auto-hiding scrollbar; it hides again after a few idle seconds.
+  const markActive = () => {
+    const el = root.current;
+    if (!el) return;
+    el.dataset.active = "true";
+    window.clearTimeout(scrollTimer.current);
+    scrollTimer.current = window.setTimeout(() => delete el.dataset.active, 1500);
+  };
   const lastIncoming = [...messages]
     .reverse()
     .find(
@@ -97,17 +106,38 @@ export function MessageStream({
         ["customer", "agent"].includes(lower(message.header.sender?.type)) &&
         message.header.sender?.id !== me,
     );
-  const positionKey = `${me}:${conversation.conversationId}`;
-  const [initialPosition] = useState(() => transcriptPosition.get(positionKey));
-  const hasMessages = messages.length > 0;
-
+  // Opening or accepting a conversation always lands on its newest message.
   useEffect(() => {
-    const handle = list.current;
-    const generation = transcriptPosition.generation();
-    return () => {
-      handle?.getState((snapshot) => transcriptPosition.save(positionKey, snapshot, generation));
-    };
-  }, [positionKey, hasMessages]);
+    if (messages.length === 0) return;
+    list.current?.scrollToIndex({ index: messages.length - 1, align: "end" });
+    // Only when the conversation changes; new messages follow via followOutput.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversation.conversationId]);
+
+  // Opened from outside (a case's linked conversation) at a moment: bring the message nearest that
+  // time into view, loading older history first when it is not loaded yet, and flash it.
+  const target = useTranscriptFocus((state) => state.target);
+  const [flashId, setFlashId] = useState<string | null>(null);
+  const flashTimer = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (!target || target.conversationId !== conversation.conversationId || messages.length === 0) return;
+    const stamp = (message: (typeof messages)[number]) => Number(message.header.timestamp ?? 0);
+    if (stamp(messages[0]!) > target.at && past && (past.status === "idle" || past.status === "loading")) {
+      if (past.status === "idle") past.loadMore();
+      return;
+    }
+    const found = messages.findIndex((message) => stamp(message) >= target.at);
+    const index = found < 0 ? messages.length - 1 : found;
+    const id = messages[index]!.id;
+    useTranscriptFocus.getState().clear();
+    // Let the list lay out the loaded history before scrolling to it.
+    window.setTimeout(() => {
+      list.current?.scrollToIndex({ index, align: "center" });
+      setFlashId(id);
+      window.clearTimeout(flashTimer.current);
+      flashTimer.current = window.setTimeout(() => setFlashId(null), 3000);
+    }, 200);
+  }, [target, messages, past, conversation.conversationId]);
   useEffect(() => {
     const element = root.current;
     if (!element || !lastIncoming) return;
@@ -161,30 +191,32 @@ export function MessageStream({
     );
 
   return (
-    <div ref={root} className="relative h-full min-h-0">
+    <div ref={root} className="scroll-autohide relative h-full min-h-0" onMouseMove={markActive}>
       <Virtuoso
         ref={list}
         // Messages wrap to the pane; the transcript never scrolls sideways.
         style={{ height: "100%", overflowX: "hidden" }}
+        onScroll={markActive}
         data={messages}
         firstItemIndex={origin.index}
         computeItemKey={(_, message) => message.id}
-        restoreStateFrom={initialPosition}
         atBottomStateChange={setAtBottom}
         followOutput="auto"
         context={{ past }}
         components={{ Header: PastActivitiesBar }}
-        initialTopMostItemIndex={initialPosition ? undefined : messages.length - 1}
+        initialTopMostItemIndex={messages.length - 1}
         itemContent={(index, message) => (
           <MessageBoundary messageId={message.id}>
-            <MessageRow
-              message={message}
-              conversation={conversation}
-              formatting={formatting}
-              mine={lower(message.header.sender?.type) === "agent" && message.header.sender?.id === me}
-              latestOwn={message.id === latestOwnId}
-              continued={sameTurn(messages[index - origin.index - 1], message)}
-            />
+            <div className={flashId === message.id ? "desk-focus-flash" : undefined}>
+              <MessageRow
+                message={message}
+                conversation={conversation}
+                formatting={formatting}
+                mine={lower(message.header.sender?.type) === "agent" && message.header.sender?.id === me}
+                latestOwn={message.id === latestOwnId}
+                continued={sameTurn(messages[index - origin.index - 1], message)}
+              />
+            </div>
           </MessageBoundary>
         )}
       />

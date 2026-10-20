@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, PieChart, RefreshCw, Rows3 } from "lucide-react";
+import { Loader2, PieChart, RefreshCw } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router";
@@ -18,9 +18,9 @@ import { PeriodFilter } from "./PeriodFilter";
 
 function Panel({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <section className="space-y-3 rounded-2xl border border-border bg-surface p-4">
+    <section className="space-y-3 rounded-xl border border-border bg-surface p-4">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold">{title}</h2>
+        <h2 className="text-sm font-medium">{title}</h2>
         {action}
       </div>
       {children}
@@ -62,13 +62,10 @@ export default function DashboardPage() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold">{t("nav.cases-dashboard")}</h1>
-            <p className="text-sm text-muted-foreground">{t("cases.dashboard.description")}</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+      <div className="mx-auto max-w-6xl space-y-4 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <PeriodFilter value={period} onChange={setPeriod} allowLive meta={metaLine} />
+          <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
               <span
                 className={cn(
@@ -81,24 +78,17 @@ export default function DashboardPage() {
               {secondsAgo != null && <span>· {t("cases.dashboard.updated-ago", { count: secondsAgo })}</span>}
             </span>
             <Button
-              variant="outline"
-              size="sm"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("cases.refresh")}
+              title={t("cases.refresh")}
               disabled={query.isFetching}
               onClick={() => void query.refetch()}
             >
               <RefreshCw className={cn(query.isFetching && "animate-spin")} />
-              {t("cases.refresh")}
-            </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/cases">
-                <Rows3 />
-                {t("nav.cases-workbench")}
-              </Link>
             </Button>
           </div>
         </div>
-
-        <PeriodFilter value={period} onChange={setPeriod} allowLive meta={metaLine} />
 
         {query.error && (
           <p role="alert" className="rounded-xl bg-destructive-soft px-4 py-3 text-sm text-destructive-text">
@@ -145,21 +135,25 @@ export default function DashboardPage() {
             </section>
 
             <section
-              className="grid grid-cols-1 gap-3 sm:grid-cols-3"
+              className="grid grid-cols-3 divide-x divide-border rounded-xl border border-border bg-surface"
               aria-label={live ? t("cases.dashboard.last-hour") : t("cases.dashboard.in-period")}
             >
-              <KpiTile
-                label={t(live ? "cases.dashboard.claims-1h" : "cases.dashboard.claims")}
-                value={data.velocity.claimsLastHour}
-              />
-              <KpiTile
-                label={t(live ? "cases.dashboard.resolves-1h" : "cases.dashboard.resolves")}
-                value={data.velocity.resolvesLastHour}
-              />
-              <KpiTile
-                label={t(live ? "cases.dashboard.reassignments-1h" : "cases.dashboard.reassignments")}
-                value={data.velocity.reassignmentsLastHour}
-              />
+              {[
+                [live ? "cases.dashboard.claims-1h" : "cases.dashboard.claims", data.velocity.claimsLastHour],
+                [
+                  live ? "cases.dashboard.resolves-1h" : "cases.dashboard.resolves",
+                  data.velocity.resolvesLastHour,
+                ],
+                [
+                  live ? "cases.dashboard.reassignments-1h" : "cases.dashboard.reassignments",
+                  data.velocity.reassignmentsLastHour,
+                ],
+              ].map(([key, value]) => (
+                <div key={key} className="flex items-baseline justify-between gap-2 px-4 py-3">
+                  <span className="text-sm text-muted-foreground">{t(key as string)}</span>
+                  <span className="text-lg font-semibold tabular-nums">{value}</span>
+                </div>
+              ))}
             </section>
 
             {data.byGroup.length > 0 && (
@@ -278,7 +272,7 @@ export default function DashboardPage() {
                           to={drill({ caseId: c.id, sla: "due-soon" })}
                           className="flex items-center gap-2 py-2 text-sm hover:text-primary"
                         >
-                          <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                          <span className="shrink-0 text-xs font-medium text-muted-foreground tabular-nums">
                             {c.caseReferenceId}
                           </span>
                           <span className="min-w-0 flex-1 truncate">{c.title}</span>

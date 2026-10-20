@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   caseKeys,
@@ -15,9 +14,8 @@ import {
 } from "../api";
 import { PriorityBadge, StatusBadge } from "../components/Badges";
 import { PRIORITIES } from "../model/format";
+import { NativeSelect, FieldLabel } from "../components/Fields";
 import type { CaseConversationContext } from "./CasesTab";
-
-const selectClass = "h-9 w-full rounded-lg border border-border bg-surface px-2 text-sm disabled:opacity-50";
 
 /** Create a case from the active conversation (widget create-case.component.ts). */
 export function CaseCreatePanel({
@@ -65,11 +63,23 @@ export function CaseCreatePanel({
       }),
     onSuccess: (row) => {
       setCreated(row);
-      void queryClient.invalidateQueries({ queryKey: caseKeys.interaction(context.interactionId) });
+      if (context.interactionId)
+        void queryClient.invalidateQueries({ queryKey: caseKeys.interaction(context.interactionId) });
       void queryClient.invalidateQueries({ queryKey: ["cases", "customer"] });
       void queryClient.invalidateQueries({ queryKey: ["cases", "list"] });
     },
   });
+
+  const createAnother = () => {
+    setCreated(null);
+    setCopied(null);
+    setTitle("");
+    setDescription("");
+    setPriority("Medium");
+    setCategoryId("");
+    setSubCategoryId("");
+    create.reset();
+  };
 
   const copy = async (value: string, field: "ref" | "id") => {
     try {
@@ -119,11 +129,14 @@ export function CaseCreatePanel({
             <Button size="sm" variant="outline" onClick={onBack}>
               {t("cases.conversation.view-all")}
             </Button>
+            <Button size="sm" variant="outline" onClick={createAnother}>
+              {t("cases.conversation.create-another")}
+            </Button>
           </div>
         </section>
         <dl className="grid grid-cols-2 gap-2 text-xs">
           <div>
-            <dt className="text-muted-foreground">{t("cases.status-label")}</dt>
+            <dt className="text-foreground/70">{t("cases.status-label")}</dt>
             <dd>
               <StatusBadge
                 label={created.status.label}
@@ -133,14 +146,14 @@ export function CaseCreatePanel({
             </dd>
           </div>
           <div>
-            <dt className="text-muted-foreground">{t("cases.create.priority")}</dt>
+            <dt className="text-foreground/70">{t("cases.create.priority")}</dt>
             <dd>
               <PriorityBadge priority={created.priority} />
             </dd>
           </div>
           {created.category && (
             <div>
-              <dt className="text-muted-foreground">{t("cases.category")}</dt>
+              <dt className="text-foreground/70">{t("cases.category")}</dt>
               <dd>
                 {created.category.name}
                 {created.subCategory ? ` / ${created.subCategory.name}` : ""}
@@ -148,17 +161,15 @@ export function CaseCreatePanel({
             </div>
           )}
           <div>
-            <dt className="text-muted-foreground">{t("cases.conversation.routed-group")}</dt>
+            <dt className="text-foreground/70">{t("cases.conversation.routed-group")}</dt>
             <dd>{routed}</dd>
           </div>
         </dl>
         <details className="text-xs">
-          <summary className="cursor-pointer text-muted-foreground">
-            {t("cases.conversation.technical")}
-          </summary>
+          <summary className="cursor-pointer text-foreground/70">{t("cases.conversation.technical")}</summary>
           <dl className="mt-2 space-y-1 font-mono">
             <div className="flex items-center gap-2">
-              <dt className="text-muted-foreground">{t("cases.conversation.case-id")}</dt>
+              <dt className="text-foreground/70">{t("cases.conversation.case-id")}</dt>
               <dd className="truncate">{created.id}</dd>
               <Button
                 size="xs"
@@ -170,8 +181,10 @@ export function CaseCreatePanel({
               </Button>
             </div>
             <div className="flex gap-2">
-              <dt className="text-muted-foreground">{t("cases.conversation.interaction")}</dt>
-              <dd className="truncate">{created.conversations[0]?.interactionId ?? context.interactionId}</dd>
+              <dt className="text-foreground/70">{t("cases.conversation.interaction")}</dt>
+              <dd className="truncate">
+                {created.conversations[0]?.interactionId ?? context.interactionId ?? "—"}
+              </dd>
             </div>
           </dl>
         </details>
@@ -202,9 +215,9 @@ export function CaseCreatePanel({
         </p>
       )}
       <div className="space-y-1.5">
-        <Label htmlFor="conv-case-title">
+        <FieldLabel htmlFor="conv-case-title">
           {t("cases.create.title-field")} <span className="text-destructive-text">*</span>
-        </Label>
+        </FieldLabel>
         <Input
           id="conv-case-title"
           value={title}
@@ -213,7 +226,7 @@ export function CaseCreatePanel({
         />
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="conv-case-description">{t("cases.description")}</Label>
+        <FieldLabel htmlFor="conv-case-description">{t("cases.description")}</FieldLabel>
         <Textarea
           id="conv-case-description"
           rows={2}
@@ -223,12 +236,12 @@ export function CaseCreatePanel({
         />
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="conv-case-priority">
+        <FieldLabel htmlFor="conv-case-priority">
           {t("cases.create.priority")} <span className="text-destructive-text">*</span>
-        </Label>
-        <select
+        </FieldLabel>
+        <NativeSelect
           id="conv-case-priority"
-          className={selectClass}
+          className="w-full"
           value={priority}
           onChange={(event) => setPriority(event.target.value)}
         >
@@ -237,15 +250,15 @@ export function CaseCreatePanel({
               {t(`cases.priority.${p.toLowerCase()}`)}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="conv-case-category">
+        <FieldLabel htmlFor="conv-case-category">
           {t("cases.category")} <span className="text-destructive-text">*</span>
-        </Label>
-        <select
+        </FieldLabel>
+        <NativeSelect
           id="conv-case-category"
-          className={selectClass}
+          className="w-full"
           value={categoryId}
           disabled={categories.isPending}
           onChange={(event) => {
@@ -259,15 +272,15 @@ export function CaseCreatePanel({
               {c.name}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="conv-case-sub">
+        <FieldLabel htmlFor="conv-case-sub">
           {t("cases.sub-category")} <span className="text-destructive-text">*</span>
-        </Label>
-        <select
+        </FieldLabel>
+        <NativeSelect
           id="conv-case-sub"
-          className={selectClass}
+          className="w-full"
           value={subCategoryId}
           disabled={!category}
           onChange={(event) => setSubCategoryId(event.target.value)}
@@ -278,7 +291,7 @@ export function CaseCreatePanel({
               {s.name}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </div>
       {routing.data?.keycloakGroupId && (
         <p className="flex items-center gap-2 rounded-lg bg-primary-soft/50 px-3 py-2 text-xs">
@@ -286,12 +299,14 @@ export function CaseCreatePanel({
           {t("cases.conversation.auto-routed", { group: routing.data.keycloakGroupId, source: sourceLabel })}
         </p>
       )}
-      <p className="flex items-start gap-2 rounded-lg bg-surface-2/60 px-3 py-2 text-xs text-muted-foreground">
+      <p className="flex items-start gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-foreground/70">
         <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
         <span>
-          {context.customerName
-            ? t("cases.conversation.context-named", { name: context.customerName })
-            : t("cases.conversation.context-unnamed")}
+          {!context.interactionId
+            ? t("cases.conversation.context-customer-only", { name: context.customerName ?? "—" })
+            : context.customerName
+              ? t("cases.conversation.context-named", { name: context.customerName })
+              : t("cases.conversation.context-unnamed")}
         </span>
       </p>
       <Button type="submit" className="w-full" disabled={!valid || create.isPending || categories.isPending}>

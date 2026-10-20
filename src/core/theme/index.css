@@ -65,6 +65,23 @@
   --color-sidebar: color-mix(in oklab, var(--surface) 88%, transparent);
   --color-sidebar-foreground: var(--medium);
 
+  /* Google Chat 3-Panel Surfaces */
+  --color-chat-panel-left: var(--chat-panel-left);
+  --color-chat-panel-left-hover: var(--chat-panel-left-hover);
+  --color-chat-panel-left-active: var(--chat-panel-left-active);
+  --color-chat-panel-left-active-text: var(--chat-panel-left-active-text);
+  --color-chat-panel-left-search: var(--chat-panel-left-search);
+  --color-chat-panel-left-divider: var(--chat-panel-left-divider);
+
+  --color-chat-panel-middle: var(--chat-panel-middle);
+  --color-chat-panel-middle-header: var(--chat-panel-middle-header);
+  --color-chat-panel-middle-composer: var(--chat-panel-middle-composer);
+
+  --color-chat-panel-right: var(--chat-panel-right);
+  --color-chat-panel-right-card: var(--chat-panel-right-card);
+  --color-chat-panel-right-dock: var(--chat-panel-right-dock);
+  --color-chat-panel-right-divider: var(--chat-panel-right-divider);
+
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
@@ -93,10 +110,7 @@
     font-family: var(--font-ui);
     font-size: var(--density-font, 14px);
     line-height: 1.5;
-    letter-spacing: -0.011em;
-    font-feature-settings:
-      "ss01" on,
-      "cv11" on;
+    letter-spacing: 0;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
@@ -134,6 +148,17 @@
     background-clip: padding-box;
   }
   ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklab, var(--muted-text) 55%, transparent);
+  }
+
+  /* Opt-in: the scrollbar is hidden until mouse movement or scrolling shows it; it hides again when idle. */
+  .scroll-autohide *::-webkit-scrollbar-thumb {
+    background: transparent;
+  }
+  .scroll-autohide[data-active="true"] *::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--border) 65%, transparent);
+  }
+  .scroll-autohide[data-active="true"] *::-webkit-scrollbar-thumb:hover {
     background: color-mix(in oklab, var(--muted-text) 55%, transparent);
   }
 }
@@ -379,5 +404,25 @@
   }
   .dashboard-grid > article {
     grid-column: 1 !important;
+  }
+}
+
+/*
+ * A message brought into view from outside (a case's linked conversation): an amber highlight with a
+ * ring that fades. Amber, because blue is the colour of the message bubbles themselves.
+ */
+.desk-focus-flash {
+  border-radius: 0.75rem;
+  animation: desk-focus-flash 3.5s ease-out 1;
+}
+@keyframes desk-focus-flash {
+  0%,
+  65% {
+    background: color-mix(in oklab, var(--warn) 32%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--warn) 80%, transparent);
+  }
+  100% {
+    background: transparent;
+    box-shadow: 0 0 0 2px transparent;
   }
 }

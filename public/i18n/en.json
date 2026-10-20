@@ -483,10 +483,10 @@
       "initiate-outgoing-call-to": "Initiate outgoing call to",
       "stacy-miller": "Stacy Miller",
       "mobile": "(Mobile)",
-      "device": "Device:en",
-      "browser": "Browser:en",
-      "country": "Country:en",
-      "language": "Language:en",
+      "device": "Device",
+      "browser": "Browser",
+      "country": "Country",
+      "language": "Language",
       "general-info": "General Information",
       "knowledge-base": {
         "title": "Knowledge base",
@@ -862,7 +862,8 @@
     "pop-out": "Pop out",
     "delete": "Delete",
     "remove": "Remove",
-    "no-value": "No value"
+    "no-value": "No value",
+    "rail-empty": "No active chats"
   },
   "pull-mode": {
     "all-list": "All List",
@@ -2006,7 +2007,7 @@
     },
     "filters": {
       "label": "Case filters",
-      "search": "Search reference, title, customer…",
+      "search": "Search cases…",
       "status": "Status",
       "priority": "Priority",
       "assignee": "Assignee",
@@ -2085,7 +2086,14 @@
       "case-uuid": "Case UUID",
       "customer-profile": "Customer profile",
       "linked-conversations": "Linked conversations",
-      "ai-summary": "AI summary"
+      "open-conversation": "Open conversation",
+      "open-conversation-hint": "Open this customer's conversation at the point where the case was created",
+      "open-conversation-no-access": "Opening a conversation needs the agent or supervisor role",
+      "open-conversation-no-customer": "This case has no customer profile, so there is no conversation to open",
+      "ai-summary": "AI summary",
+      "overview": "Overview",
+      "show-more": "Show more",
+      "show-less": "Show less"
     },
     "activity": {
       "label": "Case activity",
@@ -2104,7 +2112,9 @@
       "submit-as-status": "Submit as status",
       "submit-as": "Submit as {{status}}",
       "update-failed": "Failed to update case",
-      "delete-failed": "Failed to delete comment"
+      "delete-failed": "Failed to delete comment",
+      "milestones-only": "Showing key milestones. The full history is visible to the case's team.",
+      "title": "Activity"
     },
     "history": {
       "status-changed": "Status changed: ",
@@ -2126,7 +2136,9 @@
       "reopened-as": "Reopened · ",
       "reopened": "Case reopened",
       "closed": "closed",
-      "default-queue": "Default queue"
+      "default-queue": "Default queue",
+      "conversation-linked": "Conversation linked",
+      "summary-added": "AI conversation summary added"
     },
     "reassign": {
       "assign": "Assign",
@@ -2373,7 +2385,8 @@
         "saved": "Settings saved.",
         "unsaved": "You have unsaved tenant policy changes.",
         "updated": "Last updated: {{at}}"
-      }
+      },
+      "inactive": "Inactive"
     },
     "period": {
       "label": "Period",
@@ -2500,7 +2513,6 @@
       "open": "Open",
       "closed": "Closed",
       "search": "Search by reference or title…",
-      "search-all": "Search all cases, not just this customer's",
       "no-match": "No cases match \"{{query}}\".",
       "no-open": "No open cases for this customer.",
       "no-closed": "No closed cases for this customer.",
@@ -2550,7 +2562,23 @@
       "comment-placeholder": "Write a comment… Type @ to mention",
       "post-comment": "Post comment",
       "comment-posted": "Comment posted.",
-      "comment-failed": "Could not post comment"
+      "comment-failed": "Could not post comment",
+      "context-customer-only": "The case will be created for {{name}}. It is not linked to a conversation because none is active.",
+      "unavailable": "Case Management is not reachable right now ({{status}}). Try again later or contact your administrator.",
+      "hint-ref": "Looks like a case reference. Exact matches search all cases.",
+      "hint-format": "Tip: full references look like CASE-20260807-00001",
+      "last-hours": "last {{hours}}h",
+      "n-open_one": "{{count}} open",
+      "n-open_other": "{{count}} open",
+      "n-open": "{{count}} open",
+      "n-results_one": "{{count}} result",
+      "n-results_other": "{{count}} results",
+      "n-results": "{{count}} results",
+      "copy-ref": "Copy reference",
+      "copy-ref-named": "Copy reference {{ref}}",
+      "copied-ref": "Copied {{ref}}",
+      "create-another": "Create another",
+      "workbench": "Workbench"
     }
   }
 }

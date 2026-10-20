@@ -8,6 +8,7 @@ import { I18nextProvider, initReactI18next } from "react-i18next";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { afterAll, afterEach, beforeAll, beforeEach } from "vitest";
 import { ConfirmHost } from "@/components/common/ConfirmHost";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { setConfig } from "@/config";
 import { configureApiAuth } from "@/core/api";
 import { getSession, useSessionStore } from "@/core/auth";
@@ -43,7 +44,7 @@ export function useCaseBackend() {
   beforeEach(() => {
     resetCaseDb();
     resetDisplayNames();
-    setConfig(makeConfig({ CASE_API_URL: CASE_API }));
+    setConfig(makeConfig({ CASE_MANAGEMENT_API_URL: CASE_API }));
     configureApiAuth({
       getAccessToken: () => getSession().accessToken,
       getAgentId: () => getSession().user?.id ?? null,
@@ -85,13 +86,15 @@ export function renderCase(
   return render(
     <I18nextProvider i18n={i18n}>
       <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={[path]}>
-          <Routes>
-            <Route path={route} element={ui} />
-          </Routes>
-          <LocationProbe />
-          <ConfirmHost />
-        </MemoryRouter>
+        <TooltipProvider>
+          <MemoryRouter initialEntries={[path]}>
+            <Routes>
+              <Route path={route} element={ui} />
+            </Routes>
+            <LocationProbe />
+            <ConfirmHost />
+          </MemoryRouter>
+        </TooltipProvider>
       </QueryClientProvider>
     </I18nextProvider>,
   );

@@ -55,8 +55,8 @@ export interface NavSection {
   items: NavItem[];
 }
 
-/** Case Management lives on its own backend; no CASE_API_URL, no Cases module. */
-export const caseManagementEnabled = ({ config }: NavContext) => Boolean(config.CASE_API_URL);
+/** Case Management lives on its own backend; `feature_caseManagement` switches the module off. */
+export const caseManagementEnabled = ({ config }: NavContext) => config.feature_caseManagement;
 
 /**
  * The single source of truth for navigation, page titles and route permissions

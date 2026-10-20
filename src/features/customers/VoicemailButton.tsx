@@ -1,6 +1,7 @@
 import { Voicemail } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link, useMatch } from "react-router";
+import { UnreadBadge } from "@/components/common/UnreadBadge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useDeskSettings } from "@/core/agent-settings";
 import { cn } from "@/shared/lib/utils";
@@ -32,11 +33,7 @@ export function VoicemailButton() {
           )}
         >
           <Voicemail className="size-[18px]" aria-hidden />
-          {unread > 0 && (
-            <span className="absolute -end-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground tabular ring-2 ring-surface">
-              {unread > 99 ? "99+" : unread}
-            </span>
-          )}
+          {unread > 0 && <UnreadBadge count={unread} />}
         </Link>
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>

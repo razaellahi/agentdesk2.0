@@ -10,15 +10,19 @@ const rowFor = (title: string) => screen.getByText(title).closest("tr")!;
 describe("case Workbench", () => {
   useCaseBackend();
 
-  it("opens on the unassigned pool with the supervisor team strip", async () => {
+  it("opens on the unassigned pool and shows team health in the routing group filter", async () => {
     signIn("supervisor");
+    const user = userEvent.setup();
     renderCase(<WorkbenchPage />, { path: "/cases", route: "/cases" });
     expect(await screen.findByText("Router keeps dropping")).toBeInTheDocument();
     expect(screen.getByText("Update billing address")).toBeInTheDocument();
     // Assigned cases are outside the unassigned pool.
     expect(screen.queryByText("Card payment declined twice")).not.toBeInTheDocument();
-    const teams = await screen.findByLabelText("Your teams");
-    expect(within(teams).getByText("Technical")).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: /Routing group/ }));
+    const teams = await screen.findByRole("listbox", { name: "Routing group" });
+    expect(within(teams).getByRole("option", { name: /Technical/ })).toHaveTextContent(
+      "1 open · 1 unassigned · 1 breached",
+    );
   });
 
   it("claims a case from the unassigned list and opens it in the pane", async () => {
@@ -49,6 +53,8 @@ describe("case Workbench", () => {
   it("bulk-resolves selected cases and reports failures per case", async () => {
     signIn("supervisor");
     const user = userEvent.setup();
+    // Cases that were already resolved in the seed stay resolved; the bulk action adds two more.
+    const alreadyResolved = caseDb.cases.filter((c) => c.status.code === "RESOLVED").map((c) => c.id);
     renderCase(<WorkbenchPage />, { path: "/cases?listView=all", route: "/cases" });
     await screen.findByText("Card payment declined twice");
     await user.click(within(rowFor("Card payment declined twice")).getByRole("checkbox"));
@@ -60,7 +66,7 @@ describe("case Workbench", () => {
         .filter((c) => c.status.code === "RESOLVED")
         .map((c) => c.id)
         .sort(),
-    ).toEqual(["case-1", "case-2", "case-5"]);
+    ).toEqual([...new Set([...alreadyResolved, "case-1", "case-5"])].sort());
   });
 
   it("updates a case to a new status with a note from the pane", async () => {
@@ -68,6 +74,7 @@ describe("case Workbench", () => {
     const user = userEvent.setup();
     renderCase(<WorkbenchPage />, { path: "/cases?listView=all&caseId=case-1", route: "/cases" });
     const pane = await screen.findByRole("complementary", { name: "Case details" });
+    await user.click(await within(pane).findByRole("tab", { name: /Activity/ }));
     expect(await within(pane).findByText("Please check with the gateway, @Sana Iqbal.")).toBeInTheDocument();
     await user.selectOptions(await within(pane).findByLabelText("Submit as status"), "st-pending_customer");
     // Pending needs a note.

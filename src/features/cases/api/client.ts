@@ -22,7 +22,7 @@ function graphqlError(errors: GraphqlError[], status: number): ApiError {
 }
 
 /**
- * One GraphQL operation against `${CASE_API_URL}/graphql` with the desk token and
+ * One GraphQL operation against `${CASE_MANAGEMENT_API_URL}/graphql` with the desk token and
  * tenant header. GraphQL errors throw like Apollo's default error policy did.
  */
 export async function gql<T>(

@@ -2,6 +2,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ArrowRightLeft,
+  BookOpen,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
@@ -39,6 +40,7 @@ import { useDeskSettings } from "@/core/agent-settings";
 import { usePermission } from "@/core/auth";
 import { OutboundComposeSheet } from "@/features/customers";
 import { useCallStore } from "@/features/voice";
+import { IconTooltip } from "@/components/common/IconTooltip";
 import { cn } from "@/shared/lib/utils";
 import { removeFromBoard } from "../board/sideBySide";
 import { useOutboundReach } from "../hooks/useOutboundReach";
@@ -53,13 +55,15 @@ import {
 } from "../session/agentSession";
 import { useBoardStore } from "../store/boardStore";
 import { openConversationPopout } from "../store/popout";
+import { KnowledgeSearchButton } from "./KnowledgeSearchButton";
 import { ReachCustomer } from "./ReachCustomer";
 
 export type PaneLayout = "ultra-narrow" | "narrow" | "compact" | "roomy";
 
 /** How many actions sit in the header at each pane width; the rest go to More. */
 // Roomy has room for every action; the three-dot menu then only holds layout extras.
-const INLINE_BUDGET: Record<PaneLayout, number> = { roomy: 12, compact: 12, narrow: 5, "ultra-narrow": 2 };
+// Narrow panes keep Pause, Reach and Customer info in the header; the knowledge base comes after them.
+const INLINE_BUDGET: Record<PaneLayout, number> = { roomy: 12, compact: 9, narrow: 5, "ultra-narrow": 3 };
 
 interface HeaderAction {
   id: string;
@@ -71,13 +75,15 @@ interface HeaderAction {
   pinned?: boolean;
   pressed?: boolean;
   tone?: "warning" | "primary" | "danger";
-  /** Shown as an icon with a tooltip even when labels fit (rare, or self-explanatory, actions). */
-  iconOnly?: boolean;
   onSelect?: () => void;
   /** Choices shown as a menu (pause durations). */
   choices?: { key: string; label: string; onSelect: () => void }[];
   /** The Reach customer panel. */
   reach?: boolean;
+  /** Knowledge base search; the endpoint it queries. */
+  kb?: boolean;
+  /** Greyed out but still shown (unified-agent keeps hold controls visible for whispers). */
+  disabled?: boolean;
 }
 
 /**
@@ -132,7 +138,6 @@ export function ConversationActions({
   const ownsConversation = primary && active;
   const holdOptions = settings?.holdOptions ?? [];
   const isAssistant = primary && conversation.agentParticipants.some((p) => p.role === "ASSISTANT");
-  const showLabels = layout === "roomy";
   const multiPane = Boolean(board && board.count > 1);
 
   const wrapUpAvailable = Boolean(canWrapUp && settings?.wrapUp && active && !conversation.wrapUp.show);
@@ -155,6 +160,22 @@ export function ConversationActions({
       icon: Headphones,
       priority: 2,
       onSelect: () => switchToWhisper(id),
+    });
+  // Hold follows unified-agent: any active conversation the agent is not only assisting on.
+  // A whisper (listen-only) keeps the controls visible but disabled.
+  const holdable = active && conversation.topicParticipant.role !== "ASSISTANT";
+  const whispering = conversation.topicParticipant.role === "WHISPER";
+  // A held conversation always shows Resume in the header, not only in the menu.
+  if (conversation.hold.active && holdable)
+    actions.push({
+      id: "resume",
+      label: t("chat-features.interactions.resume-conversation"),
+      icon: Play,
+      priority: 0,
+      pinned: true,
+      tone: "primary",
+      disabled: whispering,
+      onSelect: onResume,
     });
   if (ownsConversation)
     actions.push({
@@ -179,6 +200,15 @@ export function ConversationActions({
       priority: 3,
       reach: true,
     });
+  // Knowledge base search, shown when the desk has it switched on (unified-agent's knowledge flag).
+  if (settings?.knowledgeBaseSearch)
+    actions.push({
+      id: "kb",
+      label: t("chat-features.customer-info.knowledge-base.title"),
+      icon: BookOpen,
+      priority: 4.5,
+      kb: true,
+    });
   if (ownsConversation && (canTransfer || canConsult || canConference))
     actions.push({
       id: "transfer",
@@ -187,12 +217,14 @@ export function ConversationActions({
       priority: 5,
       onSelect: onAssist,
     });
-  if (ownsConversation && !conversation.hold.active && holdOptions.length > 0)
+  if (holdable && !conversation.hold.active && holdOptions.length > 0)
     actions.push({
       id: "pause",
       label: t("chat-features.interactions.pause-conversation"),
       icon: Pause,
-      priority: 7,
+      // High enough to stay in the header in compact panes, next to Resume.
+      priority: 2,
+      disabled: whispering,
       choices: holdOptions.map((span) => ({
         key: String(span.value),
         label: t("admin-settings.fields.hold.minutes", { count: span.value }),
@@ -252,16 +284,12 @@ export function ConversationActions({
   const shown = ranked.filter((a) => inline.has(a.id));
   const overflow = ranked.filter((a) => !inline.has(a.id));
   // Leave closes the menu, below everything else and set apart; the rest follow priority.
-  const overflowMain = overflow.filter((a) => a.id !== "leave");
+  // The knowledge base is a search panel, not a menu command, so it has no menu entry.
+  const overflowMain = overflow.filter((a) => a.id !== "leave" && !a.kb);
   const leaveInMenu = !inline.has("leave");
 
   // Whatever the header does not show is in the menu; with everything shown there is no menu.
-  const hasMore =
-    overflowMain.length > 0 ||
-    (conversation.hold.active && ownsConversation) ||
-    isAssistant ||
-    multiPane ||
-    leaveInMenu;
+  const hasMore = overflowMain.length > 0 || isAssistant || multiPane || leaveInMenu;
 
   const openReachFromMenu = () => {
     reachFromMenu.current = true;
@@ -269,52 +297,58 @@ export function ConversationActions({
     requestAnimationFrame(() => setReachOpen(true));
   };
 
+  // Icon-only, one size for every control; the name shows in a tooltip on hover and focus.
   const inlineButton = (action: HeaderAction) => {
     const classes = cn(
-      "h-8 shrink-0 gap-1.5 rounded-full text-xs font-medium transition-colors hover:bg-surface-2",
-      showLabels && !action.iconOnly ? "px-3" : "w-8 px-0",
-      action.tone === "warning" && "bg-warning-soft text-warning-text hover:bg-warning-soft/80",
-      action.tone === "primary" && "bg-primary-soft text-primary hover:bg-primary-soft/80",
-      // Leave: same shape as its neighbours, readable as the one destructive action.
-      action.tone === "danger" &&
-        cn(
-          "hover:bg-destructive-soft hover:text-destructive",
-          // Red text where Leave has a label; a quiet icon (red on hover) in the compact layouts.
-          showLabels ? "text-destructive-text" : "text-muted-foreground",
-        ),
+      "size-9 shrink-0 rounded-full text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground",
+      action.tone === "warning" &&
+        "bg-warning-soft text-warning-text hover:bg-warning-soft/80 hover:text-warning-text",
+      action.tone === "primary" && "bg-primary-soft text-primary hover:bg-primary-soft/80 hover:text-primary",
+      // Leave: quiet until hovered, then destructive.
+      action.tone === "danger" && "hover:bg-destructive-soft hover:text-destructive",
     );
-    const body = (
-      <>
-        <action.icon
-          className={cn("size-3.5", action.id === "hand" && action.pressed && "animate-bounce")}
-          aria-hidden
-        />
-        <span className={showLabels && !action.iconOnly ? undefined : "sr-only"}>{action.label}</span>
-      </>
+    const icon = (
+      <action.icon
+        className={cn("size-[18px]", action.id === "hand" && action.pressed && "animate-bounce")}
+        strokeWidth={1.75}
+        aria-hidden
+      />
     );
+    if (action.kb) return <KnowledgeSearchButton key={action.id} />;
     if (action.reach)
       return (
-        <PopoverTrigger asChild key={action.id}>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className={cn(classes, reachOpen && "bg-primary-soft text-primary")}
-            title={action.label}
-            data-testid="conversation-outbound-trigger"
-          >
-            {body}
-          </Button>
-        </PopoverTrigger>
+        <IconTooltip key={action.id} label={action.label}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              aria-label={action.label}
+              className={cn(classes, reachOpen && "bg-primary-soft text-primary")}
+              data-testid="conversation-outbound-trigger"
+            >
+              {icon}
+            </Button>
+          </PopoverTrigger>
+        </IconTooltip>
       );
     if (action.choices)
       return (
         <DropdownMenu key={action.id}>
-          <DropdownMenuTrigger asChild>
-            <Button type="button" size="sm" variant="ghost" className={classes} title={action.label}>
-              {body}
-            </Button>
-          </DropdownMenuTrigger>
+          <IconTooltip label={action.label}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                aria-label={action.label}
+                className={classes}
+                disabled={action.disabled}
+              >
+                {icon}
+              </Button>
+            </DropdownMenuTrigger>
+          </IconTooltip>
           <DropdownMenuContent align="end" className="min-w-40">
             <DropdownMenuLabel className="text-xs text-muted-foreground">{action.label}</DropdownMenuLabel>
             {action.choices.map((choice) => (
@@ -327,18 +361,20 @@ export function ConversationActions({
         </DropdownMenu>
       );
     return (
-      <Button
-        key={action.id}
-        type="button"
-        size="sm"
-        variant="ghost"
-        className={classes}
-        title={action.label}
-        aria-pressed={action.pressed}
-        onClick={action.onSelect}
-      >
-        {body}
-      </Button>
+      <IconTooltip key={action.id} label={action.label}>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          aria-label={action.label}
+          className={classes}
+          disabled={action.disabled}
+          aria-pressed={action.pressed}
+          onClick={action.onSelect}
+        >
+          {icon}
+        </Button>
+      </IconTooltip>
     );
   };
 
@@ -401,18 +437,19 @@ export function ConversationActions({
 
           {hasMore && (
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="ghost"
-                  className="size-8 shrink-0 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
-                  aria-label={t("globals.view-more")}
-                  title={t("globals.view-more")}
-                >
-                  <MoreHorizontal className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
+              <IconTooltip label={t("globals.view-more")}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="size-9 shrink-0 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+                    aria-label={t("globals.view-more")}
+                  >
+                    <MoreHorizontal className="size-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </IconTooltip>
               <DropdownMenuContent
                 align="end"
                 className="max-h-[min(70vh,32rem)] min-w-56 overflow-y-auto"
@@ -420,12 +457,6 @@ export function ConversationActions({
                 onCloseAutoFocus={(event) => reachFromMenu.current && event.preventDefault()}
               >
                 {overflowMain.length > 0 && <>{overflowMain.map(menuItem)}</>}
-                {conversation.hold.active && ownsConversation && (
-                  <DropdownMenuItem onSelect={onResume}>
-                    <Play className="size-4" aria-hidden />
-                    {t("chat-features.interactions.resume-conversation")}
-                  </DropdownMenuItem>
-                )}
                 {consultItems.map((item) => (
                   <DropdownMenuItem
                     key={item.key}
@@ -476,34 +507,36 @@ export function ConversationActions({
           {board && multiPane && (
             <>
               {layout !== "ultra-narrow" && (
+                <IconTooltip label={t(pinned ? "workspace.unpin-pane" : "workspace.pin-pane")}>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    aria-label={t(pinned ? "workspace.unpin-pane" : "workspace.pin-pane")}
+                    aria-pressed={pinned}
+                    className={cn(
+                      "size-9 shrink-0 rounded-full",
+                      pinned ? "bg-primary-soft text-primary" : "text-muted-foreground",
+                    )}
+                    onClick={() => useBoardStore.getState().togglePin(id)}
+                  >
+                    <Pin className={cn("size-5", pinned && "fill-current")} />
+                  </Button>
+                </IconTooltip>
+              )}
+              <IconTooltip label={t("workspace.remove-from-board")}>
                 <Button
                   type="button"
-                  size="icon-sm"
+                  size="icon"
                   variant="ghost"
-                  aria-label={t(pinned ? "workspace.unpin-pane" : "workspace.pin-pane")}
-                  title={t("workspace.pin-pane-hint")}
-                  aria-pressed={pinned}
-                  className={cn(
-                    "size-7 shrink-0 rounded-lg",
-                    pinned ? "bg-primary-soft text-primary" : "text-muted-foreground",
-                  )}
-                  onClick={() => useBoardStore.getState().togglePin(id)}
+                  className="size-9 shrink-0 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+                  aria-label={t("workspace.remove-from-board")}
+                  onClick={() => removeFromBoard(id)}
                 >
-                  <Pin className={cn("size-3.5", pinned && "fill-current")} />
+                  {/* Not an X: this only closes the pane; it does not leave the conversation. */}
+                  <Minimize2 className="size-5" />
                 </Button>
-              )}
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                className="size-8 shrink-0 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
-                aria-label={t("workspace.remove-from-board")}
-                title={t("workspace.remove-from-board")}
-                onClick={() => removeFromBoard(id)}
-              >
-                {/* Not an X: this only closes the pane; it does not leave the conversation. */}
-                <Minimize2 className="size-3.5" />
-              </Button>
+              </IconTooltip>
             </>
           )}
         </div>

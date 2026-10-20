@@ -5,7 +5,6 @@ import {
   History,
   Link2,
   Loader2,
-  MessageSquarePlus,
   Pencil,
   Search,
   ShieldAlert,
@@ -14,7 +13,6 @@ import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { SearchField } from "@/components/common/ListChrome";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useDeskSettings } from "@/core/agent-settings";
@@ -22,7 +20,6 @@ import { usePermission } from "@/core/auth";
 import { CasesTab } from "@/features/cases";
 import {
   CustomerForm,
-  listCustomers,
   type CustomerRow,
   OutboundComposeSheet,
   LabelDots,
@@ -30,18 +27,20 @@ import {
 } from "@/features/customers";
 import { cn } from "@/shared/lib/utils";
 import { searchKnowledgeBase, type KnowledgeBaseHit } from "../api";
-import { kindOfChannelType } from "../model/outboundPlan";
+import { destinationKey, kindOfChannelType, type OutboundKind } from "../model/outboundPlan";
 import { useCaseConversationContext } from "../hooks/useCaseConversationContext";
 import { useOutboundReach } from "../hooks/useOutboundReach";
 import { HistoryDialog } from "./HistoryDialog";
 import { ReachCustomer } from "./ReachCustomer";
 import { openLinkConversationDialog } from "../linking/linkDialog";
 import { linkCustomerWithTopic, channelIdentifierAttr } from "../linking/linkCustomerWithTopic";
-import { linkingChannelSession, phonebookLinkingPath } from "../linking/phonebookLink";
+import { phonebookLinkingPath } from "../linking/phonebookLink";
 import { formatDataValue, parseConversationInsight } from "../model/conversationInsight";
+import { readWebChannel } from "../model/webChannel";
+import { ActiveSessionCard } from "./ActiveSessionCard";
 import type { Conversation } from "../model/types";
 import { useComposerStore, composerKey } from "../store/composerStore";
-import { ChannelBadge } from "./ChannelIcon";
+import { ChannelMark, OutboundActionIcon } from "./ChannelIcon";
 import { CustomerAvatar } from "./CustomerInitials";
 import {
   text,
@@ -49,6 +48,18 @@ import {
   type ContextTabId,
   type CustomerContext as Ctx,
 } from "../hooks/useCustomerContext";
+
+/**
+ * The leading icon of an identifier group: one neutral line icon in a uniform tile. The group's
+ * icon is shown once, never per value, and the tile never changes colour by type.
+ */
+function FactGlyph({ label }: { label: string }) {
+  return (
+    <span className="grid size-8 shrink-0 place-items-center">
+      <ChannelMark name={label} />
+    </span>
+  );
+}
 
 function linkErrorMessage(error: unknown, t: (key: string) => string) {
   const message = String(error);
@@ -60,9 +71,9 @@ function linkErrorMessage(error: unknown, t: (key: string) => string) {
 
 function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <section className="space-y-2 border-b border-border/40 px-3.5 py-3 last:border-b-0">
+    <section className="space-y-2 border-b border-border/30 px-4 py-3.5 last:border-b-0">
       <div className="flex items-center justify-between gap-2">
-        <h4 className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">{title}</h4>
+        <h4 className="text-[13px] font-medium tracking-normal text-foreground/80">{title}</h4>
         {action}
       </div>
       {children}
@@ -70,94 +81,131 @@ function Section({ title, action, children }: { title: string; action?: ReactNod
   );
 }
 
-type FactRow = { key: string; label: string; value: string; raw: string; channels: string[] };
+type FactOutboundAction = {
+  id: string;
+  kind: OutboundKind;
+  mode: "continue" | "start";
+  label: string;
+  title: string;
+  disabled: boolean;
+  busy: boolean;
+  onSelect: () => void;
+};
 
-type ChipAction = { label: string; mode: "continue" | "start"; onSelect: () => void } | null;
+type FactRow = {
+  key: string;
+  label: string;
+  value: string;
+  raw: string;
+  attrKey: string;
+  channels: string[];
+};
 
 /**
- * One fact with a copy button (only when the agent may see the full value) and, for
- * channel identifiers, the channels it belongs to (source customer-info channel
- * list). Each chip offers "Reply here" when the customer is already on that channel
- * in this conversation, or starts one when the channel can be used.
+ * One contact fact with outbound action triggers (Call, SMS, Email, WhatsApp, Reply here)
+ * and copy action. Uses canonical outbound action icons without duplicate leading logos.
  */
 function Fact({
   label,
   value,
+  caption,
   copyable,
-  channels = [],
-  actionFor,
+  actions = [],
 }: {
   label: string;
   value: string;
+  /** The identifier's type, shown quietly on the first value of a group. */
+  caption?: string;
   copyable: boolean;
-  channels?: string[];
-  actionFor?: (channel: string) => ChipAction;
+  actions?: FactOutboundAction[];
 }) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
+
   return (
-    <div className="group/fact flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 transition-colors hover:bg-surface-2/70">
-      <div className="min-w-0 flex-1">
-        <div className="text-[10px] font-medium tracking-wider text-muted-foreground uppercase">{label}</div>
-        <div className="mt-0.5 truncate text-xs font-medium text-foreground tabular-nums" title={value}>
-          {value}
-        </div>
-        {channels.length > 0 && (
-          <ul className="mt-1 flex flex-wrap gap-1">
-            {channels.map((channel) => {
-              const action = actionFor?.(channel) ?? null;
-              return (
-                <li
-                  key={channel}
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-full bg-surface-2 py-0.5 ps-1.5 text-[10px] text-muted-foreground",
-                    action ? "pe-0.5" : "pe-2",
-                  )}
-                >
-                  <ChannelBadge channelType={{ name: channel }} size="sm" className="-ms-1" />
-                  <span>{channel}</span>
-                  {action && (
-                    <button
-                      type="button"
-                      className="grid size-4 place-items-center rounded-full text-primary hover:bg-primary-soft"
-                      aria-label={action.label}
-                      title={action.label}
-                      onClick={action.onSelect}
-                    >
-                      {action.mode === "continue" ? (
-                        <CornerDownLeft className="size-3" />
-                      ) : (
-                        <MessageSquarePlus className="size-3" />
-                      )}
-                    </button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+    <div className="group/fact relative flex min-h-8 items-center gap-2 rounded-lg px-2 transition-colors duration-150 hover:bg-surface-2">
+      {/* The icon sits once per group beside the values; the row is the value and its type. */}
+      <div
+        className="min-w-0 flex-1 truncate text-sm leading-5 font-medium text-foreground tabular-nums select-text"
+        title={value}
+      >
+        {value}
+      </div>
+      {caption && <span className="shrink-0 text-[11px] text-muted-foreground">{caption}</span>}
+
+      {/* Trailing: outbound actions and copy. Over the end of the row on hover or focus, so the
+          value keeps the full width; always shown where there is no hover (touch). */}
+      <div className="pointer-events-none absolute inset-y-0 end-0 flex items-center gap-1 bg-linear-to-l from-surface-2 from-75% to-transparent ps-8 pe-2 opacity-0 transition-opacity group-focus-within/fact:pointer-events-auto group-focus-within/fact:opacity-100 group-hover/fact:pointer-events-auto group-hover/fact:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
+        {actions.map((act) => {
+          const isContinue = act.mode === "continue";
+          const isVoice = act.kind === "voice";
+          const isSms = act.kind === "sms";
+          const isEmail = act.kind === "email";
+          const isWhatsApp = act.kind === "whatsapp";
+
+          return (
+            <Button
+              key={act.id}
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              disabled={act.disabled}
+              title={act.title}
+              aria-label={act.label}
+              onClick={act.onSelect}
+              className={cn(
+                "size-8 rounded-full shadow-2xs transition-all duration-150 active:scale-95",
+                isContinue && "hover:bg-primary-container bg-primary-soft text-primary",
+                isVoice &&
+                  "bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:bg-emerald-500/15 dark:text-emerald-300",
+                isSms &&
+                  "bg-blue-500/10 text-blue-700 hover:bg-blue-500/20 dark:bg-blue-500/15 dark:text-blue-300",
+                isEmail &&
+                  "bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:bg-amber-500/15 dark:text-amber-300",
+                isWhatsApp &&
+                  "bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:bg-emerald-500/15 dark:text-emerald-300",
+                !isContinue &&
+                  !isVoice &&
+                  !isSms &&
+                  !isEmail &&
+                  !isWhatsApp &&
+                  "bg-surface-2 text-foreground hover:bg-surface-2/80",
+                act.disabled &&
+                  "cursor-not-allowed opacity-40 shadow-none hover:bg-surface-2/40 active:scale-100",
+              )}
+            >
+              {act.busy ? (
+                <Loader2 className="size-3.5 animate-spin text-primary" />
+              ) : isContinue ? (
+                <CornerDownLeft className="size-3.5" />
+              ) : (
+                <OutboundActionIcon kind={act.kind} className="size-3.5" />
+              )}
+            </Button>
+          );
+        })}
+
+        {copyable && (
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            className={cn(
+              "size-8 rounded-full text-muted-foreground transition-all duration-150 hover:bg-surface hover:text-foreground active:scale-95",
+            )}
+            aria-label={t("workspace.copy-value", { label })}
+            title={t("workspace.copy-value", { label })}
+            onClick={() =>
+              void navigator.clipboard?.writeText(value).then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1200);
+              })
+            }
+          >
+            {copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
+          </Button>
         )}
       </div>
-      {copyable && (
-        <Button
-          type="button"
-          size="icon-xs"
-          variant="ghost"
-          className="size-6 rounded-full opacity-0 group-hover/fact:opacity-100 hover:bg-surface-2 focus-visible:opacity-100"
-          aria-label={t("workspace.copy-value", { label })}
-          onClick={() =>
-            void navigator.clipboard?.writeText(value).then(() => {
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1200);
-            })
-          }
-        >
-          {copied ? (
-            <Check className="size-3 text-success" />
-          ) : (
-            <Copy className="size-3 text-muted-foreground" />
-          )}
-        </Button>
-      )}
     </div>
   );
 }
@@ -188,10 +236,18 @@ export function CustomerPanel({ conversation, tab }: { conversation: Conversatio
       existing.channels = [...new Set([...existing.channels, ...channels])];
       return;
     }
-    facts.push({ key, label, value: display(value, attrKey), raw: value, channels });
+    facts.push({ key, label, value: display(value, attrKey), raw: value, attrKey, channels });
   };
-  addFact("phone", t("workspace.phone"), customer.phoneNumber ?? customer.phone, "phoneNumber");
-  addFact("email", t("workspace.email"), customer.email, "email");
+  const valuesOf = (raw: unknown): string[] =>
+    (Array.isArray(raw) ? raw : [raw])
+      .map((item) => text(item))
+      .filter((item): item is string => Boolean(item));
+  valuesOf(customer.phoneNumber ?? customer.phone).forEach((value, index) =>
+    addFact(`phone-${index}`, t("workspace.phone"), value, "phoneNumber", ["CX_VOICE", "SMS", "WHATSAPP"]),
+  );
+  valuesOf(customer.email).forEach((value, index) =>
+    addFact(`email-${index}`, t("workspace.email"), value, "email", ["EMAIL"]),
+  );
   for (const attr of ctx.schema) {
     if (!attr.isChannelIdentifier || !attr.key) continue;
     const raw = customer[attr.key as keyof typeof customer];
@@ -202,8 +258,8 @@ export function CustomerPanel({ conversation, tab }: { conversation: Conversatio
   }
 
   return (
-    <div className="flex min-h-0 flex-col">
-      <div className="flex items-start gap-3 border-b border-border/40 bg-surface px-3.5 py-3">
+    <div className="flex min-h-0 flex-col bg-chat-panel-right">
+      <div className="flex items-start gap-3 border-b border-border/40 bg-chat-panel-right-card px-4 py-3.5">
         <div
           role={ctx.canEdit && customer._id ? "button" : undefined}
           tabIndex={ctx.canEdit && customer._id ? 0 : undefined}
@@ -233,7 +289,7 @@ export function CustomerPanel({ conversation, tab }: { conversation: Conversatio
             <div className="flex items-center gap-1.5">
               <h3
                 className={cn(
-                  "truncate text-sm font-semibold text-foreground",
+                  "truncate text-[16px] font-medium tracking-tight text-foreground",
                   ctx.canEdit && customer._id && "transition-colors group-hover:text-primary",
                 )}
                 title={name}
@@ -246,12 +302,14 @@ export function CustomerPanel({ conversation, tab }: { conversation: Conversatio
                 {t("workspace.unidentified-hint")}
               </span>
             ) : (
-              <p className="truncate text-xs text-muted-foreground tabular-nums">{facts[0]?.value ?? ""}</p>
+              <p className="mt-0.5 truncate text-xs font-normal text-muted-foreground tabular-nums">
+                {facts[0]?.value ?? ""}
+              </p>
             )}
             <LabelDots labels={labels} className="mt-1" />
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-0.5">
+        <div className="flex shrink-0 items-center gap-0.5 rounded-lg bg-surface-2/60 p-0.5">
           {(canHistory || canCustomerHistory) && customer._id && (
             <Button
               type="button"
@@ -259,7 +317,7 @@ export function CustomerPanel({ conversation, tab }: { conversation: Conversatio
               variant="ghost"
               aria-label="View customer history"
               title="View customer history"
-              className="size-8 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+              className="size-7 rounded-md text-muted-foreground hover:bg-surface hover:text-foreground"
               onClick={() => setHistoryOpen(true)}
             >
               <History className="size-4" />
@@ -272,7 +330,7 @@ export function CustomerPanel({ conversation, tab }: { conversation: Conversatio
               variant="ghost"
               aria-label={t("chat-features.customer-info.update-profile")}
               title={t("chat-features.customer-info.update-profile")}
-              className="size-8 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+              className="size-7 rounded-md text-muted-foreground hover:bg-surface hover:text-foreground"
               onClick={() => setEditing(true)}
             >
               <Pencil className="size-4" />
@@ -285,7 +343,7 @@ export function CustomerPanel({ conversation, tab }: { conversation: Conversatio
               variant="ghost"
               aria-label={t("chat-features.customer-info.link-profile")}
               title={t("chat-features.customer-info.link-profile")}
-              className="size-8 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+              className="size-7 rounded-md text-muted-foreground hover:bg-surface hover:text-foreground"
               onClick={() => navigate(phonebookLinkingPath(conversation))}
             >
               <Link2 className="size-4" />
@@ -314,7 +372,7 @@ export function CustomerPanel({ conversation, tab }: { conversation: Conversatio
 
 function CaseManagementTab({ conversation }: { conversation: Conversation }) {
   const context = useCaseConversationContext(conversation);
-  return <CasesTab key={context.interactionId} context={context} />;
+  return <CasesTab key={`${context.interactionId}|${context.customerProfileId}`} context={context} />;
 }
 
 function ProfileTab({
@@ -328,33 +386,116 @@ function ProfileTab({
 }) {
   const { t, display } = ctx;
   const navigate = useNavigate();
-  const [query, setQuery] = useState("");
-  // Same plan as the header's Reach customer panel, so the chips never disagree with it.
   const reach = useOutboundReach(conversation, true);
-  const chipAction = (raw: string, channel: string): ChipAction => {
-    const kind = kindOfChannelType(channel);
-    const option = kind ? reach.options.find((o) => o.kind === kind) : undefined;
-    if (!option) return null;
-    const channelName = t(`workspace.reach.channel.${option.kind}`);
-    if (option.state === "continue")
-      return {
-        label: `${t("workspace.reach.reply-here")} · ${channelName}`,
-        mode: "continue",
-        onSelect: () => reach.continueOn(option),
+  // Identifiers of one type share a header and its icon, so the icon is never repeated per value.
+  const groups = facts.reduce<{ key: string; label: string; facts: FactRow[] }[]>((all, fact) => {
+    const group = all.find((item) => item.key === fact.attrKey);
+    if (group) group.facts.push(fact);
+    else all.push({ key: fact.attrKey, label: fact.label, facts: [fact] });
+    return all;
+  }, []);
+
+  const getActionsForFact = (fact: FactRow): FactOutboundAction[] => {
+    const list: FactOutboundAction[] = [];
+    const rawVal = fact.raw;
+    const isEmail =
+      fact.attrKey.toLowerCase().includes("email") ||
+      fact.key.toLowerCase().includes("email") ||
+      rawVal.includes("@");
+    const isPhone =
+      !isEmail &&
+      (fact.attrKey.toLowerCase().includes("phone") ||
+        fact.key.toLowerCase().includes("phone") ||
+        rawVal.replace(/[^\d]/g, "").length >= 7);
+
+    for (const option of reach.options) {
+      const matchesTarget = option.targets.some(
+        (t) => destinationKey(option.kind, t.value) === destinationKey(option.kind, rawVal),
+      );
+      const matchesChannel = fact.channels.some((c) => kindOfChannelType(c) === option.kind);
+      const matchesKind =
+        matchesTarget ||
+        matchesChannel ||
+        (isPhone && ["voice", "sms", "whatsapp"].includes(option.kind)) ||
+        (isEmail && option.kind === "email");
+
+      if (!matchesKind) continue;
+
+      const target = option.targets.find(
+        (t) => destinationKey(option.kind, t.value) === destinationKey(option.kind, rawVal),
+      ) ?? {
+        value: rawVal,
+        attrKey: fact.attrKey,
+        display: fact.value,
       };
-    if (option.state !== "ready") return null;
-    const target = option.targets.find((item) => item.value === raw) ?? {
-      value: raw,
-      attrKey: "",
-      display: raw,
-    };
-    return {
-      label: t("workspace.start-conversation-on", { channel: channelName }),
-      mode: "start",
-      onSelect: () => reach.start(option, target),
-    };
+
+      const channelName = t(`workspace.reach.channel.${option.kind}`);
+      const busy = reach.busy === option.kind;
+
+      if (option.state === "continue") {
+        list.push({
+          id: `${fact.key}-${option.kind}-continue`,
+          kind: option.kind,
+          mode: "continue",
+          label: t("workspace.reach.reply-here"),
+          title: `${t("workspace.reach.reply-here")} · ${channelName}`,
+          disabled: false,
+          busy,
+          onSelect: () => reach.continueOn(option),
+        });
+      } else if (option.state === "ready" || option.kind === "email") {
+        list.push({
+          id: `${fact.key}-${option.kind}-ready`,
+          kind: option.kind,
+          mode: "start",
+          label: t(`workspace.reach.action.${option.kind}`),
+          title: `${t(`workspace.reach.action.${option.kind}`)} · ${channelName}`,
+          disabled: reach.optedOut || Boolean(reach.busy),
+          busy,
+          onSelect: () => reach.start(option, target),
+        });
+      } else if (
+        option.state === "unavailable" &&
+        (option.reason === "PHONE_OFFLINE" || option.reason === "ON_CALL")
+      ) {
+        list.push({
+          id: `${fact.key}-${option.kind}-unavailable`,
+          kind: option.kind,
+          mode: "start",
+          label: t(`workspace.reach.action.${option.kind}`),
+          title: reach.reasonText(option.reason, option.kind),
+          disabled: true,
+          busy: false,
+          onSelect: () => undefined,
+        });
+      }
+    }
+
+    // Direct email action: ensure an email fact always provides the email compose action
+    if (isEmail && !list.some((a) => a.kind === "email")) {
+      const emailOption = reach.options.find((o) => o.kind === "email");
+      const target = { value: rawVal, attrKey: fact.attrKey, display: fact.value };
+      list.push({
+        id: `${fact.key}-email-direct`,
+        kind: "email",
+        mode: "start",
+        label: t("workspace.reach.action.email"),
+        title: `${t("workspace.reach.action.email")} · ${t("workspace.reach.channel.email")}`,
+        disabled: reach.optedOut || Boolean(reach.busy),
+        busy: reach.busy === "email",
+        onSelect: () => {
+          if (emailOption) {
+            reach.start(emailOption, target);
+          } else {
+            reach.start({ kind: "email", targets: [target], state: "ready" }, target);
+          }
+        },
+      });
+    }
+
+    return list;
   };
-  const [matches, setMatches] = useState<CustomerRow[]>([]);
+
   const matchName = (match: CustomerRow) =>
     [display(match.firstName, "firstName"), display(match.lastName, "lastName")].filter(Boolean).join(" ") ||
     display(match.email, "email") ||
@@ -368,7 +509,6 @@ function ProfileTab({
       .then((result) => {
         if (!result.linked) return;
         toast.success(t("snackbar.Profile-linked-successfully"));
-        setMatches([]);
       })
       .catch((error: unknown) => toast.error(linkErrorMessage(error, t)));
   };
@@ -412,18 +552,33 @@ function ProfileTab({
       )}
 
       <Section title={t("chat-features.customer-info.channel-identifiers")}>
+        {reach.optedOut && (
+          <div
+            role="alert"
+            className="mb-2.5 flex items-start gap-2.5 rounded-xl bg-destructive-soft px-3 py-2 text-xs text-destructive-text"
+          >
+            <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <p className="leading-tight font-medium">{t("snackbar.Outbound-Blocked-Opt-Out")}</p>
+          </div>
+        )}
         {facts.length ? (
-          <div className="-mx-1.5">
-            {facts.map((fact) => (
-              <Fact
-                key={fact.key}
-                label={fact.label}
-                value={fact.value}
-                copyable={ctx.full}
-                // Source hides the email action while an email session is already active.
-                channels={fact.channels}
-                actionFor={(channel) => chipAction(fact.raw, channel)}
-              />
+          <div className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-surface shadow-2xs">
+            {groups.map((group) => (
+              <div key={group.key} className="flex items-start gap-2.5 px-2.5 py-2">
+                <FactGlyph label={group.label} />
+                <div className="min-w-0 flex-1">
+                  {group.facts.map((fact, index) => (
+                    <Fact
+                      key={fact.key}
+                      label={fact.label}
+                      value={fact.value}
+                      caption={index === 0 ? group.label : undefined}
+                      copyable={ctx.full}
+                      actions={getActionsForFact(fact)}
+                    />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         ) : (
@@ -436,40 +591,6 @@ function ProfileTab({
           request={reach.composeRequest}
           onClose={reach.closeCompose}
         />
-      )}
-
-      {ctx.canLink && (
-        <Section title={t("chat-features.customer-info.link-profile")}>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              const session = linkingChannelSession(conversation);
-              const attr = channelIdentifierAttr(session?.channel.channelType.name);
-              const field = attr?.key || "phoneNumber";
-              void listCustomers(8, 0, query.trim(), { field }).then((page) => setMatches(page.docs));
-            }}
-          >
-            <SearchField value={query} onChange={setQuery} placeholder={t("labels.search")} />
-          </form>
-          {matches.length > 0 && (
-            <ul className="space-y-1">
-              {matches.map((match) => (
-                <li key={match._id}>
-                  <button
-                    type="button"
-                    className="w-full rounded-lg border px-2 py-1.5 text-start text-xs hover:bg-muted"
-                    onClick={() => {
-                      if (!match._id) return;
-                      runLink(match as Record<string, unknown>);
-                    }}
-                  >
-                    {matchName(match)}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Section>
       )}
     </>
   );
@@ -484,24 +605,21 @@ function ConversationTab({ conversation, ctx }: { conversation: Conversation; ct
       <Section title={t("chat-features.customer-info.active-sessions")}>
         <ul className="space-y-1.5">
           {conversation.activeChannelSessions.map((session) => (
-            <li
+            <ActiveSessionCard
               key={session.id}
-              className="flex min-h-8 items-center gap-2.5 rounded-xl bg-surface-2/60 px-3 py-2"
-            >
-              <ChannelBadge channelType={session.channel.channelType} size="md" />
-              <div className="min-w-0 flex-1">
-                <div className="text-xs font-semibold">{session.channel.channelType.name}</div>
-                <div className="truncate text-xs text-muted-foreground tabular-nums">
-                  {display(
-                    session.channelData.channelCustomerIdentifier,
-                    channelIdentifierAttr(session.channel.channelType.name)?.key ?? "phoneNumber",
-                  ) || t("chat-features.customer-info.not-found")}
-                </div>
-              </div>
-            </li>
+              session={session}
+              identifier={
+                display(
+                  session.channelData.channelCustomerIdentifier,
+                  channelIdentifierAttr(session.channel.channelType.name)?.key ?? "phoneNumber",
+                ) || t("chat-features.customer-info.not-found")
+              }
+              info={readWebChannel(session)}
+              display={display}
+            />
           ))}
           {conversation.activeChannelSessions.length === 0 && (
-            <li className="px-1.5 text-xs text-muted-foreground">
+            <li className="px-1.5 text-xs font-normal text-muted-foreground">
               {t("chat-features.customer-info.no-active-conversation")}
             </li>
           )}
@@ -513,7 +631,7 @@ function ConversationTab({ conversation, ctx }: { conversation: Conversation; ct
           <div className="flex items-center gap-2">
             <span
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold capitalize shadow-2xs",
+                "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium capitalize shadow-2xs",
                 sentiment.includes("neg")
                   ? "bg-rose-500/15 text-rose-700 ring-1 ring-rose-500/30 dark:text-rose-400"
                   : sentiment.includes("pos")
@@ -531,7 +649,7 @@ function ConversationTab({ conversation, ctx }: { conversation: Conversation; ct
         <Section title={t("chat-features.customer-info.summary")}>
           <div className="space-y-1 rounded-xl bg-primary-soft/40 p-3">
             {insight.summary.heading && (
-              <p className="text-xs font-bold text-foreground">{insight.summary.heading}</p>
+              <p className="text-xs font-medium text-foreground">{insight.summary.heading}</p>
             )}
             {insight.summary.content && (
               <p className="text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">
@@ -549,10 +667,10 @@ function ConversationTab({ conversation, ctx }: { conversation: Conversation; ct
                 key={row.key}
                 className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-2 rounded-lg bg-muted/15 px-2 py-1.5"
               >
-                <dt className="truncate font-medium text-muted-foreground" title={row.key}>
+                <dt className="truncate font-normal text-muted-foreground" title={row.key}>
                   {row.key}
                 </dt>
-                <dd className="font-semibold break-words whitespace-pre-wrap text-foreground">
+                <dd className="font-normal break-words whitespace-pre-wrap text-foreground">
                   {formatDataValue(row.value)}
                 </dd>
               </div>
@@ -632,7 +750,7 @@ function KnowledgeTab({ conversation }: { conversation: Conversation }) {
               )}
               {hit.sources && hit.sources.length > 0 && (
                 <div className="mt-2 space-y-1 border-t border-border/40 pt-1.5">
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase">
+                  <p className="text-xs font-medium text-muted-foreground">
                     {t("chat-features.customer-info.knowledge-base.sources")}
                   </p>
                   {hit.sources.map((source, index) => (

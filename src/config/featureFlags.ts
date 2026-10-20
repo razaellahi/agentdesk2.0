@@ -10,6 +10,7 @@ export const FEATURES = {
   multiPaneBoard: "feature_multiPaneBoard",
   aiWidgetGenerator: "feature_aiWidgetGenerator",
   recordings: "feature_recordings",
+  caseManagement: "feature_caseManagement",
 } as const satisfies Record<string, FlagKey>;
 
 export type Feature = keyof typeof FEATURES;

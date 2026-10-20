@@ -15,4 +15,4 @@ export const cxTenantApi = createServiceClient("CX_TENANT_URL");
 export const qmApi = createServiceClient("QM_URL");
 export const llmApi = createServiceClient("LLM_CONNECTOR_URL");
 export const vrsApi = createServiceClient("VRS_URL");
-export const caseApi = createServiceClient("CASE_API_URL");
+export const caseApi = createServiceClient("CASE_MANAGEMENT_API_URL");

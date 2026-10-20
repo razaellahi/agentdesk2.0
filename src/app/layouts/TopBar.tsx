@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useMatches } from "react-router";
 import { Button } from "@/components/ui/button";
 import { usePermission } from "@/core/auth";
+import { IconTooltip } from "@/components/common/IconTooltip";
 import { CaseNotificationsMenu } from "@/features/cases";
 import { VoicemailButton } from "@/features/customers";
 import {
@@ -35,28 +36,31 @@ export function TopBar({
       {/* Left: Sidebar Toggle & Window Title */}
       <div className="flex min-w-0 items-center gap-2.5">
         {/* Mobile menu trigger */}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="size-9 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground md:hidden"
-          onClick={onOpenMobileNav}
-          aria-label={t("shell.open-menu")}
-        >
-          <PanelLeft className="size-4.5" />
-        </Button>
+        <IconTooltip label={t("shell.open-menu")}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="size-9 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground md:hidden"
+            onClick={onOpenMobileNav}
+            aria-label={t("shell.open-menu")}
+          >
+            <PanelLeft className="size-4.5" />
+          </Button>
+        </IconTooltip>
 
         {/* Desktop sidebar toggle button */}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="hidden size-9 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground md:inline-flex"
-          onClick={onToggleNav}
-          aria-expanded={navExpanded}
-          aria-label={navExpanded ? t("shell.collapse-sidebar") : t("shell.expand-sidebar")}
-          title={navExpanded ? t("shell.collapse-sidebar") : t("shell.expand-sidebar")}
-        >
-          <PanelLeft className="size-4.5" />
-        </Button>
+        <IconTooltip label={navExpanded ? t("shell.collapse-sidebar") : t("shell.expand-sidebar")}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="hidden size-9 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground md:inline-flex"
+            onClick={onToggleNav}
+            aria-expanded={navExpanded}
+            aria-label={navExpanded ? t("shell.collapse-sidebar") : t("shell.expand-sidebar")}
+          >
+            <PanelLeft className="size-4.5" />
+          </Button>
+        </IconTooltip>
 
         <BrandLogo className="hidden h-5 max-w-24 sm:block" />
 

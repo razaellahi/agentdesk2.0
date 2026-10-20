@@ -1,6 +1,6 @@
 import { getConfig, hasConfig } from "@/config";
 
-/** The Cases module and conversation tab exist only when config.json names the case API. */
+/** The Cases module and conversation tab exist unless `feature_caseManagement` is switched off. */
 export function caseManagementConfigured(): boolean {
-  return hasConfig() && Boolean(getConfig().CASE_API_URL);
+  return hasConfig() && getConfig().feature_caseManagement;
 }

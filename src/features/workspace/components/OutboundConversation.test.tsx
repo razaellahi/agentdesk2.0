@@ -58,12 +58,14 @@ vi.mock("../store/schemaStore", () => ({
 }));
 
 describe("Outbound capability when conversation is opened", () => {
-  it("includes outbound tab in useContextTabs for the open conversation", () => {
+  it("does not include redundant outbound tab in useContextTabs since channel identifiers provide reach", () => {
     const conversation = conversationFixture();
-    const { result } = renderHook(() => useContextTabs(conversation));
+    const query = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(() => useContextTabs(conversation), {
+      wrapper: ({ children }) => <QueryClientProvider client={query}>{children}</QueryClientProvider>,
+    });
     const outboundTab = result.current.find((t) => t.id === "outbound");
-    expect(outboundTab).toBeDefined();
-    expect(outboundTab?.label).toBeTruthy();
+    expect(outboundTab).toBeUndefined();
   });
 
   it("renders OutboundTab with customer phone and enables voice and SMS outbound", async () => {
@@ -96,6 +98,43 @@ describe("Outbound capability when conversation is opened", () => {
       ),
     );
     expect(screen.getByRole("button", { name: "workspace.reach.action.sms" })).toBeEnabled();
+    query.clear();
+  });
+
+  it("renders outbound capabilities directly in channel identifiers in customer info (profile tab)", async () => {
+    const conversation = conversationFixture("conv-2", "Sarah");
+    conversation.customer = {
+      _id: "cust-2",
+      firstName: "Sarah",
+      phoneNumber: "+15559876543",
+      email: "sarah@example.com",
+    };
+
+    const query = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <MemoryRouter>
+        <QueryClientProvider client={query}>
+          <CustomerPanel conversation={conversation} tab="profile" />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+
+    const callBtn = await screen.findByRole("button", { name: /workspace\.reach\.action\.voice/ });
+    expect(callBtn).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /workspace\.reach\.action\.sms/ })).toBeEnabled();
+
+    const emailBtn = await screen.findByRole("button", { name: /workspace\.reach\.action\.email/ });
+    expect(emailBtn).toBeInTheDocument();
+    expect(emailBtn).toBeEnabled();
+
+    const user = userEvent.setup();
+    await user.click(callBtn);
+    await waitFor(() =>
+      expect(mocks.placeVoice).toHaveBeenCalledWith(
+        "+15559876543",
+        expect.objectContaining({ customer: expect.anything() }),
+      ),
+    );
     query.clear();
   });
 });

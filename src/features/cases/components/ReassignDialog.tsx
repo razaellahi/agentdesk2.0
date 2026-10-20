@@ -1,3 +1,4 @@
+import { FieldLabel } from "./Fields";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
@@ -148,7 +149,7 @@ function ReassignForm({
           <p className="text-sm text-destructive-text">{t("cases.reassign.no-groups")}</p>
         ) : target === "group" ? (
           <div className="space-y-1.5">
-            <Label>{t("cases.routing-group")}</Label>
+            <FieldLabel>{t("cases.routing-group")}</FieldLabel>
             <Select value={effectiveGroup} onValueChange={setGroupId}>
               <SelectTrigger className="w-full" aria-label={t("cases.routing-group")}>
                 <SelectValue placeholder={t("cases.reassign.select-group")} />
@@ -165,7 +166,7 @@ function ReassignForm({
         ) : (
           <>
             <div className="space-y-1.5">
-              <Label>{t("cases.reassign.team")}</Label>
+              <FieldLabel>{t("cases.reassign.team")}</FieldLabel>
               <Select
                 value={effectiveMemberGroup}
                 onValueChange={(value) => {
@@ -186,7 +187,7 @@ function ReassignForm({
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>{t("cases.reassign.member")}</Label>
+              <FieldLabel>{t("cases.reassign.member")}</FieldLabel>
               <Select
                 value={userId}
                 onValueChange={setUserId}
@@ -217,7 +218,7 @@ function ReassignForm({
           </>
         )}
         <div className="space-y-1.5">
-          <Label htmlFor="reassign-note">{t("cases.reassign.note")}</Label>
+          <FieldLabel htmlFor="reassign-note">{t("cases.reassign.note")}</FieldLabel>
           <Textarea
             id="reassign-note"
             rows={2}

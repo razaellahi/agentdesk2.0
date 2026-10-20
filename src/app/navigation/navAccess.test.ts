@@ -14,6 +14,8 @@ function modules(user: keyof typeof MOCK_USERS, profile: "EFCX" | "CISCO") {
       DEPLOYMENT_PROFILE: profile,
       feature_recordings: true,
       feature_CIM_32834_customisedDashboard: true,
+      // Case Management has its own access test below.
+      feature_caseManagement: false,
     }),
   );
   const { user: keycloak, realmRoles } = MOCK_USERS[user]!;
@@ -110,9 +112,9 @@ describe("role-based module access", () => {
     );
   });
 
-  it("Case Management modules follow case-* roles once CASE_API_URL is configured", () => {
-    const cases = (user: keyof typeof MOCK_USERS, caseApi: string) => {
-      setConfig(makeConfig({ CASE_API_URL: caseApi }));
+  it("Case Management modules follow case-* roles unless feature_caseManagement is off", () => {
+    const cases = (user: keyof typeof MOCK_USERS, enabled: boolean) => {
+      setConfig(makeConfig({ feature_caseManagement: enabled }));
       const entry = MOCK_USERS[user]!;
       return ALL_NAV_ITEMS.filter(
         (item) =>
@@ -124,22 +126,21 @@ describe("role-based module access", () => {
           ) === "allowed",
       ).map((item) => item.id);
     };
-    const api = "https://efcx.expertflow.com/case-api";
-    expect(cases("agent", api)).toEqual(["cases-workbench", "cases-new"]);
-    expect(cases("supervisor", api)).toEqual([
+    expect(cases("agent", true)).toEqual(["cases-workbench", "cases-new"]);
+    expect(cases("supervisor", true)).toEqual([
       "cases-workbench",
       "cases-new",
       "cases-dashboard",
       "cases-reports",
     ]);
-    expect(cases("admin", api)).toEqual([
+    expect(cases("admin", true)).toEqual([
       "cases-workbench",
       "cases-new",
       "cases-dashboard",
       "cases-reports",
       "cases-admin",
     ]);
-    expect(cases("viewer", api)).toEqual([]);
-    expect(cases("supervisor", "")).toEqual([]);
+    expect(cases("viewer", true)).toEqual([]);
+    expect(cases("supervisor", false)).toEqual([]);
   });
 });

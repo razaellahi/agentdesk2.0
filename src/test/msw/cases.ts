@@ -9,6 +9,7 @@ import type {
   StatusTransition,
   TenantSettings,
 } from "@/features/cases";
+import { isoMinutesAgo } from "./demoTime";
 
 /**
  * In-memory Case Management backend for `pnpm mock`, unit and e2e tests. It answers
@@ -181,6 +182,21 @@ function initialCases(): Case[] {
       customerProfileId: "customer-a",
       code: "RESOLVED",
       resolvedAt: new Date().toISOString(),
+      conversations: [
+        {
+          id: "lc-2",
+          interactionId: "demo-refund",
+          // The message in the customer's history where this case was raised (see history.ts).
+          linkedAt: isoMinutesAgo(2874),
+          customerName: "Amina",
+          agentName: "Sana Iqbal",
+          channel: "WEB",
+          summary:
+            "Customer returned an order and had not received the refund after 8 days. Escalated to billing.",
+          summaryAt: isoMinutesAgo(2870),
+          summarySource: "EFCX",
+        },
+      ],
     }),
     makeCase(3, {
       title: "Router keeps dropping",
@@ -199,12 +215,12 @@ function initialCases(): Case[] {
         {
           id: "lc-3",
           interactionId: "b",
-          linkedAt: new Date(Date.now() - HOUR).toISOString(),
+          linkedAt: isoMinutesAgo(60),
           customerName: "Bilal",
           agentName: "Sana Iqbal",
           channel: "WHATSAPP",
           summary: "Customer reports intermittent drops every evening since the upgrade.",
-          summaryAt: new Date(Date.now() - HOUR).toISOString(),
+          summaryAt: isoMinutesAgo(60),
           summarySource: "EFCX",
         },
       ],
@@ -216,14 +232,107 @@ function initialCases(): Case[] {
       assignedUserId: "u-sup-1",
       slaPausedAt: new Date().toISOString(),
     }),
+    // Amina Raza of the mock phonebook (customer-amina), opened from Customers.
+    makeCase(6, {
+      title: "Delivery address change",
+      customerProfileId: "customer-amina",
+      priority: "Medium",
+      assignedUserId: "u-agent-1",
+      conversations: [
+        {
+          id: "lc-6",
+          interactionId: "demo-address",
+          linkedAt: isoMinutesAgo(285),
+          customerName: "Amina Raza",
+          agentName: "Sana Iqbal",
+          channel: "WEB",
+          summary:
+            "Customer asked to change the delivery address on order 78210. Needs warehouse confirmation.",
+          summaryAt: isoMinutesAgo(280),
+          summarySource: "EFCX",
+        },
+      ],
+    }),
+    makeCase(7, {
+      title: "Loyalty points missing",
+      customerProfileId: "customer-amina",
+      code: "CLOSED",
+      closedAt: new Date(Date.now() - 2 * HOUR).toISOString(),
+      resolvedAt: new Date(Date.now() - 3 * HOUR).toISOString(),
+      conversations: [
+        {
+          id: "lc-7",
+          interactionId: "demo-loyalty",
+          linkedAt: isoMinutesAgo(1485),
+          customerName: "Amina Raza",
+          agentName: "Sana Iqbal",
+          channel: "EMAIL",
+          summary:
+            "340 loyalty points from the October 3rd purchase were missing. Loyalty team approved a manual credit.",
+          summaryAt: isoMinutesAgo(1480),
+          summarySource: "EFCX",
+        },
+      ],
+    }),
+    // Cases raised from email threads (see history.ts), the usual way a case starts.
+    makeCase(8, {
+      title: "Invoice INV-20418 charged VAT to an exempt customer",
+      description: "Customer is VAT exempt (certificate on file) but the invoice charged 20% VAT.",
+      priority: "High",
+      customerProfileId: "customer-chen",
+      assignedUserId: "u-agent-1",
+      code: "RESOLVED",
+      createdAt: isoMinutesAgo(2380),
+      updatedAt: isoMinutesAgo(1990),
+      resolvedAt: isoMinutesAgo(1995),
+      conversations: [
+        {
+          id: "lc-8",
+          interactionId: "demo-vat",
+          linkedAt: isoMinutesAgo(2380),
+          customerName: "Chen Wei",
+          agentName: "Sana Iqbal",
+          channel: "EMAIL",
+          summary:
+            "Invoice INV-20418 charged 20% VAT although the company is exempt. Billing issued credit note CN-5521 and a corrected invoice with the same PO.",
+          summaryAt: isoMinutesAgo(1990),
+          summarySource: "EFCX",
+        },
+      ],
+    }),
+    makeCase(9, {
+      title: "Warranty claim: blender jar cracked in transit",
+      description: "New blender arrived with a cracked jar. Photos received by email.",
+      priority: "Medium",
+      customerProfileId: "customer-fatima",
+      assignedUserId: "u-agent-1",
+      categoryId: "cat-billing",
+      subCategoryId: "sub-refund",
+      createdAt: isoMinutesAgo(570),
+      updatedAt: isoMinutesAgo(555),
+      conversations: [
+        {
+          id: "lc-9",
+          interactionId: "demo-warranty",
+          linkedAt: isoMinutesAgo(570),
+          customerName: "Fatima Noor",
+          agentName: "Sana Iqbal",
+          channel: "EMAIL",
+          summary:
+            "Blender (order 55102) arrived with a cracked jar. Customer sent photos; a replacement ships in 3 to 5 working days with no return needed.",
+          summaryAt: isoMinutesAgo(555),
+          summarySource: "EFCX",
+        },
+      ],
+    }),
   ];
 }
 
 function initialState() {
   return {
     cases: initialCases(),
-    seq: 6,
-    audit: [] as CaseAuditEntry[],
+    seq: 8,
+    audit: seedAudit(),
     categories: initialCategories(),
     statuses: structuredClone(STATUS_ROWS),
     transitions: TRANSITIONS.map(([from, to], i): StatusTransition => ({
@@ -286,6 +395,48 @@ function initialState() {
       },
     ] as CaseNotification[],
   };
+}
+
+/** History the seeded cases already have, as the backend audit log would return it. */
+function seedAudit(): CaseAuditEntry[] {
+  const at = (hoursAgo: number) => new Date(Date.now() - hoursAgo * HOUR).toISOString();
+  const row = (
+    id: string,
+    caseId: string,
+    action: string,
+    performedBy: string,
+    hoursAgo: number,
+    changes: CaseAuditEntry["changes"],
+  ) => ({
+    id,
+    caseId,
+    action,
+    actionLabel: action.toLowerCase().replace(/_/g, " "),
+    performedBy,
+    createdAt: at(hoursAgo),
+    changes,
+    summary: null,
+  });
+  const ch = (field: string, fromValue: string | null, toValue: string | null) => ({
+    field,
+    fieldLabel: field,
+    fromValue,
+    toValue,
+  });
+  return [
+    row("seed-1", "case-1", "CASE_CREATED", "u-sup-1", 23, [
+      ch("caseReferenceId", null, "CASE-20261019-00001"),
+      ch("priority", null, "HIGH"),
+      ch("assignedGroupId", null, "billing"),
+    ]),
+    row("seed-2", "case-1", "CASE_CLAIMED", "u-agent-1", 20, [ch("assignedUserId", null, "u-agent-1")]),
+    row("seed-3", "case-1", "CASE_STATUS_CHANGED", "u-agent-1", 19, [ch("statusCode", "NEW", "IN_PROGRESS")]),
+    row("seed-4", "case-3", "CASE_CREATED", "u-sup-1", 21, [
+      ch("caseReferenceId", null, "CASE-20261019-00003"),
+      ch("priority", null, "CRITICAL"),
+      ch("assignedGroupId", null, "technical"),
+    ]),
+  ];
 }
 
 export let caseDb = initialState();
@@ -436,6 +587,14 @@ function linkConversation(c: Case, input: Record<string, unknown>) {
       summarySource: null,
     });
   }
+}
+
+/** backend/src/auth/case-auth.ts canReadCase: tenant-wide roles, the assignee, or the case's group. */
+function canReadCase(who: Caller, c: Case) {
+  const roles = who.roles.map((r) => r.toLowerCase());
+  if (roles.includes("case-superuser") || roles.includes("case-admin")) return true;
+  if (c.assignedUserId) return c.assignedUserId === who.userId;
+  return Boolean(c.assignedGroupId && who.groups.includes(c.assignedGroupId));
 }
 
 function createCase(input: Record<string, unknown>, who: Caller): Case {
@@ -661,7 +820,10 @@ const RESOLVERS: Record<string, Resolver> = {
       c.status.code === "RESOLVED" ? (setStatus(c, "CLOSED", who.userId), null) : "Case is not resolved",
     ),
   }),
-  CaseAuditLog: (v) => ({ caseAuditLog: caseDb.audit.filter((a) => a.caseId === v.caseId) }),
+  CaseAuditLog: (v, who) => {
+    if (!canReadCase(who, caseOrThrow(v.caseId))) throw new Error("Forbidden");
+    return { caseAuditLog: caseDb.audit.filter((a) => a.caseId === v.caseId) };
+  },
   AddComment: (v, who) => ({ addComment: addComment(caseOrThrow(v.input!.caseId), v.input!, who) }),
   WidgetAddComment: (v, who) => ({ addComment: addComment(caseOrThrow(v.input!.caseId), v.input!, who) }),
   DeleteComment: (v) => {
@@ -975,17 +1137,30 @@ const RESOLVERS: Record<string, Resolver> = {
   WidgetCase: (v) => ({ widgetCase: caseOrThrow(v.id) }),
   WidgetSearchCustomerCases: (v) => ({
     searchCustomerCases: caseDb.cases
-      .filter((c) => c.customerProfileId === v.customerProfileId && matches(c, String(v.query)))
+      .filter(
+        (c) =>
+          c.customerProfileId === v.customerProfileId &&
+          matches(c, String(v.query)) &&
+          (v.includeTerminal !== false || isOpen(c)),
+      )
       .map((c) => hit(c, v.activeCustomerProfileId as string)),
   }),
   WidgetSearchCases: (v) => ({
     searchCases: caseDb.cases
-      .filter((c) => matches(c, String(v.query)))
+      .filter((c) => matches(c, String(v.query)) && (v.includeTerminal !== false || isOpen(c)))
       .map((c) => hit(c, v.activeCustomerProfileId as string)),
   }),
-  WidgetLinkConversationToCase: (v) => {
+  WidgetLinkConversationToCase: (v, who) => {
     const c = caseOrThrow(v.input!.caseId);
     linkConversation(c, v.input!);
+    audit(c, who.userId, "CONVERSATION_LINKED", [
+      {
+        field: "interactionId",
+        fieldLabel: "Interaction",
+        fromValue: null,
+        toValue: String(v.input!.interactionId),
+      },
+    ]);
     return { linkConversationToCase: touch(c, {}) };
   },
 };

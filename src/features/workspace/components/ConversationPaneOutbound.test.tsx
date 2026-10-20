@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router";
 import { setConfig } from "@/config";
 import { makeConfig } from "@/test/fixtures";
 import { initI18n } from "@/core/i18n";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { conversationFixture } from "@/test/conversations";
 import { useConversationStore } from "../store/conversationStore";
 import { ConversationPane } from "./ConversationPane";
@@ -109,7 +110,9 @@ describe("ConversationPane Reach customer", () => {
     render(
       <MemoryRouter>
         <QueryClientProvider client={query}>
-          <ConversationPane conversationId={conversation.conversationId} />
+          <TooltipProvider>
+            <ConversationPane conversationId={conversation.conversationId} />
+          </TooltipProvider>
         </QueryClientProvider>
       </MemoryRouter>,
     );

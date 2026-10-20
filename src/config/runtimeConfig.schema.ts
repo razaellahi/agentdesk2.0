@@ -52,8 +52,8 @@ export const runtimeConfigSchema = z.object({
   QM_URL: optionalUrl,
   LLM_CONNECTOR_URL: optionalUrl,
   VRS_URL: optionalUrl,
-  /** Case Management API (`/case-api`). Empty hides the Cases module and the conversation Cases tab. */
-  CASE_API_URL: optionalUrl,
+  /** Case Management API; unified-agent key and default (`/case-api` on the page origin). */
+  CASE_MANAGEMENT_API_URL: z.preprocess((v) => emptyToUndefined(v) ?? "/case-api", serviceUrl),
 
   // --- Voice
   SIP_SOCKET_URL: str(),
@@ -121,6 +121,8 @@ export const runtimeConfigSchema = z.object({
   // On by default like unified-agent; the model downloads only when an agent generates.
   feature_aiWidgetGenerator: bool(true),
   feature_recordings: bool(true),
+  // Cases module and conversation Cases tab (on by default, like unified-agent's Cases panel).
+  feature_caseManagement: bool(true),
 });
 
 export type RuntimeConfig = z.infer<typeof runtimeConfigSchema>;
@@ -142,5 +144,5 @@ export const HOST_REWRITE_KEYS = [
   "QM_URL",
   "LLM_CONNECTOR_URL",
   "VRS_URL",
-  "CASE_API_URL",
+  "CASE_MANAGEMENT_API_URL",
 ] as const satisfies readonly (keyof RuntimeConfig)[];

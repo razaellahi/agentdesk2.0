@@ -1,4 +1,4 @@
-import type { CaseAuditEntry, CaseAuditFieldChange } from "../api/types";
+import type { Case, CaseAuditEntry, CaseAuditFieldChange } from "../api/types";
 
 /** One-line, Jira-style history summaries for the activity feed (case-activity-format.ts). */
 
@@ -22,6 +22,8 @@ const LIFECYCLE_ACTIONS = new Set([
   "CASE_REOPENED",
   "CASE_CLOSED",
   "CASE_STATUS_CHANGED",
+  "CONVERSATION_LINKED",
+  "CONVERSATION_SUMMARY_UPDATED",
 ]);
 const MEANINGFUL_FIELDS = new Set(["statusCode", "priority", "assignedUserId", "assignedGroupId", "title"]);
 
@@ -33,6 +35,8 @@ export function isVisibleHistoryEntry(entry: CaseAuditEntry): boolean {
 
 export function historyTimelineDot(entry: CaseAuditEntry): TimelineDot {
   if (entry.action === "CASE_CREATED") return "muted";
+  if (entry.action === "CONVERSATION_LINKED" || entry.action === "CONVERSATION_SUMMARY_UPDATED")
+    return "user";
   if (entry.performedBy === "system") return "system";
   if (entry.action === "CASE_RESOLVED" || entry.action === "CASE_CLOSED") return "success";
   const priority = entry.changes.find((c) => c.field === "priority")?.toValue?.toUpperCase();
@@ -178,6 +182,14 @@ function lifecycleSummary(entry: CaseAuditEntry, resolveUser: (id: string) => st
     }
     case "CASE_CLOSED":
       return [part(t("cases.history.case")), part(t("cases.history.closed"), "emphasis")];
+    case "CONVERSATION_LINKED": {
+      const channel = findChange(entry, "channel")?.toValue;
+      const out = [part(t("cases.history.conversation-linked"))];
+      if (channel) out.push(sep(), part(channel, "emphasis"));
+      return out;
+    }
+    case "CONVERSATION_SUMMARY_UPDATED":
+      return [part(t("cases.history.summary-added"))];
     default:
       return null;
   }
@@ -193,4 +205,66 @@ export function formatHistorySummary(
   const primary = primaryChange(entry);
   if (primary) return changeSummary(primary, resolveUser, t);
   return [part(entry.actionLabel.replace(/^\w/, (c) => c.toUpperCase()))];
+}
+
+/**
+ * Milestones readable from the case itself: creation, linked conversations, resolve
+ * and close. Shown when the audit log is not readable for the agent (the backend
+ * limits caseAuditLog to the case's team, the conversation tab is wider).
+ */
+export function caseMilestones(
+  c: Pick<
+    Case,
+    | "id"
+    | "caseReferenceId"
+    | "priority"
+    | "assignedGroupId"
+    | "createdByUserId"
+    | "createdAt"
+    | "resolvedAt"
+    | "closedAt"
+    | "conversations"
+  >,
+): CaseAuditEntry[] {
+  const entry = (
+    id: string,
+    action: string,
+    createdAt: string,
+    performedBy: string,
+    changes: CaseAuditFieldChange[] = [],
+  ): CaseAuditEntry => ({
+    id: `milestone-${id}`,
+    caseId: c.id,
+    action,
+    actionLabel: action.toLowerCase().replace(/_/g, " "),
+    performedBy,
+    createdAt,
+    changes,
+    summary: null,
+  });
+  const change = (field: string, toValue: string | null): CaseAuditFieldChange => ({
+    field,
+    fieldLabel: field,
+    fromValue: null,
+    toValue,
+  });
+  const out = [
+    entry("created", "CASE_CREATED", c.createdAt, c.createdByUserId, [
+      change("caseReferenceId", c.caseReferenceId),
+      change("priority", c.priority.toUpperCase()),
+      change("assignedGroupId", c.assignedGroupId),
+    ]),
+    ...c.conversations.map((conv) =>
+      entry(
+        `link-${conv.id}`,
+        "CONVERSATION_LINKED",
+        conv.linkedAt,
+        "",
+        conv.channel ? [change("channel", conv.channel)] : [],
+      ),
+    ),
+  ];
+  if (c.resolvedAt) out.push(entry("resolved", "CASE_RESOLVED", c.resolvedAt, ""));
+  if (c.closedAt) out.push(entry("closed", "CASE_CLOSED", c.closedAt, ""));
+  return out;
 }

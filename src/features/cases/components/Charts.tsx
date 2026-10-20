@@ -146,7 +146,7 @@ export function KpiTile({
   tone?: "neutral" | "bad";
 }) {
   return (
-    <div className="h-full rounded-2xl border border-border bg-surface p-4">
+    <div className="h-full rounded-xl border border-border bg-surface p-4 transition-colors hover:border-primary/40">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p
         className={cn(

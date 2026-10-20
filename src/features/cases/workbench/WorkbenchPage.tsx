@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Download, Inbox, Loader2, Plus, RefreshCw, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ArrowDownUp, Download, Inbox, Loader2, Plus, RefreshCw, Rows3, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -26,6 +26,7 @@ import {
   type ReassignInput,
 } from "../api";
 import { PriorityBadge, SlaBadge, StatusBadge } from "../components/Badges";
+import { Initials, RefId } from "../components/Fields";
 import { ReassignDialog, type ReassignRequest } from "../components/ReassignDialog";
 import { useCaseAbilities, useDistributionPolicy } from "../hooks/useCaseSession";
 import { useUserLabel } from "../hooks/useDisplayNames";
@@ -58,13 +59,10 @@ const STATUS_CODES = [
 ];
 const PRIORITY_CODES = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
 
-const RAIL_DOT: Record<CaseListView, string> = {
-  unassigned: "bg-warning",
-  my: "bg-primary",
+/** Only the urgency views carry a status dot; the rest stay quiet. */
+const RAIL_DOT: Partial<Record<CaseListView, string>> = {
   at_risk: "bg-warning",
   breached: "bg-destructive",
-  all: "bg-muted-foreground/60",
-  closed: "bg-success",
 };
 
 type BulkAction = "claim" | "reassign" | "resolve" | "close";
@@ -160,14 +158,27 @@ export default function WorkbenchPage() {
   );
 
   const groupOptions = useMemo(() => {
-    const fromDash = data.supervisor?.groups.map((g) => ({ key: g.groupKey, label: g.groupLabel })) ?? [];
+    const fromDash =
+      data.supervisor?.groups.map((g) => ({
+        key: g.groupKey,
+        label: g.groupLabel,
+        hint: [
+          t("cases.workbench.team-pill", { open: g.openCount, unassigned: g.unassignedCount }),
+          g.atRiskCount > 0 && t("cases.workbench.n-at-risk", { count: g.atRiskCount }),
+          g.breachedCount > 0 && t("cases.workbench.n-breached", { count: g.breachedCount }),
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      })) ?? [];
     if (fromDash.length) return fromDash;
     const keys = new Map<string, string>();
     for (const c of data.cases)
       if (c.assignedGroupId)
         keys.set(normalizeGroupKey(c.assignedGroupId), formatGroupLabel(c.assignedGroupId));
-    return [...keys].map(([key, label]) => ({ key, label })).sort((a, b) => a.label.localeCompare(b.label));
-  }, [data.supervisor, data.cases]);
+    return [...keys]
+      .map(([key, label]) => ({ key, label, hint: undefined as string | undefined }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [data.supervisor, data.cases, t]);
   const groupLabel = (id: string | null) =>
     id ? (groupOptions.find((g) => g.key === normalizeGroupKey(id))?.label ?? formatGroupLabel(id)) : "—";
 
@@ -328,103 +339,85 @@ export default function WorkbenchPage() {
   const allVisibleSelected = visible.length > 0 && visible.every((c) => selected.has(c.id));
   const unassignedInView = visible.filter((c) => !c.assignedUserId).length;
   const showClaimColumn = filters.listView === "unassigned" && agentClaimAllowed;
-  const supervisorStrip = abilities.groupScopedSupervisor && (data.supervisor?.groups.length ?? 0) > 0;
-  const totals = data.supervisor;
+  const paneOpen = Boolean(caseId);
+  const viewTabs = useRef<HTMLElement>(null);
+  useEffect(() => {
+    viewTabs.current
+      ?.querySelector('[aria-current="page"]')
+      ?.scrollIntoView({ inline: "center", block: "nearest" });
+  }, [filters.listView]);
 
   return (
     <div className="flex h-full min-h-0">
-      <nav
-        aria-label={t("cases.views.label")}
-        className="hidden w-52 shrink-0 overflow-y-auto border-e border-border p-2 md:block"
-      >
-        <p className="px-2 pb-1 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-          {t("cases.views.label")}
-        </p>
-        {LIST_VIEWS.map((view) => (
-          <button
-            key={view}
-            type="button"
-            onClick={() => setView(view)}
-            aria-current={filters.listView === view ? "page" : undefined}
-            className={cn(
-              "flex w-full items-center gap-2 rounded-full px-3 py-1.5 text-start text-sm hover:bg-surface-2",
-              filters.listView === view && "bg-primary-soft font-medium text-primary hover:bg-primary-soft",
-            )}
-          >
-            <span className={cn("size-2 shrink-0 rounded-full", RAIL_DOT[view])} aria-hidden />
-            <span className="min-w-0 flex-1 truncate">{viewLabel(view)}</span>
-            <span className="text-xs text-muted-foreground tabular-nums">{viewCount(view)}</span>
-          </button>
-        ))}
-      </nav>
-
       <section className="flex min-w-0 flex-1 flex-col">
-        <header className="space-y-3 border-b border-border px-4 py-3">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">
-                {t("cases.workbench.breadcrumb", { view: viewLabel(filters.listView) })}
-              </p>
-              <h1 className="text-lg font-semibold">
-                {t("cases.workbench.count", { count: visible.length })}
-              </h1>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {unassignedInView > 0 && (
-                <span className="text-warning-text">
-                  {t("cases.workbench.n-unassigned", { count: unassignedInView })}
-                </span>
-              )}
-              {supervisorStrip && totals && (
-                <>
-                  {" · "}
-                  {t("cases.workbench.team-open", { count: totals.totalOpen })}
-                  {totals.totalAtRisk > 0 && (
-                    <span className="text-warning-text">
-                      {" "}
-                      · {t("cases.workbench.n-at-risk", { count: totals.totalAtRisk })}
-                    </span>
+        <header className="border-b border-border px-5">
+          <div className="flex items-center gap-3 pt-3">
+            <nav
+              ref={viewTabs}
+              aria-label={t("cases.views.label")}
+              className="-mx-1 flex min-w-0 flex-1 gap-1 overflow-x-auto px-1 pb-0.5"
+            >
+              {LIST_VIEWS.map((view) => (
+                <button
+                  key={view}
+                  type="button"
+                  onClick={() => setView(view)}
+                  aria-current={filters.listView === view ? "page" : undefined}
+                  className={cn(
+                    "flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground",
+                    filters.listView === view &&
+                      "bg-primary-soft font-medium text-primary hover:bg-primary-soft hover:text-primary",
                   )}
-                  {totals.totalBreached > 0 && (
-                    <span className="text-destructive-text">
-                      {" · "}
-                      {t("cases.workbench.n-breached", { count: totals.totalBreached })}
-                    </span>
+                >
+                  {RAIL_DOT[view] && (
+                    <span className={cn("size-1.5 rounded-full", RAIL_DOT[view])} aria-hidden />
                   )}
-                </>
-              )}
-            </p>
-            <div className="ms-auto flex flex-wrap items-center gap-1.5">
+                  {viewLabel(view)}
+                  <span className="text-xs tabular-nums opacity-70">{viewCount(view)}</span>
+                </button>
+              ))}
+            </nav>
+            <div className="flex shrink-0 items-center gap-1">
               <Button
-                size="sm"
+                size="icon-sm"
                 variant={filters.sortBySla ? "secondary" : "ghost"}
+                aria-label={t("cases.workbench.sort-sla")}
+                title={t("cases.workbench.sort-sla")}
                 aria-pressed={filters.sortBySla}
                 onClick={() => setFilters((f) => ({ ...f, sortBySla: !f.sortBySla }))}
               >
-                {t("cases.workbench.sort-sla")}
+                <ArrowDownUp />
               </Button>
               <Button
-                size="sm"
+                size="icon-sm"
                 variant={compact ? "secondary" : "ghost"}
+                aria-label={t("cases.workbench.compact")}
+                title={t("cases.workbench.compact")}
                 aria-pressed={compact}
                 onClick={() => setCompact((v) => !v)}
               >
-                {t("cases.workbench.compact")}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => void data.refresh()}>
-                <RefreshCw className={cn(data.refreshing && "animate-spin")} />
-                {t("cases.refresh")}
+                <Rows3 />
               </Button>
               <Button
-                size="sm"
+                size="icon-sm"
                 variant="ghost"
+                aria-label={t("cases.refresh")}
+                title={t("cases.refresh")}
+                onClick={() => void data.refresh()}
+              >
+                <RefreshCw className={cn(data.refreshing && "animate-spin")} />
+              </Button>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label={exporting.isPending ? t("cases.exporting") : t("cases.export-csv")}
+                title={t("cases.export-csv")}
                 disabled={exporting.isPending}
                 onClick={() => exporting.mutate()}
               >
                 <Download />
-                {exporting.isPending ? t("cases.exporting") : t("cases.export-csv")}
               </Button>
-              <Button size="sm" asChild>
+              <Button size="sm" asChild className="ms-1">
                 <Link to="/cases/new">
                   <Plus />
                   {t("cases.new-case")}
@@ -432,40 +425,8 @@ export default function WorkbenchPage() {
               </Button>
             </div>
           </div>
-          {supervisorStrip && (
-            <div className="flex flex-wrap gap-2" aria-label={t("cases.workbench.your-teams")}>
-              {data.supervisor!.groups.map((g) => (
-                <button
-                  key={g.groupKey}
-                  type="button"
-                  onClick={() => setGroup(filters.group === g.groupKey ? null : g.groupKey)}
-                  aria-pressed={filters.group === g.groupKey}
-                  className={cn(
-                    "rounded-xl border px-3 py-1.5 text-start text-xs hover:bg-surface-2",
-                    filters.group === g.groupKey ? "border-primary bg-primary-soft/50" : "border-border",
-                  )}
-                >
-                  <span className="block font-medium">{g.groupLabel}</span>
-                  <span className="text-muted-foreground">
-                    {t("cases.workbench.team-pill", { open: g.openCount, unassigned: g.unassignedCount })}
-                    {g.atRiskCount > 0 && (
-                      <span className="text-warning-text">
-                        {" "}
-                        · {t("cases.workbench.n-at-risk", { count: g.atRiskCount })}
-                      </span>
-                    )}
-                    {g.breachedCount > 0 && (
-                      <span className="text-destructive-text">
-                        {" "}
-                        · {t("cases.workbench.n-breached", { count: g.breachedCount })}
-                      </span>
-                    )}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
           <WorkbenchFilters
+            className="py-3"
             search={search}
             searchLoading={searchState.loading}
             onSearch={setSearch}
@@ -538,10 +499,10 @@ export default function WorkbenchPage() {
                   }
                 />
               ) : (
-                <table className="w-full table-fixed border-collapse text-sm">
+                <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr className="text-xs text-muted-foreground">
-                      <th className="sticky top-0 z-10 w-10 bg-surface px-3 py-2 text-start">
+                      <th className="sticky top-0 z-10 w-10 border-b border-border bg-surface py-2 ps-5 pe-1 text-start">
                         <Checkbox
                           checked={allVisibleSelected}
                           aria-label={t("cases.workbench.select-all")}
@@ -552,102 +513,143 @@ export default function WorkbenchPage() {
                           }}
                         />
                       </th>
-                      <th className="sticky top-0 z-10 bg-surface px-3 py-2 text-start font-medium">
+                      <th className="sticky top-0 z-10 border-b border-border bg-surface px-3 py-2 text-start font-medium">
                         {t("cases.workbench.col-subject")}
                       </th>
-                      <th className="sticky top-0 z-10 w-36 bg-surface px-3 py-2 text-start font-medium">
-                        {t("cases.workbench.col-owner")}
-                      </th>
-                      <th className="sticky top-0 z-10 w-32 bg-surface px-3 py-2 text-start font-medium">
-                        {t("cases.workbench.col-status")}
-                      </th>
-                      <th className="sticky top-0 z-10 hidden w-32 bg-surface px-3 py-2 text-start font-medium lg:table-cell">
-                        {t("cases.workbench.col-group")}
-                      </th>
-                      <th className="sticky top-0 z-10 w-28 bg-surface px-3 py-2 text-start font-medium">
-                        {t("cases.workbench.col-sla")}
-                      </th>
-                      <th className="sticky top-0 z-10 w-16 bg-surface px-3 py-2 text-start font-medium">
-                        {t("cases.workbench.col-updated")}
-                      </th>
-                      {showClaimColumn && <th className="sticky top-0 z-10 w-20 bg-surface" />}
+                      {!paneOpen && (
+                        <th className="sticky top-0 z-10 hidden border-b border-border bg-surface px-3 py-2 text-start font-medium md:table-cell">
+                          {t("cases.workbench.col-owner")}
+                        </th>
+                      )}
+                      {!paneOpen && (
+                        <th className="sticky top-0 z-10 hidden border-b border-border bg-surface px-3 py-2 text-start font-medium sm:table-cell">
+                          {t("cases.workbench.col-status")}
+                        </th>
+                      )}
+                      {!paneOpen && (
+                        <th className="sticky top-0 z-10 hidden border-b border-border bg-surface px-3 py-2 text-start font-medium sm:table-cell">
+                          {t("cases.workbench.col-sla")}
+                        </th>
+                      )}
+                      {!paneOpen && (
+                        <th className="sticky top-0 z-10 hidden border-b border-border bg-surface px-3 py-2 text-end font-medium xl:table-cell">
+                          {t("cases.workbench.col-updated")}
+                        </th>
+                      )}
+                      {showClaimColumn && (
+                        <th className="sticky top-0 z-10 w-20 border-b border-border bg-surface" />
+                      )}
                     </tr>
                   </thead>
                   <tbody>
-                    {visible.map((row) => (
-                      <tr
-                        key={row.id}
-                        data-selected={caseId === row.id || undefined}
-                        onClick={() => selectCase(row.id)}
-                        className={cn(
-                          "cursor-pointer border-b border-border/60 hover:bg-surface-2/60 data-[selected]:bg-primary-soft/40",
-                          compact ? "h-10" : "h-14",
-                        )}
-                      >
-                        <td className="px-3" onClick={(event) => event.stopPropagation()}>
-                          <Checkbox
-                            checked={selected.has(row.id)}
-                            aria-label={t("cases.workbench.select-row", { ref: row.caseReferenceId })}
-                            onCheckedChange={() => setSelected((s) => toggleIn(s, row.id))}
-                          />
-                        </td>
-                        <td className="px-3" title={`${row.caseReferenceId} — ${row.title}`}>
-                          <div className="flex min-w-0 items-center gap-2">
-                            <PriorityBadge priority={row.priority} variant="compact" />
-                            <span className="truncate font-medium">{row.title}</span>
-                          </div>
-                          {!compact && (
-                            <span className="block truncate font-mono text-xs text-muted-foreground">
-                              {row.caseReferenceId}
-                            </span>
+                    {visible.map((row) => {
+                      const owner = row.assignedUserId ? userLabel(row.assignedUserId) : null;
+                      return (
+                        <tr
+                          key={row.id}
+                          data-selected={caseId === row.id || undefined}
+                          onClick={() => selectCase(row.id)}
+                          className={cn(
+                            "group cursor-pointer border-b border-border/60 transition-colors hover:bg-surface-2/60",
+                            "data-[selected]:bg-primary-soft/40 data-[selected]:shadow-[inset_3px_0_0_var(--color-primary)]",
+                            compact ? "h-11" : "h-[3.75rem]",
+                            paneOpen && "h-[4.25rem]",
                           )}
-                        </td>
-                        <td className="truncate px-3 text-sm">
-                          {row.assignedUserId ? (
-                            userLabel(row.assignedUserId)
-                          ) : (
-                            <span className="text-muted-foreground">{t("cases.unassigned")}</span>
-                          )}
-                        </td>
-                        <td className="px-3">
-                          <StatusBadge
-                            label={row.status.label}
-                            code={row.status.code}
-                            category={row.status.statusCategory}
-                          />
-                        </td>
-                        <td className="hidden truncate px-3 lg:table-cell">
-                          {groupLabel(row.assignedGroupId)}
-                        </td>
-                        <td className="px-3">
-                          <SlaBadge
-                            slaState={row.slaState}
-                            slaTimeLabel={row.slaTimeLabel}
-                            slaMinutesRemaining={row.slaMinutesRemaining}
-                            slaPausedAt={row.slaPausedAt}
-                          />
-                        </td>
-                        <td className="px-3 text-xs text-muted-foreground tabular-nums">
-                          {relativeUpdated(row.updatedAt, t("cases.just-now"))}
-                        </td>
-                        {showClaimColumn && (
-                          <td className="px-2 text-end" onClick={(event) => event.stopPropagation()}>
-                            <Button
-                              size="xs"
-                              variant="outline"
-                              disabled={claim.isPending && claim.variables === row.id}
-                              onClick={() => claim.mutate(row.id)}
-                            >
-                              {claim.isPending && claim.variables === row.id ? (
-                                <Loader2 className="animate-spin" />
-                              ) : (
-                                t("cases.claim")
-                              )}
-                            </Button>
+                        >
+                          <td className="ps-5 pe-1" onClick={(event) => event.stopPropagation()}>
+                            <Checkbox
+                              checked={selected.has(row.id)}
+                              aria-label={t("cases.workbench.select-row", { ref: row.caseReferenceId })}
+                              onCheckedChange={() => setSelected((s) => toggleIn(s, row.id))}
+                            />
                           </td>
-                        )}
-                      </tr>
-                    ))}
+                          <td className="w-full max-w-0 px-3" title={`${row.caseReferenceId} — ${row.title}`}>
+                            <div className="flex min-w-0 items-center gap-2">
+                              <PriorityBadge priority={row.priority} variant="compact" />
+                              <span className="truncate font-medium">{row.title}</span>
+                            </div>
+                            <div
+                              className={cn(
+                                "mt-1 flex flex-wrap items-center gap-x-3 gap-y-1",
+                                !paneOpen && "sm:hidden",
+                              )}
+                            >
+                              <StatusBadge
+                                label={row.status.label}
+                                code={row.status.code}
+                                category={row.status.statusCategory}
+                              />
+                              <SlaBadge
+                                slaState={row.slaState}
+                                slaTimeLabel={row.slaTimeLabel}
+                                slaMinutesRemaining={row.slaMinutesRemaining}
+                                slaPausedAt={row.slaPausedAt}
+                              />
+                            </div>
+                            {!compact && (
+                              <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                                <RefId value={row.caseReferenceId} className="font-normal" />
+                                {" · "}
+                                {groupLabel(row.assignedGroupId)}
+                                {paneOpen && ` · ${owner ?? t("cases.unassigned")}`}
+                              </span>
+                            )}
+                          </td>
+                          {!paneOpen && (
+                            <td className="hidden px-3 whitespace-nowrap md:table-cell">
+                              {owner ? (
+                                <span className="flex items-center gap-2">
+                                  <Initials name={owner} />
+                                  <span className="max-w-32 truncate">{owner}</span>
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">{t("cases.unassigned")}</span>
+                              )}
+                            </td>
+                          )}
+                          {!paneOpen && (
+                            <td className="hidden px-3 whitespace-nowrap sm:table-cell">
+                              <StatusBadge
+                                label={row.status.label}
+                                code={row.status.code}
+                                category={row.status.statusCategory}
+                              />
+                            </td>
+                          )}
+                          {!paneOpen && (
+                            <td className="hidden px-3 whitespace-nowrap sm:table-cell">
+                              <SlaBadge
+                                slaState={row.slaState}
+                                slaTimeLabel={row.slaTimeLabel}
+                                slaMinutesRemaining={row.slaMinutesRemaining}
+                                slaPausedAt={row.slaPausedAt}
+                              />
+                            </td>
+                          )}
+                          {!paneOpen && (
+                            <td className="hidden px-3 text-end text-xs whitespace-nowrap text-muted-foreground tabular-nums xl:table-cell">
+                              {relativeUpdated(row.updatedAt, t("cases.just-now"))}
+                            </td>
+                          )}
+                          {showClaimColumn && (
+                            <td className="px-3 text-end" onClick={(event) => event.stopPropagation()}>
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                disabled={claim.isPending && claim.variables === row.id}
+                                onClick={() => claim.mutate(row.id)}
+                              >
+                                {claim.isPending && claim.variables === row.id ? (
+                                  <Loader2 className="animate-spin" />
+                                ) : (
+                                  t("cases.claim")
+                                )}
+                              </Button>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               )}
@@ -668,6 +670,18 @@ export default function WorkbenchPage() {
                 </div>
               )}
             </div>
+
+            {!data.loading && visible.length > 0 && (
+              <p className="border-t border-border px-5 py-2 text-xs text-muted-foreground tabular-nums">
+                {t("cases.workbench.count", { count: visible.length })}
+                {unassignedInView > 0 && (
+                  <span className="text-warning-text">
+                    {" · "}
+                    {t("cases.workbench.n-unassigned", { count: unassignedInView })}
+                  </span>
+                )}
+              </p>
+            )}
 
             {selected.size > 0 && (
               <div
@@ -725,7 +739,14 @@ export default function WorkbenchPage() {
 
           {caseId && (
             <>
+              <button
+                type="button"
+                className="fixed inset-0 z-30 bg-foreground/30 lg:hidden"
+                aria-label={t("cases.detail.close")}
+                onClick={() => selectCase(null)}
+              />
               <ResizeHandle
+                className="max-lg:hidden"
                 onPointerDown={pane.onPointerDown}
                 onKeyDown={pane.onKeyDown}
                 onDoubleClick={pane.onDoubleClick}
@@ -734,8 +755,8 @@ export default function WorkbenchPage() {
               />
               <aside
                 aria-label={t("cases.detail.label")}
-                className="min-h-0 shrink-0 bg-surface max-md:fixed max-md:inset-0 max-md:z-40 max-md:w-full!"
-                style={{ width: pane.width }}
+                className="min-h-0 shrink-0 bg-surface max-lg:fixed max-lg:inset-y-0 max-lg:end-0 max-lg:z-40 max-lg:w-[min(32rem,100vw)] max-lg:border-s max-lg:border-border max-lg:shadow-xl lg:w-[var(--pane-w)]"
+                style={{ "--pane-w": `${pane.width}px` } as CSSProperties}
               >
                 <CaseDetailPane
                   key={caseId}

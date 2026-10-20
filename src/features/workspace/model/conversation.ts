@@ -1,4 +1,5 @@
 import { lower, systemMessageFor, type Translate } from "./systemMessages";
+import { suggestionText } from "./suggestions";
 import type {
   AgentParticipant,
   ChannelSession,
@@ -80,6 +81,7 @@ export function mergeBotSuggestions(
   if (!target) return false;
   target.botSuggestions = (data.suggestions ?? []).map((s) => ({
     ...s,
+    text: suggestionText(s),
     confidenceLevel: s.confidenceLevel * 100,
   }));
   target.showBotSuggestions = false;

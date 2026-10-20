@@ -12,6 +12,16 @@ describe("parseConfig", () => {
     expect(config.MAX_BOARD_PANES).toBe(3);
   });
 
+  it("Case Management uses unified-agent's key and its /case-api default, on unless switched off", () => {
+    expect(makeConfig().CASE_MANAGEMENT_API_URL).toBe("/case-api");
+    // envsubst renders an unset variable as an empty string.
+    expect(makeConfig({ CASE_MANAGEMENT_API_URL: "" }).CASE_MANAGEMENT_API_URL).toBe("/case-api");
+    expect(
+      makeConfig({ CASE_MANAGEMENT_API_URL: "https://x.example.com/case-api/" }).feature_caseManagement,
+    ).toBe(true);
+    expect(makeConfig({ feature_caseManagement: "false" }).feature_caseManagement).toBe(false);
+  });
+
   it("coerces envsubst string values (booleans, numbers, empty strings)", () => {
     const config = makeConfig({
       feature_CIM_33144_quick_replies: "true",

@@ -57,6 +57,23 @@
   --brand-2: #1557d0;
   --on-brand: #ffffff;
   --accent-cool: #007b83;
+
+  /* Google Chat 3-Panel Hierarchy Tokens (Light) */
+  --chat-panel-left: #f8fafd; /* Left rail: Material 3 Surface Container Low */
+  --chat-panel-left-hover: #e9edf4; /* Hover conversation card */
+  --chat-panel-left-active: #d3e3fd; /* Active conversation pill / container (Google light blue) */
+  --chat-panel-left-active-text: #041e49; /* Active conversation title text (Google deep blue) */
+  --chat-panel-left-search: #ffffff; /* Crisp white search pill on tinted sidebar */
+  --chat-panel-left-divider: #e0e3e7; /* Subtle hairline divider */
+
+  --chat-panel-middle: #ffffff; /* Middle chat transcript: Pure Surface White */
+  --chat-panel-middle-header: #ffffff; /* Clean elevated header */
+  --chat-panel-middle-composer: #ffffff; /* Composer bar background */
+
+  --chat-panel-right: #f8fafd; /* Right info panel: Surface Container (airy neutral tint) */
+  --chat-panel-right-card: #ffffff; /* Profile & fact cards on right panel */
+  --chat-panel-right-dock: #f0f4f9; /* Far-right vertical companion tab strip */
+  --chat-panel-right-divider: #e0e3e7; /* Subtle hairline divider */
 }
 
 :root[data-theme="dark"] {
@@ -113,18 +130,49 @@
   --brand-2: #aecbfa;
   --on-brand: #04101f;
   --accent-cool: #78d9ec;
+
+  /* Google Chat 3-Panel Hierarchy Tokens (Dark) */
+  --chat-panel-left: #1a1d20; /* Left rail: Material 3 Dark Surface Container Low */
+  --chat-panel-left-hover: #282a2c; /* Hover row in left rail */
+  --chat-panel-left-active: #004a77; /* Active conversation pill (M3 dark primary container) */
+  --chat-panel-left-active-text: #c2e7ff; /* Active conversation title text */
+  --chat-panel-left-search: #282a2c; /* Search pill in dark rail */
+  --chat-panel-left-divider: #3c4043; /* Subtle dark hairline divider */
+
+  --chat-panel-middle: #232528; /* Middle chat transcript: Elevated Dark Surface */
+  --chat-panel-middle-header: #282a2c; /* Elevated dark header */
+  --chat-panel-middle-composer: #232528; /* Composer bar background */
+
+  --chat-panel-right: #1e1f21; /* Right info panel: Dark Surface Container */
+  --chat-panel-right-card: #282a2c; /* Cards inside dark info panel */
+  --chat-panel-right-dock: #1a1d20; /* Far-right vertical companion tab strip */
+  --chat-panel-right-divider: #3c4043; /* Subtle dark hairline divider */
 }
 
 :root {
   --chart-3: #7c3aed;
-  --density-font: 13.5px;
+  --density-font: 14px;
   --density-row: 40px;
 
-  /* Google Typography Stack */
-  --font-ui:
-    "Inter", "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "Google Sans Text", Helvetica, Arial,
-    sans-serif;
+  /* Channel logos (BrandIcons): each brand's own colours, the same in both themes. */
+  --brand-facebook: #1877f2;
+  --brand-instagram-yellow: #fed576;
+  --brand-instagram-orange: #f47133;
+  --brand-instagram-magenta: #bc3081;
+  --brand-instagram-violet: #4c63d2;
+  --brand-whatsapp: #25d366;
+  --brand-telegram: #29a9eb;
+  --brand-x: #111111;
+  --brand-linkedin: #0a66c2;
+  --brand-youtube: #ff0000;
+
+  /* Inter: built for dense screen UI, and loaded in index.html. */
+  --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", Helvetica, Arial, sans-serif;
   --font-display:
-    "Inter", "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "Google Sans", Helvetica, Arial,
-    sans-serif;
+    "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", Helvetica, Arial, sans-serif;
+}
+
+/* X's black disc would vanish on a dark surface. */
+:root[data-theme="dark"] {
+  --brand-x: #4b4f56;
 }

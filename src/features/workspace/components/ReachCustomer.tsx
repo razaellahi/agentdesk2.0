@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/shared/lib/utils";
 import type { useOutboundReach, ReachOption } from "../hooks/useOutboundReach";
 import type { OutboundKind } from "../model/outboundPlan";
-import { CHANNEL_COLORS, ChannelIcon } from "./ChannelIcon";
+import { ChannelIcon, OutboundActionIcon } from "./ChannelIcon";
 
 const ICON_TYPE: Record<OutboundKind, string> = {
   voice: "CX_VOICE",
@@ -152,7 +152,6 @@ function Row({
 }) {
   const { t } = useTranslation();
   const unavailable = option.state === "unavailable";
-  const colors = CHANNEL_COLORS[ICON_TYPE[option.kind].toLowerCase()];
   return (
     <li
       className={cn(
@@ -160,11 +159,8 @@ function Row({
         unavailable ? "opacity-70" : "hover:bg-muted/60",
       )}
     >
-      <span
-        className={cn("grid size-8 shrink-0 place-items-center rounded-full", colors?.bg ?? "bg-muted")}
-        aria-hidden
-      >
-        <ChannelIcon channelType={{ name: ICON_TYPE[option.kind] }} className="size-5" />
+      <span className="grid size-8 shrink-0 place-items-center" aria-hidden>
+        <ChannelIcon channelType={{ name: ICON_TYPE[option.kind] }} className="size-8" />
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13px] font-medium">{t(`workspace.reach.channel.${option.kind}`)}</p>
@@ -218,7 +214,7 @@ function StartRow({ option, reach, onDone }: { option: ReachOption; reach: Reach
         <Button
           type="button"
           size="sm"
-          className="h-7 shrink-0 gap-1 px-2.5 text-xs"
+          className="h-7 shrink-0 gap-1.5 px-2.5 text-xs"
           disabled={Boolean(reach.busy)}
           aria-busy={busy || undefined}
           onClick={() => {
@@ -227,7 +223,11 @@ function StartRow({ option, reach, onDone }: { option: ReachOption; reach: Reach
             onDone();
           }}
         >
-          {busy && <Loader2 className="size-3 animate-spin" aria-hidden />}
+          {busy ? (
+            <Loader2 className="size-3 animate-spin" aria-hidden />
+          ) : (
+            <OutboundActionIcon kind={option.kind} className="size-3" />
+          )}
           {t(`workspace.reach.action.${option.kind}`)}
         </Button>
       )}

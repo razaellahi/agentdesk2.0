@@ -3,6 +3,8 @@ import { BriefcaseBusiness } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
+import { IconTooltip } from "@/components/common/IconTooltip";
+import { UnreadBadge } from "@/components/common/UnreadBadge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -65,26 +67,23 @@ function NotificationsMenu() {
   };
 
   const count = unread.data ?? 0;
+  const label = count > 0 ? t("cases.notifications.label-unread", { count }) : t("cases.notifications.label");
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          className="relative size-9 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
-          aria-label={
-            count > 0 ? t("cases.notifications.label-unread", { count }) : t("cases.notifications.label")
-          }
-        >
-          <BriefcaseBusiness className="size-[18px]" />
-          {count > 0 && (
-            <span className="absolute end-1 top-1 grid min-w-4 place-items-center rounded-full bg-destructive px-1 text-[10px] leading-4 font-semibold text-white tabular-nums">
-              {count > 99 ? "99+" : count}
-            </span>
-          )}
-        </Button>
-      </PopoverTrigger>
+      <IconTooltip label={label}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            className="relative size-9 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+            aria-label={label}
+          >
+            <BriefcaseBusiness className="size-[18px]" />
+            {count > 0 && <UnreadBadge count={count} />}
+          </Button>
+        </PopoverTrigger>
+      </IconTooltip>
       <PopoverContent
         align="end"
         className="w-96 rounded-2xl border border-border bg-surface p-0 shadow-lift"

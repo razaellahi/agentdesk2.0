@@ -1,21 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  AlertTriangle,
-  ArrowLeft,
-  Link2,
-  Loader2,
-  MessageCircle,
-  MessagesSquare,
-  Radio,
-  Unlink,
-  X,
-} from "lucide-react";
+import { AlertTriangle, ArrowLeft, Link2, Loader2, Unlink, X } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { confirm } from "@/components/common/confirm";
 import { Button } from "@/components/ui/button";
-import { formatDateTime, formatRelative } from "@/core/i18n";
-import { initials } from "@/shared/lib/initials";
+import { formatDate, formatRelative } from "@/core/i18n";
 import { cn } from "@/shared/lib/utils";
 import {
   addCommentFromConversation,
@@ -25,12 +14,16 @@ import {
   type Case,
 } from "../api";
 import { AttachmentChips } from "../components/Attachments";
+import { ActivityTabs, ActivityTimeline, type ActivityTab } from "../components/ActivityTimeline";
 import { PriorityBadge, SlaBadge, StatusBadge } from "../components/Badges";
+import { CopyableRef } from "../components/CopyableRef";
+import { LinkedConversations } from "../components/LinkedConversations";
 import { MentionComposer, type MentionComposerHandle } from "../components/MentionComposer";
+import { useCaseHistory } from "../hooks/useCaseHistory";
 import { useCaseMe } from "../hooks/useCaseSession";
 import { useUserLabel } from "../hooks/useDisplayNames";
-import { formatCommentBody } from "../model/format";
-import { transcriptUrl } from "../model/links";
+import { caseErrorMessage } from "../model/errors";
+import { routingLabel } from "../model/format";
 import type { CaseConversationContext } from "./CasesTab";
 import { OpenInWorkbench } from "./OpenInWorkbench";
 
@@ -39,9 +32,9 @@ const COMMENT_POLL_MS = 15_000;
 function Info({ label, children, sub }: { label: string; children: ReactNode; sub?: ReactNode }) {
   return (
     <div className="min-w-0">
-      <p className="text-[10px] font-medium tracking-wider text-muted-foreground uppercase">{label}</p>
-      <div className="truncate text-xs font-medium">{children}</div>
-      {sub && <p className="truncate text-[11px] text-muted-foreground">{sub}</p>}
+      <p className="text-xs text-foreground/70">{label}</p>
+      <div className="mt-0.5 truncate text-sm">{children}</div>
+      {sub && <p className="truncate text-xs text-foreground/70">{sub}</p>}
     </div>
   );
 }
@@ -64,6 +57,7 @@ export function CaseDetailPanel({
   const composer = useRef<MentionComposerHandle>(null);
   const [body, setBody] = useState("");
   const [notice, setNotice] = useState<{ kind: "success" | "error"; text: string } | null>(null);
+  const [tab, setTab] = useState<ActivityTab>("all");
 
   const query = useQuery({
     queryKey: ["cases", "widget", caseId],
@@ -72,9 +66,11 @@ export function CaseDetailPanel({
     refetchOnWindowFocus: true,
   });
   const c = query.data;
+  const history = useCaseHistory(c);
   const userLabel = useUserLabel(me.data?.userId, [
     c?.assignedUserId,
     ...(c?.comments.map((cm) => cm.authorUserId) ?? []),
+    ...history.entries.map((h) => h.performedBy),
   ]);
 
   const show = (kind: "success" | "error", text: string) => {
@@ -84,7 +80,8 @@ export function CaseDetailPanel({
 
   const apply = (updated: Case) => {
     queryClient.setQueryData(["cases", "widget", caseId], updated);
-    void queryClient.invalidateQueries({ queryKey: caseKeys.interaction(context.interactionId) });
+    if (context.interactionId)
+      void queryClient.invalidateQueries({ queryKey: caseKeys.interaction(context.interactionId) });
     void queryClient.invalidateQueries({ queryKey: ["cases", "customer"] });
   };
 
@@ -92,7 +89,7 @@ export function CaseDetailPanel({
     mutationFn: () =>
       linkConversationToCase({
         caseId,
-        interactionId: context.interactionId,
+        interactionId: context.interactionId!,
         customerProfileId: context.customerProfileId,
         customerName: context.customerName,
         agentName: context.agentName,
@@ -141,7 +138,7 @@ export function CaseDetailPanel({
     return (
       <div className="space-y-3 px-3.5 py-3">
         {header}
-        <p className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+        <p className="flex items-center gap-2 py-4 text-sm text-foreground/70">
           <Loader2 className="size-4 animate-spin" /> {t("cases.detail.loading")}
         </p>
       </div>
@@ -155,7 +152,7 @@ export function CaseDetailPanel({
           role="alert"
           className="space-y-2 rounded-lg bg-destructive-soft p-3 text-xs text-destructive-text"
         >
-          <p>{query.error?.message ?? t("cases.detail.not-found")}</p>
+          <p>{query.error ? caseErrorMessage(query.error, t) : t("cases.detail.not-found")}</p>
           <Button size="xs" variant="outline" onClick={() => void query.refetch()}>
             {t("cases.retry")}
           </Button>
@@ -164,7 +161,9 @@ export function CaseDetailPanel({
     );
   }
 
-  const linkedHere = c.conversations.some((conv) => conv.interactionId === context.interactionId);
+  const linkedHere =
+    Boolean(context.interactionId) &&
+    c.conversations.some((conv) => conv.interactionId === context.interactionId);
   const active = context.customerProfileId?.trim();
   const otherCustomer = Boolean(
     active && c.customerProfileId?.trim() && active !== c.customerProfileId.trim(),
@@ -221,37 +220,33 @@ export function CaseDetailPanel({
         </div>
       )}
 
-      <section className="space-y-2 rounded-xl border border-border p-3">
+      <section className="space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <span className="font-mono text-[11px] text-muted-foreground">{c.caseReferenceId}</span>
-          <PriorityBadge priority={c.priority} />
+          <CopyableRef value={c.caseReferenceId} />
+          <PriorityBadge priority={c.priority} variant="tag" />
         </div>
-        <h5 className="text-sm font-semibold">{c.title}</h5>
-        {c.description && (
-          <p className="text-xs whitespace-pre-wrap text-muted-foreground">{c.description}</p>
-        )}
-        <Button
-          size="xs"
-          variant={linkedHere ? "ghost" : "outline"}
-          disabled={linkedHere || link.isPending}
-          onClick={() => void askLink()}
-        >
-          {linkedHere ? <Link2 /> : link.isPending ? <Loader2 className="animate-spin" /> : <Unlink />}
-          {linkedHere
-            ? t("cases.conversation.linked")
-            : link.isPending
-              ? t("cases.conversation.linking")
-              : t("cases.conversation.link-active")}
-        </Button>
+        <h5 className="text-base leading-snug font-semibold tracking-tight">{c.title}</h5>
+        {c.description && <p className="text-xs whitespace-pre-wrap text-foreground/70">{c.description}</p>}
+        <AttachmentChips attachments={c.attachments} />
+        {context.interactionId &&
+          (linkedHere ? (
+            <p className="flex items-center gap-1.5 text-xs font-medium text-success-text">
+              <Link2 className="size-3.5" aria-hidden />
+              {t("cases.conversation.linked")}
+            </p>
+          ) : (
+            <Button size="sm" className="w-full" disabled={link.isPending} onClick={() => void askLink()}>
+              {link.isPending ? <Loader2 className="animate-spin" /> : <Unlink />}
+              {link.isPending ? t("cases.conversation.linking") : t("cases.conversation.link-active")}
+            </Button>
+          ))}
       </section>
 
       <section
-        className="grid grid-cols-2 gap-3 rounded-xl border border-border p-3"
+        className="grid grid-cols-2 gap-x-4 gap-y-3.5 rounded-xl border-t border-border bg-surface p-3.5"
         aria-label={t("cases.conversation.metadata")}
       >
-        <Info label={t("cases.customer")} sub={c.customerProfileId ?? t("cases.conversation.no-profile")}>
-          {customerLabel}
-        </Info>
+        <Info label={t("cases.customer")}>{customerLabel}</Info>
         <Info label={t("cases.category")} sub={c.subCategory?.name ?? t("cases.conversation.no-sub")}>
           {c.category?.name ?? t("cases.conversation.uncategorized")}
         </Info>
@@ -259,7 +254,7 @@ export function CaseDetailPanel({
           label={t("cases.conversation.routed-group")}
           sub={`${t("cases.assignee")}: ${c.assignedUserId ? userLabel(c.assignedUserId) : t("cases.unassigned")}`}
         >
-          {c.assignedGroupId ?? t("cases.conversation.not-routed")}
+          {routingLabel(c.assignedGroupId) ?? t("cases.conversation.not-routed")}
         </Info>
         <Info label={t("cases.conversation.sla")}>
           {c.slaState && c.slaTimeLabel ? (
@@ -273,91 +268,40 @@ export function CaseDetailPanel({
           )}
         </Info>
         <Info label={t("cases.created")} sub={formatRelative(c.createdAt)}>
-          {formatDateTime(c.createdAt)}
+          {formatDate(c.createdAt)}
         </Info>
         <Info label={t("cases.conversation.last-updated")} sub={formatRelative(c.updatedAt)}>
-          {formatDateTime(c.updatedAt)}
+          {formatDate(c.updatedAt)}
         </Info>
       </section>
 
-      <section className="space-y-2">
-        <h5 className="flex items-center gap-2 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-          {t("cases.detail.linked-conversations")}
-          <span className="rounded-full bg-surface-2 px-1.5 text-[10px] tabular-nums">
-            {c.conversations.length}
-          </span>
-        </h5>
-        {c.conversations.length === 0 ? (
-          <p className="text-xs text-muted-foreground">{t("cases.conversation.no-conversations")}</p>
-        ) : (
-          <ul className="space-y-1.5">
-            {c.conversations.map((conv) => {
-              const current = conv.interactionId === context.interactionId;
-              return (
-                <li key={conv.id}>
-                  <a
-                    href={transcriptUrl(conv.interactionId)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={cn(
-                      "flex items-start gap-2 rounded-lg border px-2.5 py-2 text-xs hover:bg-surface-2/60",
-                      current ? "border-primary/50 bg-primary-soft/30" : "border-border",
-                    )}
-                  >
-                    {current ? (
-                      <Radio className="mt-0.5 size-3.5 text-primary" />
-                    ) : (
-                      <MessagesSquare className="mt-0.5 size-3.5 text-muted-foreground" />
-                    )}
-                    <span className="min-w-0">
-                      <span className="block truncate font-medium">
-                        {conv.customerName ?? customerLabel} · {conv.agentName ?? "—"}
-                      </span>
-                      <span className="block text-muted-foreground">
-                        {conv.channel ?? "—"} · {formatDateTime(conv.linkedAt)}
-                      </span>
-                    </span>
-                  </a>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+      {c.conversations.length > 0 && (
+        <section className="space-y-2">
+          <h5 className="flex items-center gap-2 text-xs font-medium text-foreground/70">
+            {t("cases.detail.linked-conversations")}
+            <span className="rounded-full bg-surface-2 px-1.5 text-xs tabular-nums">
+              {c.conversations.length}
+            </span>
+          </h5>
+          <LinkedConversations
+            conversations={c.conversations}
+            fallbackName={customerLabel}
+            currentInteractionId={context.interactionId}
+            customerProfileId={c.customerProfileId ?? context.customerProfileId}
+          />
+        </section>
+      )}
 
-      <section className="space-y-2">
-        <h5 className="flex items-center gap-2 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-          {t("cases.activity.comments")}
-          <span className="rounded-full bg-surface-2 px-1.5 text-[10px] tabular-nums">
-            {c.comments.length}
-          </span>
-        </h5>
-        {c.comments.length === 0 ? (
-          <p className="flex items-center gap-2 text-xs text-muted-foreground">
-            <MessageCircle className="size-3.5" aria-hidden /> {t("cases.conversation.no-comments")}
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {c.comments.map((cm) => {
-              const author = userLabel(cm.authorUserId);
-              return (
-                <li key={cm.id} className="flex gap-2">
-                  <span className="grid size-7 shrink-0 place-items-center rounded-full bg-primary-soft text-[10px] font-semibold text-primary">
-                    {initials(author.split(/\s+/)[0], author.split(/\s+/)[1], author)}
-                  </span>
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <p className="flex items-baseline gap-2 text-xs">
-                      <span className="font-medium">{author}</span>
-                      <span className="text-muted-foreground">{formatRelative(cm.createdAt)}</span>
-                    </p>
-                    <p className="text-sm whitespace-pre-wrap">{formatCommentBody(cm.body)}</p>
-                    <AttachmentChips attachments={cm.attachments} label={t("cases.activity.comment-files")} />
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+      <section className="space-y-3" aria-label={t("cases.activity.label")}>
+        <ActivityTabs tab={tab} onTab={setTab} />
+        <ActivityTimeline
+          tab={tab}
+          comments={c.comments}
+          history={history.entries}
+          historyLoading={history.loading}
+          historyLimited={history.limited}
+          userLabel={userLabel}
+        />
         <form
           className="space-y-2"
           onSubmit={(event) => {
@@ -365,7 +309,7 @@ export function CaseDetailPanel({
             if (body.trim() && !comment.isPending) comment.mutate();
           }}
         >
-          <label htmlFor={`conv-comment-${caseId}`} className="text-xs font-medium text-muted-foreground">
+          <label htmlFor={`conv-comment-${caseId}`} className="text-xs font-medium text-foreground/70">
             {t("cases.conversation.add-comment")}
           </label>
           <MentionComposer

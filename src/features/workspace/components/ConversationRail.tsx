@@ -2,7 +2,6 @@ import {
   BookUser,
   Clock,
   Columns2,
-  Hourglass,
   Inbox,
   MessageSquare,
   PanelLeftClose,
@@ -26,7 +25,7 @@ import { cn } from "@/shared/lib/utils";
 import { useMaskedValue } from "../hooks/useMaskedValue";
 import { maskPii, piiAttribute } from "../model/pii";
 import { useSchemaStore } from "../store/schemaStore";
-import { lastMessagePreview, waitingLevel } from "../model/display";
+import { lastMessagePreview } from "../model/display";
 import {
   useActiveConversationId,
   useConversation,
@@ -38,7 +37,7 @@ import { removeFromBoard, showSideBySide } from "../board/sideBySide";
 import { maxPanes } from "../store/boardStore";
 import { ResizeHandle } from "@/components/common/ResizeHandle";
 import { useResizableWidth } from "@/shared/hooks/useResizableWidth";
-import { ChannelIcon, CHANNEL_COLORS } from "./ChannelIcon";
+import { ChannelIcon } from "./ChannelIcon";
 import { CustomerAvatar } from "./CustomerInitials";
 
 const RailItem = memo(function RailItem({
@@ -69,14 +68,10 @@ const RailItem = memo(function RailItem({
   const name = [firstName, lastName].filter(Boolean).join(" ");
   const isPoppedOut = usePopoutStore((s) => s.ids.includes(id));
   if (!c) return null;
-  const waitingSeconds = c.waitingSince && !c.hold.active ? Math.floor((now - c.waitingSince) / 1000) : null;
-  const level = waitingLevel(waitingSeconds);
   const slaSecondsLeft =
     c.sla.deadline !== null ? Math.max(0, Math.floor((c.sla.deadline - now) / 1000)) : null;
   const channel =
     c.activeChannelSessions[0]?.channel.channelType ?? c.firstChannelSession?.channel.channelType;
-  const channelKey = (channel?.name ?? "").toLowerCase();
-  const channelColor = CHANNEL_COLORS[channelKey];
   const typing = Boolean(c.typingUntil && c.typingUntil > now);
 
   const label = name || t("globals.UNIDENTIFIED-CUSTOMER");
@@ -95,14 +90,14 @@ const RailItem = memo(function RailItem({
         aria-label={label}
         aria-describedby={mini ? undefined : `rail-preview-${id}`}
         className={cn(
-          "group relative flex w-full items-center rounded-xl text-start transition-all",
+          "group relative flex w-full items-center rounded-2xl text-start transition-all",
           mini ? "justify-center p-2" : narrowRail ? "gap-2.5 px-2.5 py-2" : "gap-3 px-3 py-2.5",
           canSplit && !mini && (onBoard ? "pe-9" : "group-hover/row:pe-9"),
           active
-            ? "bg-primary-soft font-medium text-foreground"
+            ? "bg-chat-panel-left-active font-semibold text-chat-panel-left-active-text"
             : c.unread > 0
-              ? "bg-surface-2/50 text-foreground hover:bg-surface-2/80"
-              : "text-foreground/80 hover:bg-surface-2/60",
+              ? "bg-surface/60 font-semibold text-foreground hover:bg-surface/80"
+              : "font-normal text-foreground/90 hover:bg-chat-panel-left-hover",
         )}
       >
         {/* Avatar */}
@@ -115,17 +110,12 @@ const RailItem = memo(function RailItem({
               className={cn(
                 "absolute -end-2.5 -bottom-2.5 isolate z-20 grid place-items-center rounded-full bg-surface shadow-xs ring-2",
                 // The ring matches the row behind it so the badge looks cut out of the avatar.
-                active ? "ring-primary-soft" : "ring-surface",
+                active ? "ring-chat-panel-left-active" : "ring-chat-panel-left",
                 narrowRail || mini ? "size-5" : "size-6",
               )}
               title={channel.name}
             >
-              <span
-                className={cn(
-                  "grid size-full place-items-center rounded-full",
-                  channelColor?.bg ?? "bg-surface-2",
-                )}
-              >
+              <span className="grid size-full place-items-center">
                 <ChannelIcon channelType={channel} className={narrowRail || mini ? "size-3" : "size-3.5"} />
               </span>
             </span>
@@ -147,9 +137,13 @@ const RailItem = memo(function RailItem({
           <span className="flex min-w-0 items-center justify-between gap-1.5">
             <span
               className={cn(
-                "min-w-0 flex-1 truncate tracking-tight",
-                narrowRail ? "text-[13px]" : "text-[13.5px]",
-                c.unread > 0 ? "font-bold text-foreground" : "font-semibold text-foreground",
+                "min-w-0 flex-1 truncate leading-snug tracking-tight",
+                narrowRail ? "text-[13px]" : "text-[14px]",
+                c.unread > 0
+                  ? "font-semibold text-foreground"
+                  : active
+                    ? "font-semibold text-chat-panel-left-active-text"
+                    : "font-medium text-foreground",
               )}
             >
               {label}
@@ -185,19 +179,6 @@ const RailItem = memo(function RailItem({
                   <Timer className="size-2.5" aria-hidden />
                   {formatDuration(slaSecondsLeft)}
                 </span>
-              ) : level && level !== "ok" && waitingSeconds !== null ? (
-                <span
-                  className={cn(
-                    "py-0.2 inline-flex items-center gap-0.5 rounded px-1 text-[10px] font-bold tabular",
-                    level === "warn"
-                      ? "bg-warning-soft text-warning-text"
-                      : "bg-destructive-soft text-destructive-text",
-                  )}
-                  title={t("workspace.waiting-for-reply")}
-                >
-                  <Hourglass className="size-2.5" aria-hidden />
-                  {formatDuration(waitingSeconds)}
-                </span>
               ) : null}
             </span>
           </span>
@@ -218,11 +199,13 @@ const RailItem = memo(function RailItem({
             ) : (
               <span
                 className={cn(
-                  "min-w-0 flex-1 truncate",
+                  "min-w-0 flex-1 truncate text-xs leading-normal",
                   preview
                     ? c.unread > 0
-                      ? "font-semibold text-foreground"
-                      : "text-muted-foreground"
+                      ? "font-medium text-foreground/85"
+                      : active
+                        ? "font-normal text-chat-panel-left-active-text/80"
+                        : "font-normal text-muted-foreground"
                     : "text-muted-foreground/60 italic",
                 )}
               >
@@ -410,8 +393,8 @@ export function ConversationRail({
       <aside
         style={mini ? { width: "4rem" } : { width: `${railWidth}px` }}
         className={cn(
-          "flex h-full w-full shrink-0 flex-col bg-surface",
-          mini && "border-r border-border",
+          "flex h-full w-full shrink-0 flex-col bg-chat-panel-left",
+          mini && "border-r border-border/40",
           isRailDragging ? "transition-none" : "transition-[width] duration-200",
         )}
         aria-label={t("workspace.conversations")}
@@ -439,13 +422,13 @@ export function ConversationRail({
             </span>
           </div>
         ) : (
-          <div className="space-y-2 border-b border-border/50 p-2.5 pb-2 sm:p-3">
+          <div className="space-y-2.5 border-b border-border/40 bg-chat-panel-left p-2.5 pb-2.5 sm:p-3">
             {/* Header row */}
             <div className="flex items-center justify-between gap-1">
               <div className="flex min-w-0 items-center gap-1.5">
                 <h2
                   className={cn(
-                    "truncate font-bold tracking-tight text-foreground",
+                    "truncate font-semibold tracking-tight text-foreground",
                     isNarrowRail ? "text-xs" : "text-sm",
                   )}
                 >
@@ -501,8 +484,8 @@ export function ConversationRail({
                   "shrink-0 rounded-full font-medium transition-colors",
                   isNarrowRail ? "px-2.5 py-0.5 text-[11px]" : "px-3 py-1 text-xs",
                   activeTab === "all"
-                    ? "bg-primary-soft font-semibold text-primary"
-                    : "text-muted-foreground hover:bg-surface-2 hover:text-foreground",
+                    ? "bg-primary-lt font-semibold text-primary shadow-2xs"
+                    : "text-muted-foreground hover:bg-chat-panel-left-hover hover:text-foreground",
                 )}
               >
                 {t("workspace.filter-all")}
@@ -516,8 +499,8 @@ export function ConversationRail({
                   "flex shrink-0 items-center gap-1 rounded-full font-medium transition-colors",
                   isNarrowRail ? "px-2.5 py-0.5 text-[11px]" : "px-3 py-1 text-xs",
                   activeTab === "unread"
-                    ? "bg-primary-soft font-semibold text-primary"
-                    : "text-muted-foreground hover:bg-surface-2 hover:text-foreground",
+                    ? "bg-primary-lt font-semibold text-primary shadow-2xs"
+                    : "text-muted-foreground hover:bg-chat-panel-left-hover hover:text-foreground",
                 )}
               >
                 {t("workspace.filter-unread")}
@@ -557,8 +540,8 @@ export function ConversationRail({
                     "flex shrink-0 items-center gap-1 rounded-full font-medium transition-colors",
                     isNarrowRail ? "px-2.5 py-0.5 text-[11px]" : "px-3 py-1 text-xs",
                     activeTab === "waiting"
-                      ? "bg-surface-3 font-semibold text-foreground"
-                      : "text-muted-foreground hover:bg-surface-2 hover:text-foreground",
+                      ? "bg-surface-3 font-semibold text-foreground shadow-2xs"
+                      : "text-muted-foreground hover:bg-chat-panel-left-hover hover:text-foreground",
                   )}
                 >
                   {t("workspace.filter-waiting")}
@@ -574,7 +557,7 @@ export function ConversationRail({
                 value={filter}
                 onChange={(event) => setFilter(event.target.value)}
                 placeholder={t("labels.search")}
-                className="h-8 rounded-lg border-border/60 bg-surface-2/40 ps-8 pe-7 text-xs shadow-none transition-all placeholder:text-muted-foreground focus-visible:border-primary/50 focus-visible:bg-surface"
+                className="h-8.5 rounded-full border-border/40 bg-chat-panel-left-search ps-8 pe-7 text-xs shadow-none transition-all placeholder:text-muted-foreground focus-visible:border-primary/50 focus-visible:bg-chat-panel-left-search"
                 aria-label={t("labels.search")}
               />
               {filter && (
@@ -611,22 +594,17 @@ export function ConversationRail({
           </div>
         ) : order.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-            <div className="grid size-12 place-items-center rounded-full bg-muted text-primary">
-              <Inbox className="size-5" aria-hidden />
-            </div>
-            <p className="text-sm font-semibold tracking-tight">{t("globals.no-new-conversation")}</p>
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              {t("globals.no-conversation-sub-heading")}
-            </p>
+            <Inbox className="size-5 text-muted-foreground/60" aria-hidden />
+            <p className="text-sm text-muted-foreground">{t("globals.rail-empty")}</p>
             {canViewCustomers && (
-              <Button type="button" size="sm" variant="outline" className="rounded-lg" asChild>
+              <Button type="button" size="sm" variant="outline" className="rounded-full" asChild>
                 <Link to="/customers">{t(canInitiate ? "chat-features.chats.start" : "nav.customers")}</Link>
               </Button>
             )}
           </div>
         ) : (
           <ScrollArea className="min-h-0 flex-1">
-            <div className="flex flex-col gap-0.5 p-1.5">
+            <div className="flex flex-col gap-1 p-2">
               {filtered.map((id) => (
                 <RailItem
                   key={id}

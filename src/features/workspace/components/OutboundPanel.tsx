@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
+import { IconTooltip } from "@/components/common/IconTooltip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +19,7 @@ import { channelDisplayLabel, getOutboundFromChannels, startOutboundSms } from "
 import { useMaskedValue } from "../hooks/useMaskedValue";
 import { formatSmsNumber, validSmsNumber } from "../model/outbound";
 import { useActiveConversationId, useConversationStore } from "../store/conversationStore";
-import { CHANNEL_COLORS, ChannelIcon } from "./ChannelIcon";
+import { ChannelIcon, OutboundActionIcon } from "./ChannelIcon";
 
 function asPhoneList(value: unknown): string[] {
   if (Array.isArray(value))
@@ -49,14 +50,10 @@ function ChannelRow({
   extra?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const colors = CHANNEL_COLORS[kind.toLowerCase()];
   return (
     <div className="flex min-w-0 items-center gap-2.5 rounded-lg px-1 py-2 hover:bg-muted/60">
-      <span
-        className={`grid size-8 shrink-0 place-items-center rounded-full ${colors?.bg ?? "bg-muted"}`}
-        aria-hidden
-      >
-        <ChannelIcon channelType={{ name: kind }} className="size-5" />
+      <span className="grid size-8 shrink-0 place-items-center" aria-hidden>
+        <ChannelIcon channelType={{ name: kind }} className="size-8" />
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13px] font-medium">{label}</p>
@@ -260,17 +257,19 @@ export function OutboundPanel() {
         if (!busy) setPanelOpen(next);
       }}
     >
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          className="relative size-9 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
-          aria-label={t("app-header.outbound")}
-        >
-          <Phone className="size-[18px]" />
-        </Button>
-      </PopoverTrigger>
+      <IconTooltip label={t("app-header.outbound")}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            className="relative size-9 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+            aria-label={t("app-header.outbound")}
+          >
+            <Phone className="size-[18px]" />
+          </Button>
+        </PopoverTrigger>
+      </IconTooltip>
       <PopoverContent
         align="end"
         className="max-h-[min(42rem,85dvh)] w-[min(24rem,calc(100vw-2rem))] space-y-3 overflow-auto p-4"
@@ -423,10 +422,11 @@ export function OutboundPanel() {
                     <Button
                       type="button"
                       size="sm"
-                      className="h-7 shrink-0 gap-1 px-2.5 text-xs"
+                      className="h-7 shrink-0 gap-1.5 px-2.5 text-xs"
                       disabled={callDisabled}
                       onClick={() => void placeCall()}
                     >
+                      <OutboundActionIcon kind="voice" className="size-3" />
                       {t("workspace.reach.action.voice")}
                     </Button>
                   </ChannelRow>
@@ -436,10 +436,11 @@ export function OutboundPanel() {
                     <Button
                       type="button"
                       size="sm"
-                      className="h-7 shrink-0 gap-1 px-2.5 text-xs"
+                      className="h-7 shrink-0 gap-1.5 px-2.5 text-xs"
                       disabled={textDisabled}
                       onClick={() => setComposing(true)}
                     >
+                      <OutboundActionIcon kind="sms" className="size-3" />
                       {t("workspace.reach.action.sms")}
                     </Button>
                   </ChannelRow>

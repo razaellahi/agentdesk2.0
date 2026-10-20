@@ -14,10 +14,10 @@ export function AdminFrame({
   children: ReactNode;
 }) {
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-4 p-4 sm:p-6">
+    <div className="mx-auto w-full max-w-5xl space-y-5 p-5 sm:p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold">{title}</h1>
+          <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
           <p className="mt-0.5 max-w-2xl text-sm text-muted-foreground">{description}</p>
         </div>
         {actions && <div className="flex gap-2">{actions}</div>}
@@ -39,10 +39,10 @@ export function AdminCard({
   className?: string;
 }) {
   return (
-    <section className={cn("space-y-3 rounded-2xl border border-border bg-surface p-5", className)}>
+    <section className={cn("space-y-4 rounded-xl border border-border bg-surface p-5", className)}>
       {(title || hint) && (
         <div>
-          {title && <h2 className="text-sm font-semibold">{title}</h2>}
+          {title && <h2 className="text-sm font-medium">{title}</h2>}
           {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
         </div>
       )}

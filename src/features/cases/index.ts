@@ -7,6 +7,7 @@ export const CaseAdminPage = () => import("./admin/CaseAdminPage");
 export { CasesTab, type CaseConversationContext } from "./conversation/CasesTab";
 export { CaseNotificationsMenu } from "./notifications/CaseNotificationsMenu";
 export { caseManagementConfigured } from "./model/config";
+export { useLinkedCases } from "./hooks/useLinkedCases";
 export type {
   AdminStatus,
   Case,

@@ -1,6 +1,8 @@
 import { http, HttpResponse, type HttpHandler } from "msw";
 import { caseHandlers } from "./cases";
 import { MOCK_DESK_SETTINGS, MOCK_LOCALE_SETTING, MOCK_TRANSLATIONS, MOCK_USERS, mockUserJwt } from "./data";
+import { mockDemoFile } from "./demoFiles";
+import { demoCustomerActivities } from "./history";
 import { mockRecordingWav } from "./media";
 
 /** Mutable mock state so admin screens can save and read back. */
@@ -18,9 +20,43 @@ export const mockDb = {
       lastName: "Raza",
       voice: "+923001112233",
       email: "amina@example.com",
+      // The same number is also her WhatsApp, so the two show as one identifier with both channels.
+      whatsapp: "+923001112233",
+      facebook: "amina.raza.official",
+      instagram: "@amina.raza",
+      web: "visitor-9c41",
       labels: [],
     },
-    { _id: "customer-bilal", firstName: "Bilal", lastName: "Ahmed", voice: "+923004445566", labels: [] },
+    {
+      _id: "customer-bilal",
+      firstName: "Bilal",
+      lastName: "Ahmed",
+      voice: "+923004445566",
+      whatsapp: "+923009998877",
+      facebook: "bilal.ahmed.77",
+      labels: [],
+    },
+    // Raise cases by email: see the email threads in history.ts and cases 8 and 9 in cases.ts.
+    {
+      _id: "customer-chen",
+      firstName: "Chen",
+      lastName: "Wei",
+      voice: "+8613800138000",
+      email: ["chen.wei@lumina-trading.example", "accounts@lumina-trading.example"],
+      whatsapp: "+8613800138000",
+      web: "visitor-2b77",
+      labels: [],
+    },
+    {
+      _id: "customer-fatima",
+      firstName: "Fatima",
+      lastName: "Noor",
+      voice: "+971501234567",
+      email: "fatima.noor@example.com",
+      facebook: "fatima.noor.9",
+      instagram: "@fatima.noor",
+      labels: [],
+    },
   ],
   voicemails: [
     { id: "vm-1", status: "Unread", name: "Amina", timestamp: 1_790_000_000_000 },
@@ -198,6 +234,29 @@ export const handlers: HttpHandler[] = [
       { key: "lastName", label: "Last name", type: "string", length: 80, isPii: true },
       { key: "email", label: "Email", type: "email", isChannelIdentifier: true, isPii: true },
       { key: "voice", label: "Phone number", type: "phoneNumber", isChannelIdentifier: true, isPii: true },
+      {
+        key: "whatsapp",
+        label: "WhatsApp",
+        type: "phoneNumber",
+        isChannelIdentifier: true,
+        isPii: true,
+        channelTypes: ["WHATSAPP"],
+      },
+      {
+        key: "facebook",
+        label: "Facebook",
+        type: "string",
+        isChannelIdentifier: true,
+        channelTypes: ["FACEBOOK"],
+      },
+      {
+        key: "instagram",
+        label: "Instagram",
+        type: "string",
+        isChannelIdentifier: true,
+        channelTypes: ["INSTAGRAM"],
+      },
+      { key: "web", label: "Web", type: "string", isChannelIdentifier: true, channelTypes: ["WEB"] },
       { key: "labels", label: "Labels", type: "labels" },
     ]),
   ),
@@ -248,6 +307,8 @@ export const handlers: HttpHandler[] = [
       docs:
         page === 0
           ? [
+              // The demo customers also have recent conversations (see history.ts).
+              ...(demoCustomerActivities(String(params.customerId)) ?? []),
               {
                 id: "history-1",
                 name: "CUSTOMER_MESSAGE",
@@ -349,11 +410,17 @@ export const handlers: HttpHandler[] = [
     if (vm) vm.status = params.get("status") ?? vm.status;
     return HttpResponse.json({ ok: true });
   }),
-  http.get("*/api/downloadFileStream", ({ request }) =>
-    new URL(request.url).searchParams.get("filename")?.startsWith("vm-")
-      ? new HttpResponse(mockRecordingWav(), { headers: { "Content-Type": "audio/wav" } })
-      : undefined,
-  ),
+  http.get("*/api/downloadFileStream", ({ request }) => {
+    const filename = new URL(request.url).searchParams.get("filename") ?? "";
+    if (filename.startsWith("vm-"))
+      return new HttpResponse(mockRecordingWav(), { headers: { "Content-Type": "audio/wav" } });
+    // The demo's email attachments (history.ts).
+    if (filename.startsWith("demo-")) {
+      const file = mockDemoFile(filename);
+      return new HttpResponse(file.body, { headers: { "Content-Type": file.type } });
+    }
+    return undefined;
+  }),
   http.get("*/social-media-post", () =>
     HttpResponse.json({
       socialMediaPost: {
@@ -775,7 +842,9 @@ export const handlers: HttpHandler[] = [
     const prefs = mockDb.preferences.get(userId) ?? {
       _id: `pref-${userId}`,
       user_Id: userId,
-      theme: "system",
+      // Mock state resets on every reload, so a "system" default would follow a dark OS and
+      // override the light theme. The mock desk stays light.
+      theme: "light",
       language: "en",
     };
     mockDb.preferences.set(userId, prefs);

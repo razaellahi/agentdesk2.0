@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Download, LayoutDashboard, Loader2, RefreshCw, Rows3 } from "lucide-react";
+import { Download, Loader2, RefreshCw } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
@@ -40,9 +40,9 @@ function Kpi({
       </span>
     </>
   );
-  const className = "block rounded-2xl border border-border bg-surface p-4";
+  const className = "block rounded-xl border border-border bg-surface p-4 transition-colors";
   return to ? (
-    <Link to={to} className={cn(className, "hover:border-primary/60")}>
+    <Link to={to} className={cn(className, "hover:border-primary/40")}>
       {body}
     </Link>
   ) : (
@@ -60,8 +60,8 @@ function Table({
   rows: { key: string; cells: ReactNode[] }[];
 }) {
   return (
-    <section className="rounded-2xl border border-border bg-surface p-4">
-      <h2 className="mb-2 text-sm font-semibold">{title}</h2>
+    <section className="rounded-xl border border-border bg-surface p-4">
+      <h2 className="mb-2 text-sm font-medium">{title}</h2>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -156,28 +156,18 @@ export default function ReportsPage() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold">{t("nav.cases-reports")}</h1>
-            <p className="max-w-2xl text-sm text-muted-foreground">{t("cases.reports.description")}</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/cases/dashboard">
-                <LayoutDashboard />
-                {t("nav.cases-dashboard")}
-              </Link>
-            </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/cases">
-                <Rows3 />
-                {t("nav.cases-workbench")}
-              </Link>
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => void reports.refetch()}>
+      <div className="mx-auto max-w-6xl space-y-4 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <PeriodFilter value={period} onChange={setPeriod} meta={metaLine} />
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("cases.refresh")}
+              title={t("cases.refresh")}
+              onClick={() => void reports.refetch()}
+            >
               <RefreshCw className={cn(reports.isFetching && "animate-spin")} />
-              {t("cases.refresh")}
             </Button>
             <Button
               variant="outline"
@@ -190,8 +180,6 @@ export default function ReportsPage() {
             </Button>
           </div>
         </div>
-
-        <PeriodFilter value={period} onChange={setPeriod} meta={metaLine} />
 
         <div
           role="tablist"

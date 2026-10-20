@@ -17,9 +17,10 @@ import {
   ThumbsUp,
   Trash2,
 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { IconTooltip } from "@/components/common/IconTooltip";
 import { formatTime, formatDuration, formatDateTime } from "@/core/i18n";
 import { getSession, useScope } from "@/core/auth";
 import { cn } from "@/shared/lib/utils";
@@ -60,7 +61,7 @@ function TextBlock({ message, formatting }: { message: CimMessage; formatting: b
   const text = messageText(message);
   if (!text) return null;
   return (
-    <div className="text-[13.5px] leading-relaxed break-words whitespace-pre-wrap">
+    <div className="text-[14px] leading-relaxed break-words whitespace-pre-wrap">
       <RichText text={text} formatting={formatting} />
     </div>
   );
@@ -548,19 +549,6 @@ export function MessageRow({
 }) {
   const { t } = useTranslation();
   const [postOpen, setPostOpen] = useState(false);
-  const rowRef = useRef<HTMLDivElement>(null);
-  const boxRef = useRef<HTMLDivElement>(null);
-  const barRef = useRef<HTMLDivElement>(null);
-  // Where the hover actions go: beside the bubble when its empty side is wide enough.
-  const [placement, setPlacement] = useState<"beside" | "above">("beside");
-  const measurePlacement = () => {
-    const row = rowRef.current?.getBoundingClientRect();
-    const box = boxRef.current?.getBoundingClientRect();
-    const bar = barRef.current;
-    if (!row || !box || !bar) return;
-    const room = outbound ? box.left - row.left - 16 : row.right - box.right - 16;
-    setPlacement(room >= bar.offsetWidth + 8 ? "beside" : "above");
-  };
   const [copied, setCopied] = useState(false);
   const customerName =
     useMaskedValue(
@@ -644,15 +632,71 @@ export function MessageRow({
     );
   }
 
+  // An email is not a chat bubble: a full-width email card with its own small header actions.
+  if (type === "email" && !whisper) {
+    const canReplyByEmail = conversation.state === "ACTIVE" && conversation.composerEnabled;
+    const iconButton =
+      "grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground";
+    const emailActions = (
+      <span className="flex items-center opacity-0 transition-opacity group-focus-within/email:opacity-100 group-hover/email:opacity-100 [@media(hover:none)]:opacity-100">
+        {messageText(message) && (
+          <IconTooltip label={t("workspace.copy-message")}>
+            <button
+              type="button"
+              className={iconButton}
+              aria-label={t("workspace.copy-message")}
+              onClick={copyText}
+            >
+              {copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
+            </button>
+          </IconTooltip>
+        )}
+        {canReplyByEmail && (
+          <IconTooltip label={t("chat-features.interactions.reply")}>
+            <button
+              type="button"
+              className={cn(iconButton, "hover:text-primary")}
+              aria-label={t("chat-features.interactions.reply")}
+              onClick={() => reply()}
+            >
+              <CornerDownLeft className="size-3.5" />
+            </button>
+          </IconTooltip>
+        )}
+      </span>
+    );
+    return (
+      <div
+        data-message-id={message.id}
+        className={cn("desk-msg-in group/msg relative px-4", continued ? "pt-1.5" : "pt-3")}
+      >
+        <div className="max-w-3xl min-w-0">
+          <EmailBody
+            message={message}
+            conversation={conversation}
+            name={name}
+            outbound={outbound}
+            actions={emailActions}
+          />
+          <DeliveryLine
+            message={message}
+            latest={latestOwn}
+            onRetry={canRetry ? () => retryFailedMessage(conversation.conversationId, message) : undefined}
+            readerContext={
+              conversation.roomInfo === "FAKE_CONVERSATION" ? "manage" : "manage_in_conversation"
+            }
+          />
+        </div>
+      </div>
+    );
+  }
+
   const validStamp = Number.isFinite(stamp) && stamp > 0;
   const fullTime = validStamp ? formatDateTime(stamp) : undefined;
 
   return (
     <div
-      ref={rowRef}
       data-message-id={message.id}
-      onMouseEnter={measurePlacement}
-      onFocusCapture={measurePlacement}
       className={cn(
         "desk-msg-in group/msg relative flex px-4",
         continued ? "pt-1" : "pt-3",
@@ -666,11 +710,11 @@ export function MessageRow({
         {!continued && (
           <div className="mb-1 flex items-center gap-1.5 px-1 text-xs">
             {!mine && name && (
-              <span className="truncate font-semibold tracking-tight text-foreground">{name}</span>
+              <span className="truncate text-[13px] font-medium tracking-normal text-foreground">{name}</span>
             )}
             {validStamp && (
               <time
-                className="shrink-0 text-[11px] text-muted-foreground tabular"
+                className="shrink-0 text-[11px] font-normal text-muted-foreground/75 tabular"
                 dateTime={new Date(stamp).toISOString()}
                 title={fullTime}
               >
@@ -681,14 +725,13 @@ export function MessageRow({
         )}
 
         <div
-          ref={boxRef}
           className={cn("relative flex max-w-full min-w-0 items-end gap-1.5", outbound && "flex-row-reverse")}
         >
           {/* Message Bubble Container */}
           <div
             title={continued ? fullTime : undefined}
             className={cn(
-              "min-w-0 rounded-2xl px-4 py-2 text-[13.5px] transition-shadow",
+              "group/bubble relative min-w-0 rounded-2xl px-4 py-2 text-[14px] leading-relaxed transition-shadow",
               outbound
                 ? cn("bg-bubble-agent text-foreground shadow-2xs", !continued && "rounded-tr-xs")
                 : cn("bg-bubble-customer text-foreground shadow-2xs", !continued && "rounded-tl-xs"),
@@ -726,148 +769,148 @@ export function MessageRow({
             ) : (
               <MessageBody message={message} formatting={formatting} conversation={conversation} />
             )}
-          </div>
-          {/* Floating Message Action Bar */}
-          <div
-            ref={barRef}
-            className={cn(
-              "absolute z-10 flex items-center gap-1 rounded-full border border-border/70 bg-surface/95 px-1.5 py-0.5 text-[11px] text-muted-foreground shadow-lift backdrop-blur-md empty:hidden",
-              "pointer-events-none scale-95 opacity-0 transition-all group-hover/msg:pointer-events-auto group-hover/msg:scale-100 group-hover/msg:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100",
-              // Right beside the bubble, centred on it, when that side has room; otherwise tucked over
-              // the bubble's top corner, grown towards the empty side. Either way it is inside the row.
-              placement === "beside"
-                ? cn("top-1/2 -translate-y-1/2", outbound ? "end-full me-2" : "start-full ms-2")
-                : cn("-top-4", outbound ? "end-1" : "start-1"),
-            )}
-          >
-            {/* Copy message button */}
-            {messageText(message) && (
-              <button
-                type="button"
-                className="rounded-full p-1 transition-colors hover:bg-surface-2 hover:text-foreground"
-                aria-label={t("workspace.copy-message")}
-                title={t("workspace.copy-message")}
-                onClick={copyText}
-              >
-                {copied ? <Check className="size-3 text-success" /> : <Copy className="size-3" />}
-              </button>
-            )}
-
-            {/* Reply button */}
-            {conversation.state === "ACTIVE" &&
-              conversation.composerEnabled &&
-              (type === "email" || type === "plain" || (type === "comment" && canSocial("reply"))) && (
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 font-semibold text-primary transition-colors hover:bg-primary-soft"
-                  onClick={() => reply()}
-                >
-                  <CornerDownLeft className="size-3" />
-                  <span>{t("chat-features.interactions.reply")}</span>
-                </button>
+            {/* Floating Message Action Bar */}
+            {/* Floating Message Action Bar: a small pill on the bubble's outer top edge, as in Google Chat. */}
+            <div
+              className={cn(
+                "absolute -top-3.5 z-10 flex items-center gap-0.5 rounded-full border border-border/70 bg-surface p-0.5 text-muted-foreground shadow-lift empty:hidden",
+                "pointer-events-none scale-95 opacity-0 transition-all group-hover/bubble:pointer-events-auto group-hover/bubble:scale-100 group-hover/bubble:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100",
+                outbound ? "end-3" : "start-3",
+              )}
+            >
+              {/* Copy message button */}
+              {messageText(message) && (
+                <IconTooltip label={t("workspace.copy-message")}>
+                  <button
+                    type="button"
+                    className="grid size-7 place-items-center rounded-full transition-colors hover:bg-surface-2 hover:text-foreground"
+                    aria-label={t("workspace.copy-message")}
+                    onClick={copyText}
+                  >
+                    {copied ? <Check className="size-4 text-success" /> : <Copy className="size-4" />}
+                  </button>
+                </IconTooltip>
               )}
 
-            {!mine &&
-              conversation.state === "ACTIVE" &&
-              conversation.composerEnabled &&
-              isComment &&
-              canSocial("private") && (
+              {/* Reply button */}
+              {conversation.state === "ACTIVE" &&
+                conversation.composerEnabled &&
+                (type === "email" || type === "plain" || (type === "comment" && canSocial("reply"))) && (
+                  <IconTooltip label={t("chat-features.interactions.reply")}>
+                    <button
+                      type="button"
+                      className="grid size-7 place-items-center rounded-full text-primary transition-colors hover:bg-primary-soft"
+                      aria-label={t("chat-features.interactions.reply")}
+                      onClick={() => reply()}
+                    >
+                      <CornerDownLeft className="size-4" />
+                    </button>
+                  </IconTooltip>
+                )}
+
+              {!mine &&
+                conversation.state === "ACTIVE" &&
+                conversation.composerEnabled &&
+                isComment &&
+                canSocial("private") && (
+                  <button
+                    type="button"
+                    className="rounded-full px-1.5 py-0.5 font-medium text-primary hover:bg-primary-soft"
+                    onClick={() => reply(true)}
+                  >
+                    {t("workspace.private-reply")}
+                  </button>
+                )}
+
+              {isComment && canSocial("post") && (
                 <button
                   type="button"
                   className="rounded-full px-1.5 py-0.5 font-medium text-primary hover:bg-primary-soft"
-                  onClick={() => reply(true)}
+                  onClick={() => setPostOpen(true)}
                 >
-                  {t("workspace.private-reply")}
+                  {t("chat-features.interactions.view-full-post")}
                 </button>
               )}
 
-            {isComment && canSocial("post") && (
-              <button
-                type="button"
-                className="rounded-full px-1.5 py-0.5 font-medium text-primary hover:bg-primary-soft"
-                onClick={() => setPostOpen(true)}
-              >
-                {t("chat-features.interactions.view-full-post")}
-              </button>
-            )}
+              {canEdit && (
+                <IconTooltip label={t("chat-features.interactions.edit-message")}>
+                  <button
+                    type="button"
+                    className="grid size-7 place-items-center rounded-full transition-colors hover:bg-surface-2 hover:text-foreground"
+                    aria-label={t("chat-features.interactions.edit-message")}
+                    onClick={() => {
+                      if (!editSession) return;
+                      useConversationStore
+                        .getState()
+                        .selectReplySession(conversation.conversationId, editSession.id);
+                      useComposerStore
+                        .getState()
+                        .setEdit(
+                          composerKey(
+                            useConversationStore.getState().byId[conversation.conversationId] ?? conversation,
+                          ),
+                          message.id,
+                          messageText(message),
+                        );
+                    }}
+                  >
+                    <Pencil className="size-4" />
+                  </button>
+                </IconTooltip>
+              )}
 
-            {canEdit && (
-              <button
-                type="button"
-                className="rounded-full p-1 transition-colors hover:bg-surface-2 hover:text-foreground"
-                aria-label={t("chat-features.interactions.edit-message")}
-                title={t("chat-features.interactions.edit-message")}
-                onClick={() => {
-                  if (!editSession) return;
-                  useConversationStore
-                    .getState()
-                    .selectReplySession(conversation.conversationId, editSession.id);
-                  useComposerStore
-                    .getState()
-                    .setEdit(
-                      composerKey(
-                        useConversationStore.getState().byId[conversation.conversationId] ?? conversation,
-                      ),
-                      message.id,
-                      messageText(message),
-                    );
-                }}
-              >
-                <Pencil className="size-3" />
-              </button>
-            )}
-
-            {isComment && !deleted && conversation.state === "ACTIVE" && (
-              <>
-                {canSocial("like") && (
-                  <button
-                    type="button"
-                    className={cn(
-                      "rounded-full p-1 transition-colors hover:bg-surface-2",
-                      message.isLiked ? "text-primary" : "hover:text-primary",
-                    )}
-                    aria-label={t("workspace.comment-action", { action: "like" })}
-                    aria-pressed={Boolean(message.isLiked)}
-                    onClick={() => sendCommentAction(conversation.conversationId, message, "like")}
-                  >
-                    {/* Source: heart on X/Twitter, thumbs-up elsewhere. */}
-                    {lower(originalSession?.channel.channelType.name) === "twitter" ? (
-                      <Heart className={cn("size-3", message.isLiked && "fill-current")} />
-                    ) : (
-                      <ThumbsUp className={cn("size-3", message.isLiked && "fill-current")} />
-                    )}
-                  </button>
-                )}
-                {canSocial(message.isHidden ? "unhide" : "hide") && (
-                  <button
-                    type="button"
-                    className="rounded-full p-1 transition-colors hover:bg-surface-2 hover:text-foreground"
-                    aria-label={t("workspace.comment-action", {
-                      action: message.isHidden ? "unhide" : "hide",
-                    })}
-                    onClick={() =>
-                      sendCommentAction(
-                        conversation.conversationId,
-                        message,
-                        message.isHidden ? "unhide" : "hide",
-                      )
-                    }
-                  >
-                    {message.isHidden ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
-                  </button>
-                )}
-                {canSocial("delete") && (
-                  <button
-                    type="button"
-                    className="rounded-full p-1 transition-colors hover:bg-destructive-soft hover:text-destructive"
-                    aria-label={t("workspace.comment-action", { action: "delete" })}
-                    onClick={() => sendCommentAction(conversation.conversationId, message, "delete")}
-                  >
-                    <Trash2 className="size-3" />
-                  </button>
-                )}
-              </>
-            )}
+              {isComment && !deleted && conversation.state === "ACTIVE" && (
+                <>
+                  {canSocial("like") && (
+                    <button
+                      type="button"
+                      className={cn(
+                        "rounded-full p-1 transition-colors hover:bg-surface-2",
+                        message.isLiked ? "text-primary" : "hover:text-primary",
+                      )}
+                      aria-label={t("workspace.comment-action", { action: "like" })}
+                      aria-pressed={Boolean(message.isLiked)}
+                      onClick={() => sendCommentAction(conversation.conversationId, message, "like")}
+                    >
+                      {/* Source: heart on X/Twitter, thumbs-up elsewhere. */}
+                      {lower(originalSession?.channel.channelType.name) === "twitter" ? (
+                        <Heart className={cn("size-3", message.isLiked && "fill-current")} />
+                      ) : (
+                        <ThumbsUp className={cn("size-3", message.isLiked && "fill-current")} />
+                      )}
+                    </button>
+                  )}
+                  {canSocial(message.isHidden ? "unhide" : "hide") && (
+                    <button
+                      type="button"
+                      className="rounded-full p-1 transition-colors hover:bg-surface-2 hover:text-foreground"
+                      aria-label={t("workspace.comment-action", {
+                        action: message.isHidden ? "unhide" : "hide",
+                      })}
+                      onClick={() =>
+                        sendCommentAction(
+                          conversation.conversationId,
+                          message,
+                          message.isHidden ? "unhide" : "hide",
+                        )
+                      }
+                    >
+                      {message.isHidden ? <Eye className="size-3" /> : <EyeOff className="size-3" />}
+                    </button>
+                  )}
+                  {canSocial("delete") && (
+                    <button
+                      type="button"
+                      className="rounded-full p-1 transition-colors hover:bg-destructive-soft hover:text-destructive"
+                      aria-label={t("workspace.comment-action", { action: "delete" })}
+                      onClick={() => sendCommentAction(conversation.conversationId, message, "delete")}
+                    >
+                      <Trash2 className="size-3" />
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </div>
         <DeliveryLine

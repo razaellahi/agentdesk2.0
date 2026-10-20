@@ -36,11 +36,13 @@ export async function getConfiguredChannels(channelTypeName: string) {
 /** Channels for a type plus the default From identifier (UA ChannelSelectionService). */
 export async function getOutboundFromChannels(channelTypeName: string) {
   const types = useSchemaStore.getState().channelTypes;
-  const type = types.find((item) => item.name?.toUpperCase() === channelTypeName.toUpperCase());
-  if (!type?.id) return { channels: [] as OutboundChannel[], selected: "", defaultId: "" };
+  const type = types.find((item) => item.name?.toUpperCase() === channelTypeName.toUpperCase()) ?? {
+    id: channelTypeName.toLowerCase(),
+    name: channelTypeName,
+  };
   const [channels, defaultChannel] = await Promise.all([
     getConfiguredChannels(type.name).catch(() => [] as OutboundChannel[]),
-    getDefaultOutboundChannel(type.id).catch(() => null),
+    type.id ? getDefaultOutboundChannel(type.id).catch(() => null) : Promise.resolve(null),
   ]);
   const filtered = channels.filter((channel) => {
     const name = channel.channelType?.name ?? "";

@@ -16,6 +16,7 @@ describe("Create case", () => {
   it("walks details → classification → review and creates a routed, customer-linked case", async () => {
     signIn("supervisor");
     const user = userEvent.setup();
+    const seeded = caseDb.cases.length;
     renderCase(<CreateCasePage />, { path: "/cases/new", route: "/cases/new" });
 
     expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
@@ -42,7 +43,7 @@ describe("Create case", () => {
     const dialog = await screen.findByRole("dialog", { name: "Create this case?" });
     await user.click(within(dialog).getByRole("button", { name: "Create case" }));
 
-    await waitFor(() => expect(caseDb.cases).toHaveLength(6));
+    await waitFor(() => expect(caseDb.cases).toHaveLength(seeded + 1));
     const created = caseDb.cases.at(-1)!;
     expect(created).toMatchObject({
       title: "Chargeback dispute",

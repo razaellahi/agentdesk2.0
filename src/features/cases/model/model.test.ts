@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Case, CaseAuditEntry } from "../api/types";
-import { formatHistorySummary, historyTimelineDot, isVisibleHistoryEntry } from "./activityFormat";
+import {
+  caseMilestones,
+  formatHistorySummary,
+  historyTimelineDot,
+  isVisibleHistoryEntry,
+} from "./activityFormat";
 import {
   interactionHref,
   isInteractionUrl,
@@ -204,6 +209,25 @@ describe("history summaries", () => {
     expect(formatHistorySummary(auto, () => "Sana", t)).toEqual([
       { text: "cases.history.auto-assigned-to", tone: "plain" },
       { text: "Sana", tone: "emphasis" },
+    ]);
+  });
+});
+
+describe("case milestones", () => {
+  it("rebuilds creation, links, resolve and close from the case when the audit log is refused", () => {
+    const c = makeCase({
+      resolvedAt: "2026-10-19T12:00:00Z",
+      conversations: [
+        { id: "l1", interactionId: "i1", linkedAt: "2026-10-19T09:00:00Z", channel: "WHATSAPP" },
+      ],
+    });
+    const rows = caseMilestones(c);
+    expect(rows.map((r) => r.action)).toEqual(["CASE_CREATED", "CONVERSATION_LINKED", "CASE_RESOLVED"]);
+    expect(rows.every(isVisibleHistoryEntry)).toBe(true);
+    expect(formatHistorySummary(rows[1]!, (id) => id, t).map((p) => p.text)).toEqual([
+      "cases.history.conversation-linked",
+      " · ",
+      "WHATSAPP",
     ]);
   });
 });

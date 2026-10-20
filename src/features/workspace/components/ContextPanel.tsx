@@ -1,4 +1,5 @@
 import { ChevronsRight } from "lucide-react";
+import { IconTooltip } from "@/components/common/IconTooltip";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useTranslation } from "react-i18next";
@@ -29,7 +30,7 @@ function TabButton({
       aria-label={tab.label}
       onClick={onSelect}
       className={cn(
-        "relative grid place-items-center text-muted-foreground transition-all duration-150 hover:bg-surface-2 hover:text-foreground",
+        "relative grid place-items-center text-muted-foreground transition-all duration-150 hover:bg-chat-panel-left-hover hover:text-foreground",
         orientation === "vertical"
           ? "size-9 rounded-full"
           : "h-8 flex-1 grid-flow-col gap-1.5 rounded-full px-3 text-xs font-medium",
@@ -91,7 +92,7 @@ export function ContextDock({
   });
 
   return (
-    <div className="flex h-full shrink-0 bg-surface">
+    <div className="flex h-full shrink-0 bg-chat-panel-right">
       {active && (
         <ResizeHandle
           onPointerDown={onContextResizePointerDown}
@@ -106,31 +107,32 @@ export function ContextDock({
         <div className="desk-drawer-inner">
           <div
             className={cn(
-              "flex h-full flex-col bg-surface",
+              "flex h-full flex-col bg-chat-panel-right",
               isContextDragging ? "transition-none" : "transition-[width] duration-200",
             )}
             style={{ width: `${contextWidth}px` }}
           >
-            <div className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-surface px-3.5">
-              <div className="flex min-w-0 items-center gap-2">
-                {activeTab && <activeTab.icon className="size-4 shrink-0 text-primary" />}
-                <p className="truncate text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+            <div className="flex h-14 shrink-0 items-center justify-between border-b border-border/40 bg-chat-panel-right px-4">
+              <div className="flex min-w-0 items-center gap-2.5">
+                {activeTab && <activeTab.icon className="size-4.5 shrink-0 text-primary" />}
+                <h2 className="truncate text-[16px] font-medium tracking-tight text-foreground">
                   {activeTab?.label}
-                </p>
+                </h2>
               </div>
-              <Button
-                type="button"
-                size="icon-xs"
-                variant="ghost"
-                aria-label={t("workspace.fold-context")}
-                title={t("workspace.fold-context")}
-                className="size-7.5 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
-                onClick={() => onOpenChange(null)}
-              >
-                <ChevronsRight className="size-4" />
-              </Button>
+              <IconTooltip label={t("workspace.fold-context")}>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  aria-label={t("workspace.fold-context")}
+                  className="size-9 rounded-full text-muted-foreground hover:bg-chat-panel-left-hover hover:text-foreground"
+                  onClick={() => onOpenChange(null)}
+                >
+                  <ChevronsRight className="size-[18px]" strokeWidth={1.75} aria-hidden />
+                </Button>
+              </IconTooltip>
             </div>
-            <div className="min-h-0 flex-1 overflow-auto">
+            <div className="min-h-0 flex-1 overflow-auto bg-chat-panel-right">
               {active && <CustomerPanel conversation={conversation} tab={active} />}
             </div>
           </div>
@@ -140,7 +142,7 @@ export function ContextDock({
         role="tablist"
         aria-orientation="vertical"
         aria-label={t("workspace.customer-context")}
-        className="flex w-12 shrink-0 flex-col items-center gap-2 border-l border-border bg-surface py-3"
+        className="flex w-12 shrink-0 flex-col items-center gap-2 border-l border-border/40 bg-chat-panel-right-dock py-3"
       >
         {tabs.map((tab) => (
           <TabButton

@@ -1,5 +1,6 @@
+import { FieldLabel } from "../components/Fields";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ExternalLink, Loader2, Plus, Route, X } from "lucide-react";
+import { ArrowLeft, Check, ExternalLink, Loader2, Plus, Route, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router";
@@ -13,7 +14,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/shared/lib/utils";
@@ -48,9 +48,9 @@ const PRIORITY_OPTIONS = [
 
 function Card({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
   return (
-    <section className="space-y-3 rounded-2xl border border-border bg-surface p-5">
+    <section className="space-y-4 rounded-xl border border-border bg-surface p-5">
       <div>
-        <h2 className="text-sm font-semibold">{title}</h2>
+        <h2 className="text-sm font-medium">{title}</h2>
         {note && <p className="mt-0.5 text-xs text-muted-foreground">{note}</p>}
       </div>
       {children}
@@ -160,15 +160,15 @@ export default function CreateCasePage() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-3xl space-y-5 p-4 sm:p-6">
-        <nav className="text-xs text-muted-foreground" aria-label={t("cases.breadcrumb")}>
-          <Link to="/cases" className="hover:text-primary hover:underline">
+      <div className="mx-auto max-w-3xl space-y-5 p-5">
+        <div className="space-y-1">
+          <Link
+            to="/cases"
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
+          >
+            <ArrowLeft className="size-3.5" aria-hidden />
             {t("nav.cases-workbench")}
           </Link>
-          <span> / {t("cases.create.title")}</span>
-        </nav>
-        <div>
-          <h1 className="text-xl font-semibold">{t("cases.create.title")}</h1>
           <p className="text-sm text-muted-foreground">{t("cases.create.description")}</p>
         </div>
 
@@ -209,7 +209,7 @@ export default function CreateCasePage() {
         {step === 0 && (
           <Card title={t("cases.create.case-details")}>
             <div className="space-y-1.5">
-              <Label htmlFor="case-title">{t("cases.create.title-field")}</Label>
+              <FieldLabel htmlFor="case-title">{t("cases.create.title-field")}</FieldLabel>
               <Input
                 id="case-title"
                 value={title}
@@ -220,7 +220,7 @@ export default function CreateCasePage() {
               <p className="text-end text-xs text-muted-foreground tabular-nums">{title.length}/255</p>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="case-description">{t("cases.description")}</Label>
+              <FieldLabel htmlFor="case-description">{t("cases.description")}</FieldLabel>
               <Textarea
                 id="case-description"
                 rows={5}
@@ -267,7 +267,7 @@ export default function CreateCasePage() {
             <Card title={t("cases.create.classification")} note={t("cases.create.classification-note")}>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label>{t("cases.category")}</Label>
+                  <FieldLabel>{t("cases.category")}</FieldLabel>
                   <Select
                     value={categoryId}
                     onValueChange={(value) => {
@@ -292,7 +292,7 @@ export default function CreateCasePage() {
                   )}
                 </div>
                 <div className="space-y-1.5">
-                  <Label>{t("cases.sub-category")}</Label>
+                  <FieldLabel>{t("cases.sub-category")}</FieldLabel>
                   <Select
                     value={subCategoryId}
                     disabled={!categoryId}
@@ -324,7 +324,7 @@ export default function CreateCasePage() {
               )}
               {assigneeEnabled && (
                 <div className="space-y-1.5 border-t border-border pt-3">
-                  <Label>{t("cases.assignee")}</Label>
+                  <FieldLabel>{t("cases.assignee")}</FieldLabel>
                   <p className="text-xs text-muted-foreground">{t("cases.create.assignee-note")}</p>
                   <AssigneePicker
                     groupKey={routingPreview?.keycloakGroupId ?? null}

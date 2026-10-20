@@ -14,7 +14,7 @@
   "QM_URL": "https://ux-controls-02.expertflow.com/qm-backend",
   "LLM_CONNECTOR_URL": "https://ux-controls-02.expertflow.com/llm",
   "VRS_URL": "https://ux-controls-02.expertflow.com",
-  "CASE_API_URL": "https://ux-controls-02.expertflow.com/case-api",
+  "CASE_MANAGEMENT_API_URL": "https://ux-controls-02.expertflow.com/case-api",
   "SIP_SOCKET_URL": "wss://192.168.1.17:7443",
   "SIP_URI": "ux-controls-03",
   "ROOT_DOMAIN": "expertflow.com",

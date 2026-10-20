@@ -1,15 +1,8 @@
-import {
-  BookOpen,
-  Briefcase,
-  MessageSquareShare,
-  MessageSquareText,
-  UserRound,
-  type LucideIcon,
-} from "lucide-react";
+import { BookOpen, Briefcase, MessageSquareText, UserRound, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useDeskSettings } from "@/core/agent-settings";
 import { usePermission, useScope } from "@/core/auth";
-import { caseManagementConfigured } from "@/features/cases";
+import { caseManagementConfigured, useLinkedCases } from "@/features/cases";
 import type { CustomerRow } from "@/features/customers";
 import { isFakeConversation } from "../linking/phonebookLink";
 import { maskPii, piiAttribute } from "../model/pii";
@@ -79,23 +72,27 @@ export function useCustomerContext(conversation: Conversation) {
     canEdit: manage || (manageHere && !fake),
     name: [first, last].filter(Boolean).join(" "),
     unidentified: !text(customer.firstName) && !text(customer.lastName),
-    kbEnabled: Boolean(settings?.knowledgeBaseSearch && settings.knowledgeBaseUrl),
+    kbEnabled: Boolean(settings?.knowledgeBaseSearch),
     hasSessions: conversation.activeChannelSessions.length > 0,
     settings,
     t,
   };
 }
 
-/** The tabs of the customer context, in Sprinklr's third-pane order. */
+/** The tabs of the customer context. Outbound reach is integrated directly into customer info channel identifiers. */
 export function useContextTabs(conversation: Conversation): ContextTab[] {
   const ctx = useCustomerContext(conversation);
   const { t } = ctx;
-  // Like the header's Reach customer: any channel can be used (WhatsApp, email...), not only voice and SMS.
-  const inSession = usePermission("agentSession");
-  const canInitiate = usePermission("initiateChat");
-  const canReach = inSession && canInitiate;
-  // Case Management replaces the case-desk iframe gadget; real conversations only.
-  const canCases = usePermission("casesInConversation") && caseManagementConfigured() && !ctx.fake;
+  // Case Management replaces the case-desk iframe gadget. Customers opened from the
+  // customer list (no interaction) still list their cases; only linking needs a chat.
+  const canCases =
+    usePermission("casesInConversation") && caseManagementConfigured() && Boolean(conversation.customer._id);
+  // A case already linked to this chat is worth a glance: mark the tab (shares the tab's cached request).
+  const linkedCases = useLinkedCases(
+    ctx.fake ? null : conversation.conversationId,
+    conversation.customer._id || null,
+    canCases,
+  );
   const tabs: ContextTab[] = [
     {
       id: "profile",
@@ -105,20 +102,19 @@ export function useContextTabs(conversation: Conversation): ContextTab[] {
     },
     { id: "conversation", label: t("workspace.context-conversation"), icon: MessageSquareText },
   ];
-  if (canCases) tabs.push({ id: "cases", label: t("cases.tab"), icon: Briefcase });
+  if (canCases)
+    tabs.push({
+      id: "cases",
+      label: t("cases.tab"),
+      icon: Briefcase,
+      attention: (linkedCases.data?.length ?? 0) > 0,
+    });
   if (ctx.kbEnabled && ctx.hasSessions)
     tabs.push({
       id: "knowledge",
       label: t("chat-features.customer-info.knowledge-base.title"),
       icon: BookOpen,
     });
-  if (canReach) {
-    tabs.push({
-      id: "outbound",
-      label: t("workspace.outbound", { defaultValue: "Outbound" }),
-      icon: MessageSquareShare,
-    });
-  }
   return tabs;
 }
 

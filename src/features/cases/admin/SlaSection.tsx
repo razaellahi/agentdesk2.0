@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import { confirm } from "@/components/common/confirm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/shared/lib/utils";
 import {
   caseKeys,
@@ -18,6 +17,7 @@ import {
   type SlaThresholdInput,
 } from "../api";
 import { PRIORITIES, resolutionShort } from "../model/format";
+import { NativeSelect, FieldLabel } from "../components/Fields";
 import { AdminCard, AdminFrame, Banner } from "./AdminFrame";
 
 const PRESETS = [
@@ -26,8 +26,6 @@ const PRESETS = [
   { label: "24 h", minutes: 1440 },
   { label: "5 d", minutes: 7200 },
 ] as const;
-
-const selectClass = "h-9 w-full rounded-lg border border-border bg-surface px-2 text-sm";
 
 /** Tier × priority grid; dashed cells inherit the default (all labels) row. */
 export function SlaMatrix({ tiers, thresholds }: { tiers: string[]; thresholds: SlaThreshold[] }) {
@@ -216,29 +214,29 @@ export function SlaSection() {
             )}
             <div className="grid gap-3 sm:grid-cols-5 sm:items-end">
               <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="sla-new-tier">{t("cases.admin.sla.customer-label")}</Label>
-                <select
+                <FieldLabel htmlFor="sla-new-tier">{t("cases.admin.sla.customer-label")}</FieldLabel>
+                <NativeSelect
                   id="sla-new-tier"
-                  className={selectClass}
+                  className="w-full"
                   value={fresh.customerTier}
                   onChange={(e) => setFresh((f) => ({ ...f, customerTier: e.target.value }))}
                 >
                   {tierOptions}
-                </select>
+                </NativeSelect>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="sla-new-priority">{t("cases.create.priority")}</Label>
-                <select
+                <FieldLabel htmlFor="sla-new-priority">{t("cases.create.priority")}</FieldLabel>
+                <NativeSelect
                   id="sla-new-priority"
-                  className={selectClass}
+                  className="w-full"
                   value={fresh.priority}
                   onChange={(e) => setFresh((f) => ({ ...f, priority: e.target.value }))}
                 >
                   {priorityOptions}
-                </select>
+                </NativeSelect>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="sla-new-minutes">{t("cases.admin.sla.resolution-minutes")}</Label>
+                <FieldLabel htmlFor="sla-new-minutes">{t("cases.admin.sla.resolution-minutes")}</FieldLabel>
                 <Input
                   id="sla-new-minutes"
                   type="number"
@@ -248,7 +246,7 @@ export function SlaSection() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="sla-new-warning">{t("cases.admin.sla.warning-percent")}</Label>
+                <FieldLabel htmlFor="sla-new-warning">{t("cases.admin.sla.warning-percent")}</FieldLabel>
                 <Input
                   id="sla-new-warning"
                   type="number"
@@ -300,24 +298,24 @@ export function SlaSection() {
                       return (
                         <tr key={row.id} className="border-b border-border/60">
                           <td className="py-1.5 pe-2">
-                            <select
-                              className={selectClass}
+                            <NativeSelect
+                              className="w-full"
                               value={draft.customerTier}
                               aria-label={t("cases.admin.sla.customer-label-row", { id: row.id })}
                               onChange={(e) => edit({ customerTier: e.target.value })}
                             >
                               {tierOptions}
-                            </select>
+                            </NativeSelect>
                           </td>
                           <td className="py-1.5 pe-2">
-                            <select
-                              className={selectClass}
+                            <NativeSelect
+                              className="w-full"
                               value={draft.priority}
                               aria-label={t("cases.admin.sla.priority-row", { id: row.id })}
                               onChange={(e) => edit({ priority: e.target.value })}
                             >
                               {priorityOptions}
-                            </select>
+                            </NativeSelect>
                           </td>
                           <td className="w-28 py-1.5 pe-2">
                             <Input

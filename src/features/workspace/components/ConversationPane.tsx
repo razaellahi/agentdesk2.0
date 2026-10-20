@@ -1,4 +1,5 @@
-import { ArrowLeft, Hourglass, Pause, Play, Timer, UserRound } from "lucide-react";
+import { EmptyConversationArt } from "./EmptyConversationArt";
+import { ArrowLeft, Pause, Play, Timer, UserRound } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { confirm } from "@/components/common/confirm";
@@ -12,7 +13,7 @@ import { cn } from "@/shared/lib/utils";
 import { useMaskedValue } from "../hooks/useMaskedValue";
 import { usePastActivities } from "../hooks/usePastActivities";
 import { parseConversationInsight } from "../model/conversationInsight";
-import { waitingLevel, channelLabel } from "../model/display";
+import { channelLabel } from "../model/display";
 import {
   leaveConversation,
   pauseConversation,
@@ -93,17 +94,18 @@ export function ConversationPane({
 
   if (!conversation) {
     return (
-      <div className="grid flex-1 place-items-center p-10 text-center">
-        <div className="desk-enter max-w-sm">
-          <div className="desk-icon mx-auto mb-5 grid size-16 place-items-center text-primary">
-            <UserRound className="size-7" />
-          </div>
-          <p className="font-display text-2xl tracking-tight">{t("globals.no-new-conversation")}</p>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+      // m-auto centers without clipping: a grid with place-items-center would cut off overflow in short panes.
+      <div className="flex flex-1 overflow-y-auto bg-surface px-6 py-8 text-center">
+        <div className="desk-enter m-auto flex max-w-md flex-col items-center">
+          <EmptyConversationArt className="h-44 w-auto sm:h-60 lg:h-72" />
+          <p className="mt-6 text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+            {t("globals.no-new-conversation")}
+          </p>
+          <p className="mt-3 text-base leading-relaxed text-muted-foreground sm:text-lg">
             {t("globals.no-conversation-sub-heading")}
           </p>
           {onBack && (
-            <Button type="button" variant="outline" className="mt-4" onClick={onBack}>
+            <Button type="button" variant="outline" className="mt-6 rounded-full" onClick={onBack}>
               <ArrowLeft className="size-4" />
               {t("workspace.conversations")}
             </Button>
@@ -113,11 +115,6 @@ export function ConversationPane({
     );
   }
 
-  const waiting =
-    conversation.waitingSince && !conversation.hold.active
-      ? Math.floor((now - conversation.waitingSince) / 1000)
-      : null;
-  const level = waitingLevel(waiting);
   const signal = Boolean(board && board.count > 1 && !board.focused && conversation.unread > 0);
   const displayName = name || t("globals.UNIDENTIFIED-CUSTOMER");
   const channelLine =
@@ -159,51 +156,24 @@ export function ConversationPane({
     if (ok) resumeConversation(conversation.conversationId);
   };
 
-  const timers = (
-    <div className="flex shrink-0 items-center gap-1.5">
-      {slaLeft !== null && (
-        <span
-          className={cn(
-            "inline-flex shrink-0 items-center gap-1 rounded-full font-medium tabular transition-colors",
-            isUltraNarrow
-              ? "px-1.5 py-0.5 text-[10px] leading-4"
-              : narrow
-                ? "px-2 py-0.5 text-[11px] leading-5"
-                : "px-2.5 py-0.5 text-xs",
-            conversation.sla.color === "sla-normal" &&
-              "border border-success/20 bg-success-soft text-success-text",
-            conversation.sla.color === "sla-warn" &&
-              "animate-pulse border border-warning/30 bg-warning-soft text-warning-text",
-            (conversation.sla.color === "sla-red" || conversation.sla.color === "sla-ended") &&
-              "animate-pulse border border-destructive/30 bg-destructive-soft text-destructive-text",
-          )}
-          title={t("workspace.sla-left-hint")}
-        >
-          <Timer className={cn(isUltraNarrow ? "size-3" : "size-3.5")} aria-hidden />
-          <span className={narrow ? "sr-only" : undefined}>{t("workspace.sla-label")}</span>
-          {formatDuration(slaLeft)}
-        </span>
-      )}
-      {level && level !== "ok" && waiting !== null && (
-        <span
-          className={cn(
-            "inline-flex shrink-0 items-center gap-1 rounded-full font-medium tabular transition-colors",
-            isUltraNarrow
-              ? "px-1.5 py-0.5 text-[10px] leading-4"
-              : narrow
-                ? "px-2 py-0.5 text-[11px] leading-5"
-                : "px-2.5 py-0.5 text-xs",
-            level === "warn"
-              ? "border border-warning/30 bg-warning-soft text-warning-text"
-              : "border border-destructive/30 bg-destructive-soft text-destructive-text",
-          )}
-          title={t("workspace.waiting-for-reply")}
-        >
-          <Hourglass className={cn(isUltraNarrow ? "size-3" : "size-3.5")} aria-hidden />
-          <span className={narrow ? "sr-only" : undefined}>{t("workspace.waiting-label")}</span>
-          {formatDuration(waiting)}
-        </span>
-      )}
+  // One height for the SLA pill and the round action buttons beside it, so their centres line up.
+  const timers = slaLeft !== null && (
+    <div className="flex shrink-0 items-center gap-2">
+      <span
+        className={cn(
+          "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold tabular-nums transition-colors",
+          conversation.sla.color === "sla-normal" && "bg-success-soft text-success-text",
+          conversation.sla.color === "sla-warn" && "bg-warning text-on-warning",
+          (conversation.sla.color === "sla-red" || conversation.sla.color === "sla-ended") &&
+            "bg-destructive text-destructive-foreground",
+        )}
+        title={t("workspace.sla-left-hint")}
+      >
+        <Timer className="size-3.5" aria-hidden />
+        <span className={narrow ? "sr-only" : undefined}>{t("workspace.sla-label")}</span>
+        {formatDuration(slaLeft)}
+      </span>
+      <span className="h-5 w-px bg-border" aria-hidden />
     </div>
   );
 
@@ -212,17 +182,17 @@ export function ConversationPane({
       ref={measurePane}
       onPointerDown={() => useConversationStore.getState().setActive(conversation.conversationId)}
       onFocusCapture={() => useConversationStore.getState().setActive(conversation.conversationId)}
-      className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-surface"
+      className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-chat-panel-middle"
       aria-label={displayName}
     >
       {/* Header */}
       <header
         className={cn(
-          "sticky top-0 z-20 border-b border-border/60 bg-surface",
+          "sticky top-0 z-20 border-b border-border/40 bg-chat-panel-middle-header backdrop-blur-sm",
           signal && "shadow-[inset_0_3px_0_var(--warn)]",
         )}
       >
-        <div className="flex items-center justify-between gap-2 px-3 py-2 sm:px-4 sm:py-2.5">
+        <div className="flex h-14 items-center justify-between gap-2 px-3 sm:px-4">
           {/* Left section: Identity & Channel */}
           <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5">
             {board && (
@@ -268,7 +238,7 @@ export function ConversationPane({
               />
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-                  <span className="max-w-full truncate text-start text-[14px] font-semibold tracking-tight text-foreground transition-colors group-hover:text-primary">
+                  <span className="max-w-full truncate text-start text-[16px] font-medium tracking-tight text-foreground transition-colors group-hover:text-primary">
                     {displayName}
                   </span>
                   {sentiment && !narrow && (
@@ -423,7 +393,7 @@ export function ConversationPane({
             </MessageBoundary>
           </div>
           <EmbeddedApps conversation={conversation} />
-          <div className="relative z-10 bg-surface px-3 pt-1 pb-3">
+          <div className="relative z-10 bg-chat-panel-middle px-3 pt-2 pb-3">
             <Composer conversation={conversation} />
           </div>
         </div>

@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { customerDisplayName } from "./model/display";
 import { CustomerAvatar } from "./components/CustomerInitials";
 import { useMaskedValue } from "./hooks/useMaskedValue";
+import { useOpenFromLink } from "./hooks/useOpenFromLink";
 import { mergeConversationBack, usePopoutStore } from "./store/popout";
 import {
   useActiveConversationId,
@@ -137,6 +138,7 @@ function PoppedOutPlaceholder({
 /** Agent workspace. One conversation, or up to three panes when the board flag is on. */
 export default function ConversationsPage() {
   const { t } = useTranslation();
+  useOpenFromLink();
   const board = useFeature("multiPaneBoard");
   const activeId = useActiveConversationId();
   const popoutIds = usePopoutStore((s) => s.ids);
@@ -204,7 +206,7 @@ export default function ConversationsPage() {
           </div>
         )}
         {showPane && (
-          <div className="flex min-w-0 flex-1 flex-col bg-surface">
+          <div className="flex min-w-0 flex-1 flex-col bg-chat-panel-middle">
             <div ref={measureBoard} className="flex min-h-0 flex-1 gap-0 overflow-hidden">
               {ids.map((id, index) =>
                 index < window_.start || index >= window_.end ? null : (
@@ -215,7 +217,7 @@ export default function ConversationsPage() {
                       count > 1 && "min-w-[320px]",
                       // Focus is width: the pane being worked in gets ~1.75x the space.
                       count > 1 && focus === index && "grow-[1.75]",
-                      count > 1 && "border-r border-border last:border-r-0",
+                      count > 1 && "border-r border-border/60 last:border-r-0",
                       count > 1 && focus === index && "bg-primary-soft/10",
                     )}
                     tabIndex={count > 1 ? -1 : undefined}
@@ -244,7 +246,7 @@ export default function ConversationsPage() {
               {folded.length > 0 && (
                 <nav
                   aria-label={t("workspace.folded-panes")}
-                  className="flex w-[52px] shrink-0 flex-col items-center gap-2 border-s border-border bg-surface-2/60 py-3"
+                  className="flex w-[52px] shrink-0 flex-col items-center gap-2 border-s border-border/60 bg-chat-panel-right-dock py-3"
                 >
                   {folded.map(({ id, index }) =>
                     id ? (

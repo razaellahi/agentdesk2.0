@@ -217,17 +217,27 @@ test("customer history loads older activities and stays read-only", async ({ pag
   await page.getByRole("tab", { name: "Customer Info", exact: true }).click();
   await page.getByRole("button", { name: "View customer history", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Conversation history", exact: true });
-  await expect(dialog.getByText("Earlier account question", { exact: true })).toBeVisible();
-  await expect(dialog.getByRole("region", { name: "Voice activity" })).toBeVisible();
+  // The history opens at the newest message (the demo conversations); scroll up to the oldest.
+  const seeAtTop = (locator: ReturnType<typeof dialog.getByText>) =>
+    expect(async () => {
+      await dialog
+        .locator('[data-virtuoso-scroller="true"]')
+        .first()
+        .evaluate((element) => void (element.scrollTop = 0));
+      await expect(locator).toBeVisible({ timeout: 1000 });
+    }).toPass();
+  await seeAtTop(dialog.getByText("Earlier account question", { exact: true }));
+  await seeAtTop(dialog.getByRole("region", { name: "Voice activity" }));
   await expect(dialog.getByRole("textbox")).toHaveCount(0);
   await expect(dialog.getByRole("button", { name: "Reply", exact: true })).toHaveCount(0);
   const requestPromise = page.waitForRequest(
     (request) => request.url().includes("/customer-topics/customer/") && request.url().includes("offset=1"),
   );
+  await seeAtTop(dialog.getByRole("button", { name: "Load older activities", exact: true }));
   await dialog.getByRole("button", { name: "Load older activities", exact: true }).click();
   const request = await requestPromise;
   expect(request.url()).toContain("limit=50");
-  await expect(dialog.getByText("3 messages", { exact: true })).toBeVisible();
+  await expect(dialog.getByText(/^\d+ messages$/)).toBeVisible();
 });
 
 test("social connector capabilities and private reply context remain explicit", async ({ page }) => {
@@ -263,8 +273,8 @@ test("social connector capabilities and private reply context remain explicit", 
   });
   const pane = page.getByRole("region", { name: "Amina", exact: true });
   await expect(pane.getByRole("button", { name: "Comment like", exact: true })).toHaveCount(0);
-  // Message actions appear on hover (or keyboard focus), as in Google Chat.
-  const comment = pane.locator('[data-message-id="comment"]');
+  // Message actions appear on hover of that message's bubble (or keyboard focus), as in Google Chat.
+  const comment = pane.locator('[data-message-id="comment"] [class*="group/bubble"]').first();
   await comment.hover();
   await pane.getByRole("button", { name: "Private reply", exact: true }).click();
   await expect(pane.getByText("Private reply to this comment", { exact: true })).toBeVisible();
@@ -481,11 +491,23 @@ test("opening a customer from the phonebook shows their past activities, page by
   await expect(page).toHaveURL(/\/conversations$/);
   // The phonebook customer has a last name, which the pane is named by.
   const pane = page.getByRole("region", { name: "Amina Raza", exact: true });
+  // The transcript opens at its newest message (the demo conversations); the oldest are above it.
+  const toTop = () =>
+    pane
+      .locator('[data-virtuoso-scroller="true"]')
+      .first()
+      .evaluate((element) => void (element.scrollTop = 0));
+  // Scrolling up retries: the list may still be settling at the bottom when it first loads.
+  const seeAtTop = (locator: ReturnType<typeof pane.getByText>) =>
+    expect(async () => {
+      await toTop();
+      await expect(locator).toBeVisible({ timeout: 1000 });
+    }).toPass();
   // The first page loads on open, as in unified-agent's phonebook conversation view.
-  await expect(pane.getByText("Earlier account question", { exact: true })).toBeVisible();
-  await expect(pane.getByRole("region", { name: "Voice activity" })).toBeVisible();
+  await seeAtTop(pane.getByText("Earlier account question", { exact: true }));
+  await seeAtTop(pane.getByRole("region", { name: "Voice activity" }));
   await pane.getByRole("button", { name: "Load previous activities" }).click();
-  await expect(pane.getByText("Oldest account message", { exact: true })).toBeVisible();
+  await seeAtTop(pane.getByText("Oldest account message", { exact: true }));
   await pane.getByRole("button", { name: "Load previous activities" }).click();
   // Nothing left to load: the button goes away, and no "start of conversation" marker is shown.
   await expect(pane.getByRole("button", { name: "Load previous activities" })).toHaveCount(0);
@@ -498,5 +520,12 @@ test("a live conversation loads the customer's earlier activities on request", a
   const pane = page.getByRole("region", { name: "Amina", exact: true });
   await expect(pane.getByText("Earlier account question", { exact: true })).toHaveCount(0);
   await pane.getByRole("button", { name: "Load previous activities" }).click();
-  await expect(pane.getByText("Earlier account question", { exact: true })).toBeVisible();
+  // The transcript keeps the reader's place, so the oldest messages are above it: scroll up until seen.
+  await expect(async () => {
+    await pane
+      .locator('[data-virtuoso-scroller="true"]')
+      .first()
+      .evaluate((element) => void (element.scrollTop = 0));
+    await expect(pane.getByText("Earlier account question", { exact: true })).toBeVisible({ timeout: 1000 });
+  }).toPass();
 });

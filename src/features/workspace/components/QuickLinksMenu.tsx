@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, Link2, Pin, PinOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { IconTooltip } from "@/components/common/IconTooltip";
 import { SearchField } from "@/components/common/ListChrome";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -84,17 +85,19 @@ export function QuickLinksMenu() {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          className="size-9 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
-          aria-label={t("app-header.quick-links")}
-        >
-          <Link2 className="size-[18px]" />
-        </Button>
-      </PopoverTrigger>
+      <IconTooltip label={t("app-header.quick-links")}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            className="size-9 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+            aria-label={t("app-header.quick-links")}
+          >
+            <Link2 className="size-[18px]" />
+          </Button>
+        </PopoverTrigger>
+      </IconTooltip>
       <PopoverContent
         align="end"
         className="w-80 rounded-2xl border border-border bg-surface p-3 shadow-lift"

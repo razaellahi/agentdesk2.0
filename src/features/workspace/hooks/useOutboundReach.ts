@@ -80,9 +80,13 @@ export function useOutboundReach(conversation: Conversation, active: boolean) {
       staleTime: 60_000,
     })),
   });
-  const configured: Partial<Record<OutboundKind, boolean | undefined>> = { voice: true };
+  const configured: Partial<Record<OutboundKind, boolean | undefined>> = { voice: true, email: true };
   kinds.forEach((kind, i) => {
     const query = channelQueries[i]!;
+    if (kind === "email") {
+      if (query.data && query.data.selected) configured.email = true;
+      return;
+    }
     configured[kind] = query.isError ? false : query.data ? Boolean(query.data.selected) : undefined;
   });
 

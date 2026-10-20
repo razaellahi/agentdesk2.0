@@ -14,12 +14,12 @@ import {
   updateCaseStatus,
   upsertStatusTransition,
 } from "../api";
+import { StatusBadge } from "../components/Badges";
+import { NativeSelect } from "../components/Fields";
 import { AdminCard, AdminFrame, Banner } from "./AdminFrame";
 
 const KEY = ["cases", "admin", "statuses"] as const;
 const CATEGORIES = ["OPEN", "PENDING", "RESOLVED", "CLOSED"] as const;
-
-const selectClass = "h-9 rounded-lg border border-border bg-surface px-2 text-sm";
 
 /** Workflow statuses, SLA pause rules and allowed transitions (admin-statuses.component.ts). */
 export function StatusesSection() {
@@ -111,8 +111,8 @@ export function StatusesSection() {
               aria-label={t("cases.admin.statuses.new-label")}
               className="w-56"
             />
-            <select
-              className={selectClass}
+            <NativeSelect
+              className="w-44"
               value={newCategory}
               onChange={(event) => setNewCategory(event.target.value)}
               aria-label={t("cases.admin.statuses.new-category")}
@@ -122,7 +122,7 @@ export function StatusesSection() {
                   {t(`cases.category-${c.toLowerCase()}`)}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
             <label className="flex items-center gap-2 text-sm">
               <Switch checked={newPausesSla} onCheckedChange={setNewPausesSla} />{" "}
               {t("cases.admin.statuses.pauses-sla")}
@@ -152,7 +152,7 @@ export function StatusesSection() {
                         defaultValue={s.label}
                         disabled={!s.isActive}
                         aria-label={t("cases.admin.statuses.label-for", { code: s.code })}
-                        className="h-8"
+                        className="h-8 border-transparent bg-transparent px-2 font-medium hover:border-border focus-visible:bg-surface"
                         onBlur={(event) => {
                           const label = event.target.value.trim();
                           if (label && label !== s.label) run.mutate(() => updateCaseStatus(s.id, { label }));
@@ -160,9 +160,17 @@ export function StatusesSection() {
                       />
                     </td>
                     <td className="py-1.5 pe-2">
-                      <code className="text-xs">{s.code}</code>
+                      <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px] font-medium tracking-wide text-muted-foreground">
+                        {s.code}
+                      </span>
                     </td>
-                    <td className="py-1.5 pe-2 text-xs">{s.statusCategory}</td>
+                    <td className="py-1.5 pe-2">
+                      <StatusBadge
+                        label={t(`cases.category-${s.statusCategory.toLowerCase()}`)}
+                        category={s.statusCategory}
+                        code={s.code}
+                      />
+                    </td>
                     <td className="py-1.5 pe-2" data-testid="pause-sla-toggle">
                       <Switch
                         checked={s.pausesSla}
@@ -172,7 +180,21 @@ export function StatusesSection() {
                         }
                       />
                     </td>
-                    <td className="py-1.5 pe-2 text-xs">{s.isActive ? t("cases.yes") : t("cases.no")}</td>
+                    <td className="py-1.5 pe-2">
+                      <span
+                        className={
+                          s.isActive
+                            ? "inline-flex items-center gap-1.5 text-xs text-success-text"
+                            : "inline-flex items-center gap-1.5 text-xs text-muted-foreground"
+                        }
+                      >
+                        <span
+                          className={`size-1.5 rounded-full ${s.isActive ? "bg-success" : "bg-muted-foreground/50"}`}
+                          aria-hidden
+                        />
+                        {s.isActive ? t("cases.admin.active") : t("cases.admin.inactive")}
+                      </span>
+                    </td>
                     <td className="py-1.5 text-end">
                       {!s.isSystem && s.isActive && (
                         <Button
@@ -193,8 +215,8 @@ export function StatusesSection() {
       ) : (
         <AdminCard title={t("cases.admin.statuses.add-transition")}>
           <div className="flex flex-wrap items-center gap-2">
-            <select
-              className={selectClass}
+            <NativeSelect
+              className="w-44"
               value={fromId}
               onChange={(event) => setFromId(event.target.value)}
               aria-label={t("cases.admin.statuses.from")}
@@ -205,10 +227,10 @@ export function StatusesSection() {
                   {s.label}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
             <span aria-hidden>→</span>
-            <select
-              className={selectClass}
+            <NativeSelect
+              className="w-44"
               value={toId}
               onChange={(event) => setToId(event.target.value)}
               aria-label={t("cases.admin.statuses.to")}
@@ -219,7 +241,7 @@ export function StatusesSection() {
                   {s.label}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
             <Button
               disabled={!fromId || !toId || run.isPending}
               onClick={() =>

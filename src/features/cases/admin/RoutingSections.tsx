@@ -22,6 +22,7 @@ import {
   type DistributionMode,
 } from "../api";
 import { groupSlug } from "../model/format";
+import { NativeSelect, FieldLabel } from "../components/Fields";
 import { resolveGroupOptionValue } from "../model/routing";
 import { AdminCard, AdminFrame, Banner } from "./AdminFrame";
 
@@ -30,8 +31,6 @@ const KEYS = {
   categories: ["cases", "admin", "categories"] as const,
   settings: ["cases", "admin", "tenant-settings"] as const,
 };
-
-const selectClass = "h-9 w-full rounded-lg border border-border bg-surface px-2 text-sm";
 
 function RefreshButton({ onClick, busy }: { onClick: () => void; busy: boolean }) {
   const { t } = useTranslation();
@@ -376,16 +375,16 @@ export function MappingSection() {
             {ready ? (
               <div className="flex flex-wrap items-end gap-2">
                 <div className="min-w-64 flex-1 space-y-1.5">
-                  <Label htmlFor="default-group">{t("cases.routing-group")}</Label>
-                  <select
+                  <FieldLabel htmlFor="default-group">{t("cases.routing-group")}</FieldLabel>
+                  <NativeSelect
                     id="default-group"
-                    className={selectClass}
+                    className="w-full"
                     value={defaultValue}
                     onChange={(event) => setDefaultDraft(event.target.value)}
                   >
                     <option value="">{t("cases.admin.mapping.none")}</option>
                     {groupOptions}
-                  </select>
+                  </NativeSelect>
                 </div>
                 <Button disabled={saveDefault.isPending} onClick={() => saveDefault.mutate()}>
                   {t("cases.admin.mapping.save-default")}
@@ -417,8 +416,8 @@ export function MappingSection() {
                         <td className="py-1.5 pe-2">{row.categoryName}</td>
                         <td className="py-1.5 pe-2">{row.subCategoryName}</td>
                         <td className="py-1.5 pe-2">
-                          <select
-                            className={selectClass}
+                          <NativeSelect
+                            className="w-full"
                             value={row.value}
                             aria-label={t("cases.admin.mapping.group-for", { name: row.subCategoryName })}
                             onChange={(event) =>
@@ -427,7 +426,7 @@ export function MappingSection() {
                           >
                             <option value="">{t("cases.admin.mapping.select-group")}</option>
                             {groupOptions}
-                          </select>
+                          </NativeSelect>
                         </td>
                         <td className="py-1.5 text-end">
                           <Button

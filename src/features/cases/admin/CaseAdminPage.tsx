@@ -75,22 +75,20 @@ export default function CaseAdminPage() {
                 onClick={() => go(item.id)}
                 aria-current={section === item.id ? "page" : undefined}
                 className={cn(
-                  "flex w-full items-start gap-2.5 rounded-xl px-3 py-2 text-start hover:bg-surface-2",
-                  section === item.id && "bg-primary-soft text-primary hover:bg-primary-soft",
+                  "flex w-full items-center gap-2.5 rounded-full px-3 py-2 text-start text-sm text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground",
+                  section === item.id &&
+                    "bg-primary-soft font-medium text-primary hover:bg-primary-soft hover:text-primary",
                 )}
               >
-                <item.icon className="mt-0.5 size-4 shrink-0" aria-hidden />
+                <item.icon className="size-4 shrink-0" aria-hidden />
                 <span className="min-w-0">
-                  <span className="flex items-center gap-1.5 text-sm font-medium">
+                  <span className="flex items-center gap-1.5">
                     {t(`cases.admin.${item.id}.nav`)}
                     {item.comingSoon && (
                       <span className="rounded-full bg-surface-2 px-1.5 text-[10px] font-normal text-muted-foreground">
                         {t("cases.admin.coming-soon")}
                       </span>
                     )}
-                  </span>
-                  <span className="block text-xs text-muted-foreground">
-                    {t(`cases.admin.${item.id}.nav-hint`)}
                   </span>
                 </span>
               </button>

@@ -1,5 +1,6 @@
 import {
   Bold,
+  ChevronDown,
   Italic,
   Loader2,
   Lock,
@@ -21,7 +22,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { getConfig } from "@/config";
 import { useFeature } from "@/config/featureFlags";
 import { useDeskSettings } from "@/core/agent-settings";
 import { getSession, useCurrentUser } from "@/core/auth";
@@ -32,6 +32,7 @@ import { createSecureVideoLink, isSecureLinkConfigured, loadEmailSignature } fro
 import { sendEmail, sendFiles, sendText, sendTyping } from "../session/actions";
 import { useComposerStore, composerKey, EMPTY_DRAFT } from "../store/composerStore";
 import { ALLOWED_EXTENSIONS } from "../model/outgoing";
+import { lastCustomerSuggestions } from "../model/suggestions";
 import { emailReplyContext, escapeEmailText } from "../model/email";
 import type { ChannelSession, Conversation } from "../model/types";
 import { useMaskedValue } from "../hooks/useMaskedValue";
@@ -139,11 +140,16 @@ export function Composer({ conversation }: { conversation: Conversation }) {
   const canWhisper =
     conversation.agentParticipants.length > 1 ||
     ["WHISPER", "ASSISTANT"].includes(conversation.topicParticipant.role);
-  const suggestions = (conversation.messages.at(-1)?.botSuggestions ?? []) as {
+  const suggestions = lastCustomerSuggestions(conversation.messages) as {
     text?: string;
     confidence?: number;
     confidenceLevel?: string | number;
   }[];
+  // Collapsed for one set of suggestions: choosing a reply closes it, a new set opens again.
+  const [collapsedFor, setCollapsedFor] = useState<string | null>(null);
+  const suggestionsKey = suggestions.map((suggestion) => suggestion.text ?? "").join("\u0000");
+  const suggestionsOpen = collapsedFor !== suggestionsKey;
+  const toggleSuggestions = () => setCollapsedFor(suggestionsOpen ? suggestionsKey : null);
   // Source interactions.component placeholder ladder for comments and bot suggestions.
   const placeholder = editMessageId
     ? t("chat-features.interactions.edit-message")
@@ -396,49 +402,120 @@ export function Composer({ conversation }: { conversation: Conversation }) {
           </button>
         </div>
       )}
-      {suggestions.length > 0 && (
-        <section aria-label={t("canned-Messages.bot-suggestions")} className="mb-2 space-y-1">
-          <h3 className="px-1 text-[11px] font-semibold text-muted-foreground">
-            {t("canned-Messages.bot-suggestions")}
-          </h3>
-          <ul className="space-y-1">
-            {suggestions
-              .filter((suggestion) => suggestion.text)
-              .map((suggestion) => (
-                <li
-                  key={suggestion.text}
-                  className="flex items-center gap-2 rounded-xl border border-border/60 bg-surface-2/50 py-1.5 ps-3 pe-1.5"
-                >
-                  <p className="line-clamp-2 min-w-0 flex-1 text-xs leading-snug text-foreground">
-                    {suggestion.text}
-                  </p>
-                  <Button
-                    type="button"
-                    size="icon-sm"
-                    variant="ghost"
-                    className="size-7 shrink-0 rounded-full text-muted-foreground hover:bg-surface hover:text-foreground"
-                    aria-label={t("chat-features.interactions.edit-message")}
-                    title={t("chat-features.interactions.edit-message")}
-                    disabled={blocked}
-                    onClick={() => setText(suggestion.text ?? "")}
-                  >
-                    <Pencil className="size-3.5" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon-sm"
-                    variant="ghost"
-                    className="size-7 shrink-0 rounded-full text-primary hover:bg-primary-soft"
-                    aria-label={t("chat-features.interactions.send")}
-                    title={t("chat-features.interactions.send")}
-                    disabled={blocked}
-                    onClick={() => sendText(conversation.conversationId, suggestion.text ?? "", { whisper })}
-                  >
-                    <Send className="size-3.5" />
-                  </Button>
-                </li>
-              ))}
-          </ul>
+      {suggestions.some((suggestion) => suggestion.text) && (
+        // Like unified-agent's "Suggested replies". Picking a reply fills the composer and closes
+        // the list; the send button sends it straight away. A slim bar reopens it.
+        <section
+          aria-label={t("chat-features.interactions.suggested-replies")}
+          className="mb-2 min-w-0 rounded-2xl border border-primary/15 bg-primary-soft/20 p-1.5"
+        >
+          <button
+            type="button"
+            aria-expanded={suggestionsOpen}
+            onClick={toggleSuggestions}
+            className="flex w-full items-center gap-2.5 rounded-xl px-1.5 py-1 text-start transition-colors hover:bg-primary-soft/40"
+          >
+            <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary">
+              <Sparkles className="size-4" aria-hidden />
+            </span>
+            <span className="text-sm font-semibold text-foreground">
+              {t("chat-features.interactions.suggested-replies")}
+            </span>
+            <span className="rounded-full bg-primary px-2 text-xs font-semibold text-primary-foreground tabular-nums">
+              {suggestions.filter((suggestion) => suggestion.text).length}
+            </span>
+            <ChevronDown
+              className={cn(
+                "ms-auto size-4 shrink-0 text-muted-foreground transition-transform",
+                suggestionsOpen && "rotate-180",
+              )}
+              aria-hidden
+            />
+          </button>
+          {suggestionsOpen && (
+            <ul className="mt-1.5 max-h-64 space-y-1.5 overflow-y-auto">
+              {suggestions
+                .filter((suggestion) => suggestion.text)
+                .map((suggestion, index) => {
+                  const confidence = Number(suggestion.confidenceLevel);
+                  const scored = Number.isFinite(confidence) && confidence > 0;
+                  const tone = confidence >= 80 ? "success" : confidence >= 50 ? "warning" : "neutral";
+                  return (
+                    <li
+                      key={`${index}-${suggestion.text}`}
+                      className="flex overflow-hidden rounded-xl border border-border bg-surface shadow-2xs transition-shadow focus-within:shadow-sm hover:shadow-sm"
+                    >
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "w-1 shrink-0",
+                          tone === "success" && "bg-success",
+                          tone === "warning" && "bg-warning",
+                          tone === "neutral" && "bg-border",
+                        )}
+                      />
+                      <div className="min-w-0 flex-1 px-3 py-2.5">
+                        <button
+                          type="button"
+                          disabled={blocked}
+                          onClick={() => {
+                            setText(suggestion.text ?? "");
+                            setCollapsedFor(suggestionsKey);
+                          }}
+                          className="line-clamp-4 w-full text-start text-sm leading-relaxed whitespace-pre-wrap text-foreground disabled:opacity-50"
+                        >
+                          {suggestion.text}
+                        </button>
+                        <div className="mt-2 flex items-center gap-2">
+                          {scored && (
+                            <span
+                              className={cn(
+                                "rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums",
+                                tone === "success" && "bg-success-soft text-success-text",
+                                tone === "warning" && "bg-warning-soft text-warning-text",
+                                tone === "neutral" && "bg-surface-3 text-muted-foreground",
+                              )}
+                            >
+                              {Math.round(confidence)}%
+                            </span>
+                          )}
+                          <div className="ms-auto flex items-center gap-1">
+                            <Button
+                              type="button"
+                              size="icon-sm"
+                              variant="ghost"
+                              className="size-8 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+                              aria-label={t("chat-features.interactions.edit-message")}
+                              title={t("chat-features.interactions.edit-message")}
+                              disabled={blocked}
+                              onClick={() => {
+                                setText(suggestion.text ?? "");
+                                setCollapsedFor(suggestionsKey);
+                              }}
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-8 gap-1.5 rounded-full px-3.5 text-xs font-semibold"
+                              disabled={blocked}
+                              onClick={() => {
+                                sendText(conversation.conversationId, suggestion.text ?? "", { whisper });
+                                setCollapsedFor(suggestionsKey);
+                              }}
+                            >
+                              <Send className="size-3.5" />
+                              {t("chat-features.interactions.send")}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+            </ul>
+          )}
         </section>
       )}
       {slashMatches.length > 0 && (
@@ -748,8 +825,8 @@ export function Composer({ conversation }: { conversation: Conversation }) {
               </PopoverContent>
             </Popover>
           )}
-          {/* AI refine: only when switched on, an LLM service is configured and there is text (source). */}
-          {settings.textRefine && Boolean(getConfig().LLM_CONNECTOR_URL) && (text.trim() || refining) && (
+          {/* AI refine: when the desk switches it on and there is text to refine (unified-agent's rule). */}
+          {settings.textRefine && (text.trim() || refining) && (
             <Button
               type="button"
               size="icon"

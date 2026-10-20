@@ -50,10 +50,13 @@ function FilterChip({
 function Option({
   checked,
   onSelect,
+  hint,
   children,
 }: {
   checked: boolean;
   onSelect: () => void;
+  /** Quiet second line, e.g. a team's open and at-risk counts. */
+  hint?: string;
   children: ReactNode;
 }) {
   return (
@@ -73,7 +76,10 @@ function Option({
       >
         {checked && <Check className="size-3" />}
       </span>
-      {children}
+      <span className="min-w-0">
+        <span className="block truncate">{children}</span>
+        {hint && <span className="block truncate text-xs text-muted-foreground">{hint}</span>}
+      </span>
     </button>
   );
 }
@@ -106,6 +112,8 @@ export function WorkbenchFilters({
   assignee,
   onAssignee,
   onClear,
+  className,
+  children,
 }: {
   search: string;
   searchLoading: boolean;
@@ -116,12 +124,15 @@ export function WorkbenchFilters({
   priorityOptions: FilterOption[];
   priorities: ReadonlySet<string>;
   onTogglePriority: (id: string) => void;
-  groups: { key: string; label: string }[];
+  groups: { key: string; label: string; hint?: string }[];
   group: string | null;
   onGroup: (key: string | null) => void;
   assignee: AssigneeFilterMode;
   onAssignee: (mode: AssigneeFilterMode) => void;
   onClear: () => void;
+  className?: string;
+  /** Controls kept at the end of the same row (counts, sort, density). */
+  children?: ReactNode;
 }) {
   const { t } = useTranslation();
   const all = t("cases.filters.all");
@@ -138,13 +149,17 @@ export function WorkbenchFilters({
     Boolean(search.trim()) || statusActive || priorityActive || Boolean(group) || assignee !== "all";
 
   return (
-    <div className="flex flex-wrap items-center gap-2" role="toolbar" aria-label={t("cases.filters.label")}>
+    <div
+      className={cn("flex flex-wrap items-center gap-2", className)}
+      role="toolbar"
+      aria-label={t("cases.filters.label")}
+    >
       <div className="relative">
         <SearchField
           value={search}
           onChange={onSearch}
           placeholder={t("cases.filters.search")}
-          className="w-72"
+          className="w-56"
         />
         {searchLoading && (
           <Loader2 className="absolute end-8 top-1/2 size-3.5 -translate-y-1/2 animate-spin text-muted-foreground" />
@@ -181,7 +196,7 @@ export function WorkbenchFilters({
           {t("cases.filters.all-teams")}
         </Option>
         {groups.map((g) => (
-          <Option key={g.key} checked={group === g.key} onSelect={() => onGroup(g.key)}>
+          <Option key={g.key} checked={group === g.key} hint={g.hint} onSelect={() => onGroup(g.key)}>
             {g.label}
           </Option>
         ))}
@@ -202,6 +217,7 @@ export function WorkbenchFilters({
           {t("cases.filters.clear")}
         </Button>
       )}
+      {children && <div className="ms-auto flex items-center gap-1">{children}</div>}
     </div>
   );
 }

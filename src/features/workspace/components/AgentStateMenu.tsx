@@ -61,7 +61,7 @@ function StatusDot({
   );
 }
 
-/** One clock: a short label over a fixed-width time. */
+/** One clock: a label over a fixed-width time, both on the same grid so neighbours line up. */
 function TimeStat({
   label,
   value,
@@ -73,21 +73,21 @@ function TimeStat({
 }) {
   return (
     <span
-      className="flex min-w-[4.25rem] flex-col gap-0.5 text-start leading-none"
+      className="grid min-w-[5rem] grid-rows-[auto_auto] justify-items-center gap-y-0.5 text-center"
       title={`${label} ${value}`}
     >
       <span
         className={cn(
-          "max-w-[7.5rem] truncate text-[10px] font-medium tracking-wide text-muted-foreground",
-          tone === "ready" && "font-semibold text-success-text",
-          tone === "away" && "font-semibold text-warning-text",
+          "max-w-[8rem] truncate text-xs leading-4 font-medium text-muted-foreground",
+          tone === "ready" && "text-success-text",
+          tone === "away" && "text-warning-text",
         )}
       >
         {label}
       </span>
       <span
         className={cn(
-          "font-mono text-[12.5px] tracking-tight tabular-nums",
+          "text-sm leading-5 tracking-tight tabular-nums",
           tone === "quiet" ? "font-medium text-foreground/80" : "font-semibold text-foreground",
         )}
       >
@@ -163,7 +163,7 @@ export function AgentStateMenu() {
         <Button
           variant="outline"
           className={cn(
-            "h-9 gap-2.5 rounded-xl border-border/80 bg-surface px-3 font-normal shadow-2xs transition-all hover:bg-surface-2",
+            "h-12 gap-2.5 rounded-xl border-border/80 bg-surface ps-2.5 pe-2 font-normal shadow-2xs transition-all hover:bg-surface-2",
             pending && "opacity-80",
           )}
           aria-label={`${t("workspace.agent-state", { state: stateLabel })}. ${ariaTimes}`}
@@ -174,8 +174,9 @@ export function AgentStateMenu() {
             value={live ? stateClock : "--:--:--"}
             tone={live && ready ? "ready" : live && notReady ? "away" : "quiet"}
           />
+          <span className="h-6 w-px shrink-0 bg-border" aria-hidden />
           <TimeStat label={t("workspace.logged-in-time")} value={loggedIn} />
-          <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+          <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent

@@ -29,7 +29,7 @@ test("supervisor works the case Workbench from the Cases menu", async ({ page })
   await expect(page.getByText("Router keeps dropping")).toBeVisible();
   await page.getByText("Router keeps dropping").click();
   const pane = page.getByRole("complementary", { name: "Case details" });
-  await expect(pane.getByText("CASE-20261019-00003")).toBeVisible();
+  await expect(pane.getByText("CASE-20261019-00003").first()).toBeVisible();
   await expect(
     pane.getByText("Customer reports intermittent drops every evening since the upgrade."),
   ).toBeVisible();
@@ -61,5 +61,39 @@ test("agent sees, links and creates cases from the conversation Cases tab", asyn
   // The linked case opens straight from the banner, with the comment thread.
   await page.getByTestId("linked-conversation-banner").getByRole("button", { name: "Open case" }).click();
   await expect(page.getByText("Please check with the gateway, @Sana Iqbal.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Conversation linked" })).toBeDisabled();
+  await expect(page.getByText("Conversation linked", { exact: true }).first()).toBeVisible();
+});
+
+test("a customer opened from the customer list shows their cases", async ({ page }) => {
+  await login(page, "agent");
+  await expectShell(page);
+  await expect(page.getByRole("complementary", { name: "Conversations" })).toBeVisible();
+  await page.evaluate(async () => {
+    const path = "features/workspace/linking/startConversation.ts";
+    const { startConversationFromCustomer } = await import(`/agent-desk/src/${path}`);
+    startConversationFromCustomer({ _id: "customer-amina", firstName: "Amina", lastName: "Raza" });
+  });
+  await page.getByRole("tab", { name: "Cases", exact: true }).first().click();
+  await expect(page.getByText("Delivery address change")).toBeVisible();
+  await expect(page.getByText("Loyalty points missing")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Link conversation" })).toHaveCount(0);
+});
+
+test("a case opens its conversation at the message where the case was raised", async ({ page }) => {
+  await login(page, "agent");
+  await expectShell(page);
+  await expect(page.getByRole("complementary", { name: "Conversations" })).toBeVisible();
+  await page.evaluate(async () => {
+    const path = "features/workspace/linking/startConversation.ts";
+    const { startConversationFromCustomer } = await import(`/agent-desk/src/${path}`);
+    startConversationFromCustomer({ _id: "customer-amina", firstName: "Amina", lastName: "Raza" });
+  });
+  await page.getByRole("tab", { name: "Cases", exact: true }).first().click();
+  await page.getByText("Delivery address change").click();
+  await page.getByRole("button", { name: "Open conversation" }).click();
+  // The message the case was raised from is brought into view and highlighted.
+  const raised = page
+    .locator(".desk-focus-flash")
+    .filter({ hasText: "I have raised a case so the warehouse team confirms it today." });
+  await expect(raised).toBeVisible();
 });

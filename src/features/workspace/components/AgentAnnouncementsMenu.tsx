@@ -2,6 +2,8 @@ import { Bell } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { IconTooltip } from "@/components/common/IconTooltip";
+import { UnreadBadge } from "@/components/common/UnreadBadge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -71,23 +73,20 @@ export function AgentAnnouncementsMenu() {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          className="relative size-9 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
-          aria-label={t("announcements.announcements")}
-        >
-          <Bell className="size-[18px]" />
-          {unread > 0 && (
-            <span
-              className="absolute end-2.5 top-2 size-2 rounded-full bg-destructive ring-2 ring-surface"
-              aria-hidden
-            />
-          )}
-        </Button>
-      </PopoverTrigger>
+      <IconTooltip label={t("announcements.announcements")}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            className="relative size-9 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+            aria-label={t("announcements.announcements")}
+          >
+            <Bell className="size-[18px]" />
+            {unread > 0 && <UnreadBadge />}
+          </Button>
+        </PopoverTrigger>
+      </IconTooltip>
       <PopoverContent
         align="end"
         className="w-96 rounded-2xl border border-border bg-surface p-0 shadow-lift"
