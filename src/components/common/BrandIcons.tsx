@@ -12,7 +12,8 @@ const stroke = (name: string) => ({ stroke: `var(--brand-${name})` });
 
 function Facebook({ className }: MarkProps) {
   return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden focusable="false">
+    // The "f" fills less of its square than the other marks, so the view is cropped around it (about 12% larger).
+    <svg viewBox="1.8 1.95 21.4 21.4" className={className} aria-hidden focusable="false">
       <path
         style={fill("facebook")}
         d="M14 21v-7.5h2.6l.4-3.1h-3V8.6c0-.9.3-1.5 1.6-1.5H17V4.4c-.3 0-1.2-.1-2.3-.1-2.4 0-4 1.4-4 4.1v2H8v3.1h2.7V21H14z"
@@ -99,7 +100,16 @@ function LinkedIn({ className }: MarkProps) {
 function YouTube({ className }: MarkProps) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden focusable="false">
-      <rect x="2.5" y="5.5" width="19" height="13" rx="4" fill="none" strokeWidth="1.9" style={stroke("youtube")} />
+      <rect
+        x="2.5"
+        y="5.5"
+        width="19"
+        height="13"
+        rx="4"
+        fill="none"
+        strokeWidth="1.9"
+        style={stroke("youtube")}
+      />
       <path style={fill("youtube")} d="M10.2 9.3v5.4l4.6-2.7z" />
     </svg>
   );

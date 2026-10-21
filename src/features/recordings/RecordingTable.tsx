@@ -111,7 +111,7 @@ export function RecordingTable({
         <>
           <span className="font-medium">{value || "—"}</span>
           {row.isArchived && (
-            <span className="ms-2 rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground">
+            <span className="ms-2 rounded border px-1.5 py-0.5 text-[11px] text-muted-foreground">
               Archived
             </span>
           )}

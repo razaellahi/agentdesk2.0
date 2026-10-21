@@ -70,8 +70,8 @@ export function CustomerInitials({ name, className }: { name: string; className?
 export type AvatarSize = "xs" | "sm" | "md" | "lg" | "xl";
 
 const SIZE_CLASSES: Record<AvatarSize, { container: string; text: string; icon: string }> = {
-  xs: { container: "size-6", text: "text-[10px]", icon: "size-3" },
-  sm: { container: "size-7.5", text: "text-[11px]", icon: "size-3.5" },
+  xs: { container: "size-6", text: "text-[11px]", icon: "size-3" },
+  sm: { container: "size-7.5", text: "text-[12px]", icon: "size-3.5" },
   md: { container: "size-9", text: "text-xs font-semibold", icon: "size-4" },
   lg: { container: "size-10", text: "text-sm font-semibold", icon: "size-4.5" },
   xl: { container: "size-12", text: "text-base font-bold", icon: "size-6" },

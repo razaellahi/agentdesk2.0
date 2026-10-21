@@ -123,7 +123,7 @@ function NotificationsMenu() {
                     >
                       <span
                         className={cn(
-                          "inline-block rounded-full px-2 py-0.5 text-[10px] font-medium",
+                          "inline-block rounded-full px-2 py-0.5 text-[11px] font-medium",
                           type?.className ?? "bg-surface-2",
                         )}
                       >
@@ -135,7 +135,7 @@ function NotificationsMenu() {
                           {formatCommentBody(n.body)}
                         </span>
                       )}
-                      <span className="block text-[11px] text-muted-foreground">
+                      <span className="block text-[12px] text-muted-foreground">
                         {formatRelative(n.createdAt)}
                       </span>
                     </button>

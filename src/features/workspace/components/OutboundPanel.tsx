@@ -1,4 +1,4 @@
-import { ArrowLeft, Phone, Send, Grid3X3, Loader2, ChevronRight } from "lucide-react";
+import { ArrowLeft, Send, Grid3X3, Loader2, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -266,7 +266,7 @@ export function OutboundPanel() {
             className="relative size-9 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
             aria-label={t("app-header.outbound")}
           >
-            <Phone className="size-[18px]" />
+            <Send className="size-[18px]" strokeWidth={1.75} aria-hidden />
           </Button>
         </PopoverTrigger>
       </IconTooltip>
@@ -308,7 +308,7 @@ export function OutboundPanel() {
                   type="button"
                   size="xs"
                   variant="outline"
-                  className="h-6 border-primary/30 px-2 text-[11px] font-medium text-primary hover:bg-primary hover:text-primary-foreground"
+                  className="h-6 border-primary/30 px-2 text-[12px] font-medium text-primary hover:bg-primary hover:text-primary-foreground"
                   onClick={() => {
                     setPhone(activePhone);
                     setCustomer(activeCustomer as unknown as CustomerRow);
@@ -389,7 +389,7 @@ export function OutboundPanel() {
             )}
             {!composing && (
               <div className="space-y-1 border-t pt-3">
-                <p className="px-1 pb-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+                <p className="px-1 pb-1 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
                   {t("outbound.choose-channel", { defaultValue: "Reach this number by" })}
                 </p>
                 {(settings.cxVoice || settings.cisco) && (
@@ -426,7 +426,7 @@ export function OutboundPanel() {
                       disabled={callDisabled}
                       onClick={() => void placeCall()}
                     >
-                      <OutboundActionIcon kind="voice" className="size-3" />
+                      <OutboundActionIcon kind="voice" className="size-[18px]" />
                       {t("workspace.reach.action.voice")}
                     </Button>
                   </ChannelRow>
@@ -440,7 +440,7 @@ export function OutboundPanel() {
                       disabled={textDisabled}
                       onClick={() => setComposing(true)}
                     >
-                      <OutboundActionIcon kind="sms" className="size-3" />
+                      <OutboundActionIcon kind="sms" className="size-[18px]" />
                       {t("workspace.reach.action.sms")}
                     </Button>
                   </ChannelRow>

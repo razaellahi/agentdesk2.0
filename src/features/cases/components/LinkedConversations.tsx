@@ -108,7 +108,7 @@ export function LinkedConversations({
                 <Button
                   type="button"
                   variant="ghost"
-                  className="h-auto w-24 shrink-0 flex-col gap-1 rounded-none border-s border-border px-2 py-2 text-center text-[11px] leading-tight font-medium whitespace-normal text-primary hover:bg-primary-soft disabled:text-muted-foreground disabled:opacity-60"
+                  className="h-auto w-24 shrink-0 flex-col gap-1 rounded-none border-s border-border px-2 py-2 text-center text-[12px] leading-tight font-medium whitespace-normal text-primary hover:bg-primary-soft disabled:text-muted-foreground disabled:opacity-60"
                   disabled={!canOpen}
                   aria-label={t("cases.detail.open-conversation")}
                   onClick={() =>

@@ -283,7 +283,7 @@ export function CustomerForm({
 
               {channelFields.length > 0 && (
                 <div className="space-y-3 border-t border-border/50 pt-4 sm:col-span-2">
-                  <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+                  <p className="text-[12px] font-semibold tracking-wide text-muted-foreground uppercase">
                     {t("chat-features.customer-info.channel-identifiers")}
                   </p>
                   {channelFields.map((field) => {

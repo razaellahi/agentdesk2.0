@@ -27,7 +27,10 @@ export interface PastActivities {
  * load on request. "view_history" allows both; "view_history_active_customer"
  * only allows live conversations.
  */
-export function usePastActivities(conversation: Conversation | null | undefined): PastActivities {
+export function usePastActivities(
+  conversation: Conversation | null | undefined,
+  { announce = true }: { announce?: boolean } = {},
+): PastActivities {
   const { t } = useTranslation();
   const user = getSession().user;
   const fake = conversation?.roomInfo === "FAKE_CONVERSATION";
@@ -53,10 +56,10 @@ export function usePastActivities(conversation: Conversation | null | undefined)
   const announced = useRef(false);
   const firstPage = query.data?.pages[0];
   useEffect(() => {
-    if (!fake || announced.current || !firstPage || firstPage.length) return;
+    if (!announce || !fake || announced.current || !firstPage || firstPage.length) return;
     announced.current = true;
     toast.info(t("snackbar.No-Conversation-Found"));
-  }, [fake, firstPage, t]);
+  }, [announce, fake, firstPage, t]);
 
   const own = conversation?.messages;
   const messages = useMemo(() => {

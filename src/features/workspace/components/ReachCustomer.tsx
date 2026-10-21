@@ -129,7 +129,7 @@ function Group({ label, children }: { label?: string; children: React.ReactNode 
   return (
     <section className="py-1">
       {label && (
-        <h3 className="px-2.5 pt-1 pb-1.5 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+        <h3 className="px-2.5 pt-1 pb-1.5 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
           {label}
         </h3>
       )}
@@ -160,7 +160,7 @@ function Row({
       )}
     >
       <span className="grid size-8 shrink-0 place-items-center" aria-hidden>
-        <ChannelIcon channelType={{ name: ICON_TYPE[option.kind] }} className="size-8" />
+        <ChannelIcon channelType={{ name: ICON_TYPE[option.kind] }} className="size-7" />
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13px] font-medium">{t(`workspace.reach.channel.${option.kind}`)}</p>
@@ -226,7 +226,7 @@ function StartRow({ option, reach, onDone }: { option: ReachOption; reach: Reach
           {busy ? (
             <Loader2 className="size-3 animate-spin" aria-hidden />
           ) : (
-            <OutboundActionIcon kind={option.kind} className="size-3" />
+            <OutboundActionIcon kind={option.kind} className="size-[18px]" />
           )}
           {t(`workspace.reach.action.${option.kind}`)}
         </Button>

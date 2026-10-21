@@ -134,7 +134,7 @@ export function TaxonomySection() {
                   >
                     {open ? <ChevronDown /> : <ChevronRight />}
                   </Button>
-                  <span className="rounded-full bg-primary-soft px-2 py-0.5 text-[10px] font-medium text-primary">
+                  <span className="rounded-full bg-primary-soft px-2 py-0.5 text-[11px] font-medium text-primary">
                     {t("cases.category")}
                   </span>
                   <Input

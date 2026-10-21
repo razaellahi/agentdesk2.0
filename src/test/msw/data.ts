@@ -120,6 +120,31 @@ export const MOCK_USERS: Record<
   },
 };
 
+// A demo login that sees everything: an agent and supervisor holding the Case Management superuser
+// role, so the Workbench, Create case, Dashboard, Reports and Admin pages are all open to one user.
+// The other users stay as they are, because permission tests depend on what each of them lacks.
+const demoAgent = MOCK_USERS.agent!;
+const demoSupervisor = MOCK_USERS.supervisor!;
+MOCK_USERS.demo = {
+  realmRoles: [...new Set([...demoAgent.realmRoles, ...demoSupervisor.realmRoles])],
+  clientRoles: ["case-superuser"],
+  user: {
+    ...demoSupervisor.user,
+    id: "u-demo-1",
+    username: "demo",
+    firstName: "Demo",
+    lastName: "User",
+    attributes: demoAgent.user.attributes,
+    userTeam: demoAgent.user.userTeam,
+    permittedResources: {
+      Resources: [
+        ...(demoAgent.user.permittedResources?.Resources ?? []),
+        ...(demoSupervisor.user.permittedResources?.Resources ?? []),
+      ],
+    },
+  },
+};
+
 /**
  * Unsigned JWT carrying realm roles, `cim` client roles and the user id (the app only
  * decodes, never verifies; the Case Management mock reads roles and `sub` from it).
@@ -144,8 +169,12 @@ export function fakeJwt(
 export function mockUserJwt(username: string): string {
   const entry = MOCK_USERS[username];
   if (!entry) return fakeJwt([]);
+  // `pnpm mock` opens every case page to every login (see .env.mock); e2e keeps each user's own roles.
+  const fullCaseAccess = import.meta.env.VITE_MOCK_FULL_CASE_ACCESS === "true";
   return fakeJwt(entry.realmRoles, {
-    clientRoles: entry.clientRoles,
+    clientRoles: fullCaseAccess
+      ? [...new Set([...(entry.clientRoles ?? []), "case-superuser"])]
+      : entry.clientRoles,
     sub: entry.user.id,
     username: entry.user.username,
   });

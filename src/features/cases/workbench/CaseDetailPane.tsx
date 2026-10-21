@@ -19,6 +19,44 @@ import { ActivityPanel } from "./ActivityPanel";
 
 const COMMENT_POLL_MS = 15_000;
 
+/** How much of the SLA window is used up: a thin bar that warms up as the deadline nears. */
+function SlaProgress({
+  totalMinutes,
+  remainingMinutes,
+  state,
+  paused,
+}: {
+  totalMinutes: number;
+  remainingMinutes: number | null | undefined;
+  state: string | null | undefined;
+  paused: boolean;
+}) {
+  const { t } = useTranslation();
+  if (remainingMinutes == null) return null;
+  const used = Math.min(100, Math.max(0, ((totalMinutes - remainingMinutes) / totalMinutes) * 100));
+  const tone =
+    state === "BREACHED" || used >= 100
+      ? "bg-destructive"
+      : state === "WARNING" || used >= 80
+        ? "bg-warning"
+        : "bg-success";
+  return (
+    <div
+      role="progressbar"
+      aria-label={t("cases.detail.sla-progress")}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(used)}
+      className="h-1.5 overflow-hidden rounded-full bg-surface-2"
+    >
+      <div
+        className={cn("h-full rounded-full transition-[width]", tone, paused && "opacity-50")}
+        style={{ width: `${used}%` }}
+      />
+    </div>
+  );
+}
+
 function linkedCustomerName(c: Case) {
   return c.conversations.map((conv) => conv.customerName?.trim()).find(Boolean) ?? null;
 }
@@ -38,7 +76,7 @@ function Section({ title, count, children }: { title: string; count?: number; ch
       <h3 className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
         {title}
         {count != null && (
-          <span className="rounded-full bg-surface-2 px-1.5 text-[10px] tabular-nums">{count}</span>
+          <span className="rounded-full bg-surface-2 px-1.5 text-[11px] tabular-nums">{count}</span>
         )}
       </h3>
       {children}
@@ -157,6 +195,14 @@ export function CaseDetailPane({
             />
           )}
         </div>
+        {active && c.resolutionDueAt && Date.parse(c.resolutionDueAt) > Date.parse(c.createdAt) && (
+          <SlaProgress
+            totalMinutes={(Date.parse(c.resolutionDueAt) - Date.parse(c.createdAt)) / 60_000}
+            remainingMinutes={c.slaMinutesRemaining}
+            state={c.slaState}
+            paused={Boolean(c.slaPausedAt)}
+          />
+        )}
         {(canClaim || canReassign) && (
           <div className="flex gap-2 pt-0.5">
             {canClaim && (
@@ -214,7 +260,7 @@ export function CaseDetailPane({
           >
             {item.label}
             {item.count ? (
-              <span className="rounded-full bg-surface-2 px-1.5 text-[10px] text-muted-foreground tabular-nums">
+              <span className="rounded-full bg-surface-2 px-1.5 text-[11px] text-muted-foreground tabular-nums">
                 {item.count}
               </span>
             ) : null}
@@ -255,7 +301,9 @@ export function CaseDetailPane({
             </Prop>
             <Prop label={t("cases.created")}>
               {formatDateTime(c.createdAt)}
-              <span className="block text-xs text-muted-foreground">{userLabel(c.createdByUserId)}</span>
+              <span className="block text-xs text-muted-foreground">
+                {t("cases.detail.created-by", { name: userLabel(c.createdByUserId) })}
+              </span>
             </Prop>
             <Prop label={t("cases.updated")}>{formatDateTime(c.updatedAt)}</Prop>
             {c.resolvedAt && <Prop label={t("cases.resolved")}>{formatDateTime(c.resolvedAt)}</Prop>}

@@ -2,6 +2,7 @@ import { io, type Socket } from "socket.io-client";
 import { create } from "zustand";
 import { getConfig } from "@/config";
 import { createLogger } from "@/core/logging/logger";
+import type { MockAgentManager } from "./mockAgentManager";
 
 const log = createLogger("socket");
 
@@ -17,6 +18,9 @@ export const useSocketStatus = () => useSocketStore((s) => s.status);
 
 type Handler = (...args: unknown[]) => void;
 
+/** In `pnpm mock` there is no agent-manager: it is simulated and no socket is opened. */
+const MOCK = import.meta.env.MODE === "mock";
+
 /**
  * The single agent-manager socket.io connection (unified-agent socketService.connectToSocket).
  * Auth carries the full agent JSON plus FCM keys, exactly as agent-manager expects.
@@ -25,12 +29,34 @@ type Handler = (...args: unknown[]) => void;
 class SocketManager {
   private socket: Socket | null = null;
   private handlers = new Map<string, Set<Handler>>();
+  private mock: MockAgentManager | null = null;
+  private mockActive = false;
 
   connect(
     agent: { username: string } & Record<string, unknown>,
     fcm: { desktopFcmKey: string | null; mobileFcmKey: string | null },
   ) {
     this.disconnect();
+    if (MOCK) {
+      this.mockActive = true;
+      useSocketStore.setState({ status: "connected", lastError: null });
+      // Loaded on demand so the simulator and its demo chats stay out of real builds.
+      void import("./mockAgentManager").then(({ MockAgentManager }) => {
+        if (!this.mockActive) return;
+        this.mock = new MockAgentManager(
+          (event, ...args) =>
+            // Each listener gets its own copy, as it would off a socket: the store freezes what it keeps.
+            this.handlers
+              .get(event)
+              ?.forEach((handler) =>
+                handler(...args.map((arg) => (typeof arg === "function" ? arg : structuredClone(arg)))),
+              ),
+          { id: String(agent.id ?? agent.username), username: agent.username },
+        );
+        this.mock.start();
+      });
+      return;
+    }
     const { SOCKET_URL, SOCKET_TIMEOUT } = getConfig();
     const url = new URL(SOCKET_URL, globalThis.location.href);
     const path = url.pathname === "/" ? "" : `${url.pathname.replace(/\/$/, "")}/socket.io`;
@@ -62,6 +88,12 @@ class SocketManager {
   }
 
   disconnect() {
+    if (this.mockActive) {
+      this.mockActive = false;
+      this.mock = null;
+      useSocketStore.setState({ status: "idle" });
+      return;
+    }
     if (!this.socket) return;
     this.socket.removeAllListeners();
     this.socket.disconnect();
@@ -70,7 +102,7 @@ class SocketManager {
   }
 
   get connected() {
-    return Boolean(this.socket?.connected);
+    return this.mockActive || Boolean(this.socket?.connected);
   }
 
   /** Subscribe to a server event; survives reconnects. Returns an unsubscribe function. */
@@ -87,6 +119,10 @@ class SocketManager {
   }
 
   emit(event: string, payload: unknown): boolean {
+    if (this.mockActive) {
+      this.mock?.emit(event, payload);
+      return true;
+    }
     if (!this.socket) {
       log.warn(`emit '${event}' dropped: no socket`);
       return false;

@@ -2,7 +2,6 @@ import { useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ArrowRightLeft,
-  BookOpen,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
@@ -18,6 +17,7 @@ import {
   Play,
   SquareArrowOutUpRight,
   UserRound,
+  UsersRound,
   Users,
   X,
   type LucideIcon,
@@ -55,14 +55,14 @@ import {
 } from "../session/agentSession";
 import { useBoardStore } from "../store/boardStore";
 import { openConversationPopout } from "../store/popout";
-import { KnowledgeSearchButton } from "./KnowledgeSearchButton";
+import { ParticipantsDialog } from "./ParticipantsDialog";
 import { ReachCustomer } from "./ReachCustomer";
 
 export type PaneLayout = "ultra-narrow" | "narrow" | "compact" | "roomy";
 
 /** How many actions sit in the header at each pane width; the rest go to More. */
 // Roomy has room for every action; the three-dot menu then only holds layout extras.
-// Narrow panes keep Pause, Reach and Customer info in the header; the knowledge base comes after them.
+// Narrow panes keep Pause, Reach and Customer info in the header.
 const INLINE_BUDGET: Record<PaneLayout, number> = { roomy: 12, compact: 9, narrow: 5, "ultra-narrow": 3 };
 
 interface HeaderAction {
@@ -80,8 +80,6 @@ interface HeaderAction {
   choices?: { key: string; label: string; onSelect: () => void }[];
   /** The Reach customer panel. */
   reach?: boolean;
-  /** Knowledge base search; the endpoint it queries. */
-  kb?: boolean;
   /** Greyed out but still shown (unified-agent keeps hold controls visible for whispers). */
   disabled?: boolean;
 }
@@ -129,6 +127,7 @@ export function ConversationActions({
   const monitoringVoice = useCallStore((s) => s.phase !== "idle" && s.main?.dialog.callType === "MONITORING");
   const pinned = useBoardStore((s) => s.pinned.includes(conversation.conversationId));
   const [reachOpen, setReachOpen] = useState(false);
+  const [participantsOpen, setParticipantsOpen] = useState(false);
   const reachFromMenu = useRef(false);
   const reach = useOutboundReach(conversation, reachOpen);
 
@@ -200,15 +199,6 @@ export function ConversationActions({
       priority: 3,
       reach: true,
     });
-  // Knowledge base search, shown when the desk has it switched on (unified-agent's knowledge flag).
-  if (settings?.knowledgeBaseSearch)
-    actions.push({
-      id: "kb",
-      label: t("chat-features.customer-info.knowledge-base.title"),
-      icon: BookOpen,
-      priority: 4.5,
-      kb: true,
-    });
   if (ownsConversation && (canTransfer || canConsult || canConference))
     actions.push({
       id: "transfer",
@@ -243,6 +233,15 @@ export function ConversationActions({
       onSelect: onToggleInfo,
     });
 
+  // Who is in the conversation, when the desk has it switched on.
+  if (settings?.conversationParticipants)
+    actions.push({
+      id: "participants",
+      label: t("workspace.participants.title"),
+      icon: UsersRound,
+      priority: 7,
+      onSelect: () => setParticipantsOpen(true),
+    });
   if (wrapUpAvailable)
     actions.push({
       id: "wrapup",
@@ -284,8 +283,7 @@ export function ConversationActions({
   const shown = ranked.filter((a) => inline.has(a.id));
   const overflow = ranked.filter((a) => !inline.has(a.id));
   // Leave closes the menu, below everything else and set apart; the rest follow priority.
-  // The knowledge base is a search panel, not a menu command, so it has no menu entry.
-  const overflowMain = overflow.filter((a) => a.id !== "leave" && !a.kb);
+  const overflowMain = overflow.filter((a) => a.id !== "leave");
   const leaveInMenu = !inline.has("leave");
 
   // Whatever the header does not show is in the menu; with everything shown there is no menu.
@@ -300,7 +298,7 @@ export function ConversationActions({
   // Icon-only, one size for every control; the name shows in a tooltip on hover and focus.
   const inlineButton = (action: HeaderAction) => {
     const classes = cn(
-      "size-9 shrink-0 rounded-full text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground",
+      "size-9 shrink-0 rounded-full bg-control text-foreground/70 transition-colors hover:bg-control-hover hover:text-foreground",
       action.tone === "warning" &&
         "bg-warning-soft text-warning-text hover:bg-warning-soft/80 hover:text-warning-text",
       action.tone === "primary" && "bg-primary-soft text-primary hover:bg-primary-soft/80 hover:text-primary",
@@ -314,7 +312,6 @@ export function ConversationActions({
         aria-hidden
       />
     );
-    if (action.kb) return <KnowledgeSearchButton key={action.id} />;
     if (action.reach)
       return (
         <IconTooltip key={action.id} label={action.label}>
@@ -443,7 +440,7 @@ export function ConversationActions({
                     type="button"
                     size="icon"
                     variant="ghost"
-                    className="size-9 shrink-0 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+                    className="size-9 shrink-0 rounded-full bg-control text-foreground/70 transition-colors hover:bg-control-hover hover:text-foreground"
                     aria-label={t("globals.view-more")}
                   >
                     <MoreHorizontal className="size-5" />
@@ -516,7 +513,9 @@ export function ConversationActions({
                     aria-pressed={pinned}
                     className={cn(
                       "size-9 shrink-0 rounded-full",
-                      pinned ? "bg-primary-soft text-primary" : "text-muted-foreground",
+                      pinned
+                        ? "bg-primary-soft text-primary"
+                        : "bg-control text-foreground/70 transition-colors hover:bg-control-hover hover:text-foreground",
                     )}
                     onClick={() => useBoardStore.getState().togglePin(id)}
                   >
@@ -529,7 +528,7 @@ export function ConversationActions({
                   type="button"
                   size="icon"
                   variant="ghost"
-                  className="size-9 shrink-0 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+                  className="size-9 shrink-0 rounded-full bg-control text-foreground/70 transition-colors hover:bg-control-hover hover:text-foreground"
                   aria-label={t("workspace.remove-from-board")}
                   onClick={() => removeFromBoard(id)}
                 >
@@ -550,6 +549,12 @@ export function ConversationActions({
       >
         <ReachCustomer reach={reach} name={displayName} onDone={() => setReachOpen(false)} />
       </PopoverContent>
+
+      <ParticipantsDialog
+        conversation={conversation}
+        open={participantsOpen}
+        onOpenChange={setParticipantsOpen}
+      />
 
       {reach.composeRequest && (
         <OutboundComposeSheet

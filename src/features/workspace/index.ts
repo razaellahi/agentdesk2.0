@@ -5,6 +5,7 @@ export { ConnectionStatusHost } from "./components/ConnectionStatusHost";
 export { AgentStateMenu } from "./components/AgentStateMenu";
 export { RequestCenter } from "./components/RequestCenter";
 export { QuickLinksMenu } from "./components/QuickLinksMenu";
+export { ConversationsButton } from "./components/ConversationsButton";
 export { OutboundPanel } from "./components/OutboundPanel";
 export { AgentAnnouncementsMenu } from "./components/AgentAnnouncementsMenu";
 export { LinkConversationHost } from "./components/LinkConversationDialog";

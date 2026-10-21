@@ -128,7 +128,7 @@ export function AgentAnnouncementsMenu() {
                   >
                     <p className="text-sm font-medium whitespace-pre-wrap">{row.announcementText}</p>
                     {row.scheduledTime && (
-                      <p className="mt-1 text-[11px] text-muted-foreground">
+                      <p className="mt-1 text-[12px] text-muted-foreground">
                         {formatDateTime(row.scheduledTime)}
                       </p>
                     )}

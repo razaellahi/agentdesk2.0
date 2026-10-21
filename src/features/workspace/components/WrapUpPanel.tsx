@@ -49,7 +49,7 @@ function CategoryOptions({
 
   return (
     <div className="space-y-2 rounded-xl border border-border bg-surface-2/40 p-3">
-      <p className="text-[11px] font-medium tracking-wider text-muted-foreground uppercase">{label}</p>
+      <p className="text-[12px] font-medium tracking-wider text-muted-foreground uppercase">{label}</p>
       <div className="flex flex-wrap gap-1.5">
         {options.map((option) => {
           const value = optionLabel(option);

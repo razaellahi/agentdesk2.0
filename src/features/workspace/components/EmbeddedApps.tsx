@@ -9,7 +9,7 @@ export function EmbeddedApps({ conversation }: { conversation: Conversation }) {
   if (apps.length === 0) return null;
   return (
     <section className="border-t bg-canvas/40 p-3">
-      <h4 className="mb-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+      <h4 className="mb-2 text-[12px] font-semibold tracking-wide text-muted-foreground uppercase">
         {t("chat-features.interactions.third-party-apps")}
       </h4>
       <div className="grid gap-3">

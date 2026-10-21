@@ -1,4 +1,4 @@
-import { BookOpen, Briefcase, MessageSquareText, UserRound, type LucideIcon } from "lucide-react";
+import { Briefcase, MessageSquareText, UserRound, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useDeskSettings } from "@/core/agent-settings";
 import { usePermission, useScope } from "@/core/auth";
@@ -25,7 +25,7 @@ function asSuggestion(value: unknown): CustomerRow | null {
   return row._id ? row : null;
 }
 
-export type ContextTabId = "profile" | "conversation" | "cases" | "knowledge" | "sms" | "outbound";
+export type ContextTabId = "profile" | "conversation" | "cases" | "sms" | "outbound";
 
 export interface ContextTab {
   id: ContextTabId;
@@ -108,12 +108,6 @@ export function useContextTabs(conversation: Conversation): ContextTab[] {
       label: t("cases.tab"),
       icon: Briefcase,
       attention: (linkedCases.data?.length ?? 0) > 0,
-    });
-  if (ctx.kbEnabled && ctx.hasSessions)
-    tabs.push({
-      id: "knowledge",
-      label: t("chat-features.customer-info.knowledge-base.title"),
-      icon: BookOpen,
     });
   return tabs;
 }

@@ -3,7 +3,6 @@ import { getConfig } from "@/config";
 import { fileEngineApi, vrsApi } from "@/core/api";
 import { getSession } from "@/core/auth";
 import { resolveRecordingUrl } from "@/features/recordings";
-import { useEffect, useState } from "react";
 
 /**
  * File-engine media needs the agent's auth header, so it is fetched as a blob
@@ -18,15 +17,19 @@ export function useSecureMedia(url: string | undefined) {
   const query = useQuery({
     queryKey: ["media", getSession().user?.id, url],
     enabled: Boolean(url) && authenticated,
+    // The object URL is what is cached, so a row that scrolls back into view shows its picture at once
+    // instead of going through a loading state of another height (which makes the transcript jump).
     staleTime: Infinity,
     gcTime: 30 * 60_000,
     retry: 1,
     queryFn: async () => {
       if (isRecording)
-        return vrsApi.get<Blob>(
-          resolveRecordingUrl(url!, getSession().user?.username ?? ""),
-          { tenantHeader: getConfig().VRS_TENANT_HEADER },
-          "blob",
+        return URL.createObjectURL(
+          await vrsApi.get<Blob>(
+            resolveRecordingUrl(url!, getSession().user?.username ?? ""),
+            { tenantHeader: getConfig().VRS_TENANT_HEADER },
+            "blob",
+          ),
         );
       const search = new URL(url!, globalThis.location.href).search;
       const blob = await fileEngineApi.get<Blob>(
@@ -34,25 +37,12 @@ export function useSecureMedia(url: string | undefined) {
         {},
         "blob",
       );
-      return blob;
+      return URL.createObjectURL(blob);
     },
   });
-  const [objectUrl, setObjectUrl] = useState<{ blob: Blob; url: string }>();
-  useEffect(() => {
-    if (!query.data) return;
-    const url = URL.createObjectURL(query.data);
-    let cancelled = false;
-    queueMicrotask(() => {
-      if (!cancelled) setObjectUrl({ blob: query.data!, url });
-    });
-    return () => {
-      cancelled = true;
-      URL.revokeObjectURL(url);
-    };
-  }, [query.data]);
   return {
-    src: authenticated ? (objectUrl?.blob === query.data ? objectUrl?.url : undefined) : safeExternalUrl,
-    loading: authenticated && (query.isLoading || Boolean(query.data && objectUrl?.blob !== query.data)),
+    src: authenticated ? query.data : safeExternalUrl,
+    loading: authenticated && query.isLoading,
     error: query.isError,
   };
 }

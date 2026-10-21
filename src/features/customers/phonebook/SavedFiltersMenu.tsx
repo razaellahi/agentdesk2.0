@@ -1,4 +1,5 @@
 import { Filter, Pencil, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -22,6 +23,14 @@ export function SavedFiltersMenu({
 }) {
   const { t } = useTranslation();
   const client = useQueryClient();
+  const [open, setOpen] = useState(false);
+  // Choosing something from the menu is the end of the menu.
+  const done =
+    <A extends unknown[]>(action: (...args: A) => void) =>
+    (...args: A) => {
+      setOpen(false);
+      action(...args);
+    };
   const query = useQuery({
     queryKey: ["phonebook-saved-filters"],
     queryFn: () => listSavedFilters(50, 0),
@@ -35,11 +44,11 @@ export function SavedFiltersMenu({
   });
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="outline" size="sm">
+        <Button type="button" variant={appliedId ? "secondary" : "outline"} size="sm">
           <Filter className="size-3.5" />
-          {t("advance-filters.saved-filters")}
+          {t("advance-filters.advanced-filter")}
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 p-2">
@@ -47,7 +56,7 @@ export function SavedFiltersMenu({
           <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
             {t("advance-filters.saved-filters")}
           </p>
-          <Button type="button" size="sm" variant="ghost" onClick={onCreate}>
+          <Button type="button" size="sm" variant="ghost" onClick={done(onCreate)}>
             {t("advance-filters.advanced-filter")}
           </Button>
         </div>
@@ -64,7 +73,7 @@ export function SavedFiltersMenu({
                 <button
                   type="button"
                   className="min-w-0 flex-1 truncate text-start text-sm"
-                  onClick={() => onApply(filter)}
+                  onClick={done(() => onApply(filter))}
                 >
                   {filter.filterName}
                 </button>
@@ -73,7 +82,7 @@ export function SavedFiltersMenu({
                   size="icon-sm"
                   variant="ghost"
                   aria-label={t("labels.edit")}
-                  onClick={() => onEdit(filter)}
+                  onClick={done(() => onEdit(filter))}
                 >
                   <Pencil className="size-3.5" />
                 </Button>
@@ -108,9 +117,9 @@ export function SavedFiltersMenu({
             variant="ghost"
             size="sm"
             className="mt-2 w-full"
-            onClick={() => onApply(null)}
+            onClick={done(() => onApply(null))}
           >
-            {t("labels.cancel")}
+            {t("phonebook.remove-filter")}
           </Button>
         )}
       </PopoverContent>

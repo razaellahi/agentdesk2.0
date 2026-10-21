@@ -160,7 +160,7 @@ export function StatusesSection() {
                       />
                     </td>
                     <td className="py-1.5 pe-2">
-                      <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px] font-medium tracking-wide text-muted-foreground">
+                      <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[12px] font-medium tracking-wide text-muted-foreground">
                         {s.code}
                       </span>
                     </td>

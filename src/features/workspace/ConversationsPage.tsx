@@ -9,13 +9,10 @@ import { ConversationPane } from "./components/ConversationPane";
 import { ConversationRail } from "./components/ConversationRail";
 import { useBoardStore } from "./store/boardStore";
 import { visiblePanes } from "./board/visiblePanes";
-import { Minimize2, SquareArrowOutUpRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { customerDisplayName } from "./model/display";
 import { CustomerAvatar } from "./components/CustomerInitials";
 import { useMaskedValue } from "./hooks/useMaskedValue";
 import { useOpenFromLink } from "./hooks/useOpenFromLink";
-import { mergeConversationBack, usePopoutStore } from "./store/popout";
+import { usePopoutStore } from "./store/popout";
 import {
   useActiveConversationId,
   useConversation,
@@ -41,7 +38,7 @@ function FoldedPane({ conversationId, onOpen }: { conversationId: string; onOpen
     >
       <CustomerAvatar name={name} size="md" />
       {unread > 0 && (
-        <span className="absolute -end-1 -top-1 grid min-w-4.5 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground tabular">
+        <span className="absolute -end-1 -top-1 grid min-w-4.5 place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-foreground tabular">
           {unread > 99 ? "99+" : unread}
         </span>
       )}
@@ -88,53 +85,6 @@ function useBoardShortcuts(count: number) {
   }, [count]);
 }
 
-function PoppedOutPlaceholder({
-  conversationId,
-  onMergeBack,
-}: {
-  conversationId: string;
-  onMergeBack: () => void;
-}) {
-  const { t } = useTranslation();
-  const conversation = useConversation(conversationId);
-  const name = customerDisplayName(conversation?.customer);
-
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center bg-surface-2/20 p-8 text-center">
-      <div className="max-w-md space-y-4">
-        <div className="relative mx-auto grid size-16 place-items-center rounded-2xl border border-primary/20 bg-primary-soft/60 text-primary shadow-xs">
-          <SquareArrowOutUpRight className="size-8" />
-        </div>
-        <div className="space-y-1.5">
-          <h3 className="text-base font-semibold tracking-tight text-foreground">
-            {name
-              ? `${name} is open in a floating window`
-              : t("workspace.popped-out-title", { defaultValue: "Conversation open in floating window" })}
-          </h3>
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            {t("workspace.popped-out-desc", {
-              defaultValue:
-                "This conversation is active in a floating window. You can drag it anywhere on screen or merge it back into the main workspace.",
-            })}
-          </p>
-        </div>
-        <div className="flex items-center justify-center gap-2 pt-2">
-          <Button
-            type="button"
-            variant="default"
-            size="sm"
-            className="gap-2 rounded-full px-4 text-xs font-semibold shadow-xs"
-            onClick={onMergeBack}
-          >
-            <Minimize2 className="size-3.5" />
-            {t("workspace.merge-back", { defaultValue: "Merge back into main view" })}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /** Agent workspace. One conversation, or up to three panes when the board flag is on. */
 export default function ConversationsPage() {
   const { t } = useTranslation();
@@ -178,6 +128,10 @@ export default function ConversationsPage() {
   // The board is exactly the conversations the agent chose to see side by side.
   const ids: (string | null)[] = isMobile || !board || panes.length < 2 ? [activeId] : panes;
   const count = ids.length;
+  // A conversation in a floating window gives its place back: the others take the room, and with nothing
+  // left on the board the main area shows the empty state. Closing the window restores the pane as it was.
+  const shown = ids.map((id, index) => ({ id, index })).filter(({ id }) => !(id && popoutIds.includes(id)));
+  if (!shown.length) shown.push({ id: null, index: 0 });
   const railMini = railPref === "collapsed" || (railPref === "auto" && count === 3 && tight);
   const [boardWidth, setBoardWidth] = useState(0);
   const measureBoard = useCallback((element: HTMLElement | null) => {
@@ -186,10 +140,13 @@ export default function ConversationsPage() {
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
-  const window_ = visiblePanes(count, Math.min(focus, count - 1), boardWidth);
-  const folded = ids
-    .map((id, index) => ({ id, index }))
-    .filter(({ index }) => index < window_.start || index >= window_.end);
+  const shownCount = shown.length;
+  const shownFocus = Math.max(
+    0,
+    shown.findIndex(({ index }) => index === focus),
+  );
+  const window_ = visiblePanes(shownCount, Math.min(shownFocus, shownCount - 1), boardWidth);
+  const folded = shown.filter((_, position) => position < window_.start || position >= window_.end);
   useBoardShortcuts(count);
 
   return (
@@ -208,17 +165,17 @@ export default function ConversationsPage() {
         {showPane && (
           <div className="flex min-w-0 flex-1 flex-col bg-chat-panel-middle">
             <div ref={measureBoard} className="flex min-h-0 flex-1 gap-0 overflow-hidden">
-              {ids.map((id, index) =>
-                index < window_.start || index >= window_.end ? null : (
+              {shown.map(({ id, index }, position) =>
+                position < window_.start || position >= window_.end ? null : (
                   <div
                     key={id ?? `empty-${index}`}
                     className={cn(
                       "relative flex min-w-0 flex-1 flex-col transition-[flex-grow,background] duration-200 ease-out",
-                      count > 1 && "min-w-[320px]",
+                      shownCount > 1 && "min-w-[320px]",
                       // Focus is width: the pane being worked in gets ~1.75x the space.
-                      count > 1 && focus === index && "grow-[1.75]",
-                      count > 1 && "border-r border-border/60 last:border-r-0",
-                      count > 1 && focus === index && "bg-primary-soft/10",
+                      shownCount > 1 && focus === index && "grow-[1.75]",
+                      shownCount > 1 && "border-r border-border/60 last:border-r-0",
+                      shownCount > 1 && focus === index && "bg-primary-soft/10",
                     )}
                     tabIndex={count > 1 ? -1 : undefined}
                     onFocus={() => {
@@ -227,19 +184,12 @@ export default function ConversationsPage() {
                       if (id && id !== activeId) useConversationStore.getState().setActive(id);
                     }}
                   >
-                    {id && popoutIds.includes(id) ? (
-                      <PoppedOutPlaceholder
-                        conversationId={id}
-                        onMergeBack={() => mergeConversationBack(id)}
-                      />
-                    ) : (
-                      <ConversationPane
-                        key={id ?? "empty"}
-                        conversationId={id}
-                        onBack={isMobile ? () => useConversationStore.getState().setActive(null) : undefined}
-                        board={count > 1 ? { index, count, focused: focus === index } : undefined}
-                      />
-                    )}
+                    <ConversationPane
+                      key={id ?? "empty"}
+                      conversationId={id}
+                      onBack={isMobile ? () => useConversationStore.getState().setActive(null) : undefined}
+                      board={count > 1 ? { index, count, focused: focus === index } : undefined}
+                    />
                   </div>
                 ),
               )}

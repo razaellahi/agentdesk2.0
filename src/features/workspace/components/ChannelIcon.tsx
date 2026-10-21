@@ -4,14 +4,22 @@ import { cn } from "@/shared/lib/utils";
 import { channelLook } from "../model/channelIcons";
 import type { ChannelType } from "../model/types";
 
+/** A channel's glyph with no tile: its logo mark, or its line icon in the channel colour. */
+export function ChannelGlyph({ name, className }: { name: string; className?: string }) {
+  const look = channelLook(name);
+  if (look.kind === "brand") return <BrandIcon channel={look.brand} className={className} />;
+  return createElement(look.Icon, {
+    className: cn(look.tone, className),
+    strokeWidth: 1.9,
+    "aria-hidden": true,
+  });
+}
+
 /**
- * A channel in one coloured style everywhere: its logo for social and messaging channels, and a coloured
- * round badge with a white line icon for the rest. `name` is a channel name or an identifier label.
+ * A channel on one white round tile with a hairline ring, holding its glyph. The same shape, weight
+ * and spacing for every channel wherever it is listed.
  */
 export function ChannelMark({ name, className }: { name: string; className?: string }) {
-  const look = channelLook(name);
-  // One container for every channel: a white round tile with a hairline ring. Inside it, the channel's own
-  // logo, or its line icon in the channel colour. Same shape, weight and spacing everywhere.
   return (
     <span
       className={cn(
@@ -19,15 +27,7 @@ export function ChannelMark({ name, className }: { name: string; className?: str
         className,
       )}
     >
-      {look.kind === "brand" ? (
-        <BrandIcon channel={look.brand} className="size-[64%]" />
-      ) : (
-        createElement(look.Icon, {
-          className: cn("size-[52%]", look.tone),
-          strokeWidth: 1.9,
-          "aria-hidden": true,
-        })
-      )}
+      <ChannelGlyph name={name} className="size-[58%]" />
     </span>
   );
 }
@@ -74,10 +74,12 @@ export function ChannelBadge({
 }
 
 /** The outbound action for a medium (voice, sms, email, whatsapp...), in the same channel style. */
-export function OutboundActionIcon({ kind, className = "size-3.5" }: { kind: string; className?: string }) {
-  return (
-    <span className={cn("grid shrink-0 place-items-center", className)} aria-hidden>
-      <ChannelMark name={kind} />
-    </span>
-  );
+export function OutboundActionIcon({
+  kind,
+  className = "size-[18px]",
+}: {
+  kind: string;
+  className?: string;
+}) {
+  return <ChannelGlyph name={kind} className={className} />;
 }

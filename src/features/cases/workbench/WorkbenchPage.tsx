@@ -1,5 +1,19 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowDownUp, Download, Inbox, Loader2, Plus, RefreshCw, Rows3, X } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowDownUp,
+  ArrowUp,
+  CheckCircle2,
+  ChevronsUpDown,
+  Download,
+  Inbox,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Rows3,
+  SearchX,
+  X,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router";
@@ -10,6 +24,7 @@ import { QueryError } from "@/components/common/QueryError";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatDate } from "@/core/i18n";
+import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
 import { useResizableWidth } from "@/shared/hooks/useResizableWidth";
 import { cn } from "@/shared/lib/utils";
 import {
@@ -25,18 +40,20 @@ import {
   type CaseListKind,
   type ReassignInput,
 } from "../api";
-import { PriorityBadge, SlaBadge, StatusBadge } from "../components/Badges";
+import { PRIORITY_BAR, PriorityBadge, SlaBadge, StatusBadge } from "../components/Badges";
 import { Initials, RefId } from "../components/Fields";
 import { ReassignDialog, type ReassignRequest } from "../components/ReassignDialog";
 import { useCaseAbilities, useDistributionPolicy } from "../hooks/useCaseSession";
-import { useUserLabel } from "../hooks/useDisplayNames";
+import { useCustomerLabel, useUserLabel } from "../hooks/useDisplayNames";
 import { LIST_VIEWS, parseDrill, type AssigneeFilterMode, type CaseListView } from "../model/drill";
 import {
+  CLOSED_STATUS_CODES,
   CLOSED_STATUS_SET,
   OPEN_STATUS_CODES,
   formatGroupLabel,
   isOpenCase,
   normalizeGroupKey,
+  priorityLevel,
 } from "../model/format";
 import {
   countSlaInPool,
@@ -64,6 +81,8 @@ const RAIL_DOT: Partial<Record<CaseListView, string>> = {
   at_risk: "bg-warning",
   breached: "bg-destructive",
 };
+
+type SortKey = "subject" | "customer" | "category" | "owner" | "status" | "sla" | "updated";
 
 type BulkAction = "claim" | "reassign" | "resolve" | "close";
 
@@ -125,6 +144,8 @@ export default function WorkbenchPage() {
     setFilters((current) => withDrill(current, params));
   }
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" } | null>(null);
+  // Compact keeps a row to its subject and columns; turning it off opens each row to its case number and group.
   const [compact, setCompact] = useState(true);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [bulkResult, setBulkResult] = useState<{
@@ -142,9 +163,11 @@ export default function WorkbenchPage() {
   });
 
   const caseId = params.get("caseId");
+  const paneOpen = Boolean(caseId);
   const data = useWorkbenchData(abilities.seesSupervisorStrip, policy.data?.dashboardRefreshSeconds ?? 30);
   const searchState = useWorkbenchSearch(search);
   const userLabel = useUserLabel(userId);
+  const customerLabel = useCustomerLabel();
 
   const pool =
     filters.listView === "unassigned"
@@ -179,6 +202,7 @@ export default function WorkbenchPage() {
       .map(([key, label]) => ({ key, label, hint: undefined as string | undefined }))
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [data.supervisor, data.cases, t]);
+
   const groupLabel = (id: string | null) =>
     id ? (groupOptions.find((g) => g.key === normalizeGroupKey(id))?.label ?? formatGroupLabel(id)) : "—";
 
@@ -337,9 +361,116 @@ export default function WorkbenchPage() {
     data.pools[filters.listView === "unassigned" ? "unassigned" : filters.listView === "my" ? "my" : "all"];
   const showLoadMore = !searchState.active && Boolean(activePool.hasNextPage);
   const allVisibleSelected = visible.length > 0 && visible.every((c) => selected.has(c.id));
+  const sortValue = (c: Case, key: SortKey): string | number => {
+    switch (key) {
+      case "subject":
+        return c.title.toLowerCase();
+      case "customer":
+        return c.customerProfileId
+          ? customerLabel(c.customerProfileId, c.conversations[0]?.customerName).toLowerCase()
+          : "";
+      case "category":
+        return (c.category?.name ?? "").toLowerCase();
+      case "owner":
+        return c.assignedUserId ? userLabel(c.assignedUserId).toLowerCase() : "";
+      case "status":
+        return c.status.label.toLowerCase();
+      case "sla":
+        return c.slaMinutesRemaining ?? Number.POSITIVE_INFINITY;
+      default:
+        return Date.parse(c.updatedAt);
+    }
+  };
+  const rows = sort
+    ? [...visible].sort((a, b) => {
+        const x = sortValue(a, sort.key);
+        const y = sortValue(b, sort.key);
+        const order =
+          typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y));
+        return sort.dir === "asc" ? order : -order;
+      })
+    : visible;
+  const toggleSort = (key: SortKey) =>
+    setSort((current) =>
+      current?.key !== key ? { key, dir: "asc" } : current.dir === "asc" ? { key, dir: "desc" } : null,
+    );
+  // Columns drop out in order of importance as room runs out (the open pane takes the room first);
+  // what drops out moves to a second line under the subject, so nothing disappears.
+  const wide = useMediaQuery("(min-width: 1280px)");
+  const wider = useMediaQuery("(min-width: 1440px)");
+  const widest = useMediaQuery("(min-width: 1600px)");
+  const roomy = useMediaQuery("(min-width: 640px)");
+  const showCustomer = wide && !paneOpen;
+  const showOwner = wide && !paneOpen;
+  const showCategory = wider && !paneOpen;
+  const showUpdated = widest && !paneOpen;
+  const header = (key: SortKey, label: string, className?: string, end = false) => (
+    <th
+      aria-sort={sort?.key === key ? (sort.dir === "asc" ? "ascending" : "descending") : undefined}
+      className={cn(
+        "sticky top-0 z-10 border-b border-border bg-surface px-3 py-2.5 font-medium whitespace-nowrap",
+        end ? "text-end" : "text-start",
+        className,
+      )}
+    >
+      <button
+        type="button"
+        onClick={() => toggleSort(key)}
+        className={cn(
+          "group/sort inline-flex items-center gap-1 tracking-wide uppercase transition-colors hover:text-foreground",
+          sort?.key === key && "text-foreground",
+        )}
+      >
+        {label}
+        {sort?.key === key ? (
+          sort.dir === "asc" ? (
+            <ArrowUp className="size-3" aria-hidden />
+          ) : (
+            <ArrowDown className="size-3" aria-hidden />
+          )
+        ) : (
+          <ChevronsUpDown
+            className="size-3 opacity-0 transition-opacity group-hover/sort:opacity-50"
+            aria-hidden
+          />
+        )}
+      </button>
+    </th>
+  );
   const unassignedInView = visible.filter((c) => !c.assignedUserId).length;
+  // A filter counts as applied only when it differs from what the current view starts with.
+  const viewDefaults = defaultFiltersForView(filters.listView);
+  const sameStatuses = (other: ReadonlySet<string>) =>
+    filters.statuses.size === other.size && [...filters.statuses].every((s) => other.has(s));
+  const statusActive =
+    filters.statuses.size > 0 &&
+    filters.statuses.size < STATUS_CODES.length &&
+    !sameStatuses(viewDefaults.statuses) &&
+    !sameStatuses(new Set(OPEN_STATUS_CODES));
+  const assigneeActive = filters.assignee !== "all" && filters.assignee !== viewDefaults.assignee;
+  const statusSummary = sameStatuses(new Set(OPEN_STATUS_CODES))
+    ? t("cases.filters.status-open")
+    : sameStatuses(new Set(CLOSED_STATUS_CODES))
+      ? t("cases.filters.status-closed")
+      : undefined;
+  const filtersActive =
+    Boolean(search.trim()) ||
+    statusActive ||
+    assigneeActive ||
+    Boolean(filters.group) ||
+    (filters.priorities.size > 0 && filters.priorities.size < PRIORITY_CODES.length);
+  const clearFilters = () => {
+    // Unlike the source, Clear also drops the priority filter it counts as active.
+    setFilters((f) => ({
+      ...f,
+      statuses: viewDefaults.statuses,
+      priorities: new Set(),
+      assignee: "all",
+      group: null,
+    }));
+    setSearch("");
+  };
   const showClaimColumn = filters.listView === "unassigned" && agentClaimAllowed;
-  const paneOpen = Boolean(caseId);
   const viewTabs = useRef<HTMLElement>(null);
   useEffect(() => {
     viewTabs.current
@@ -373,7 +504,14 @@ export default function WorkbenchPage() {
                     <span className={cn("size-1.5 rounded-full", RAIL_DOT[view])} aria-hidden />
                   )}
                   {viewLabel(view)}
-                  <span className="text-xs tabular-nums opacity-70">{viewCount(view)}</span>
+                  <span
+                    className={cn(
+                      "min-w-5 rounded-full px-1.5 text-center text-[12px] leading-5 font-semibold tabular-nums",
+                      filters.listView === view ? "bg-surface text-primary" : "bg-surface-2",
+                    )}
+                  >
+                    {viewCount(view)}
+                  </span>
                 </button>
               ))}
             </nav>
@@ -447,18 +585,10 @@ export default function WorkbenchPage() {
             onGroup={setGroup}
             assignee={filters.assignee}
             onAssignee={(assignee: AssigneeFilterMode) => setFilters((f) => ({ ...f, assignee }))}
-            onClear={() => {
-              const defaults = defaultFiltersForView(filters.listView);
-              // Unlike the source, Clear also drops the priority filter it counts as active.
-              setFilters((f) => ({
-                ...f,
-                statuses: defaults.statuses,
-                priorities: new Set(),
-                assignee: "all",
-                group: null,
-              }));
-              setSearch("");
-            }}
+            onClear={clearFilters}
+            statusActive={statusActive}
+            statusSummary={statusSummary}
+            assigneeActive={assigneeActive}
           />
         </header>
 
@@ -478,31 +608,57 @@ export default function WorkbenchPage() {
             )}
             <div className="min-h-0 flex-1 [scrollbar-gutter:stable] overflow-auto">
               {data.loading || searchState.loading ? (
-                <p className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
-                  <Loader2 className="size-4 animate-spin" /> {t("cases.loading")}
-                </p>
+                <div role="status" aria-busy className="divide-y divide-border/60">
+                  <span className="sr-only">{t("cases.loading")}</span>
+                  {Array.from({ length: 7 }, (_, index) => (
+                    <div key={index} className="flex items-center gap-4 px-5 py-4" aria-hidden>
+                      <div className="size-4 animate-pulse rounded bg-surface-2" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-3.5 w-2/5 animate-pulse rounded bg-surface-2" />
+                        <div className="h-3 w-1/4 animate-pulse rounded bg-surface-2" />
+                      </div>
+                      <div className="hidden h-6 w-24 animate-pulse rounded-full bg-surface-2 sm:block" />
+                      <div className="hidden h-6 w-20 animate-pulse rounded-full bg-surface-2 md:block" />
+                    </div>
+                  ))}
+                </div>
               ) : visible.length === 0 ? (
                 <EmptyState
-                  icon={Inbox}
+                  icon={filtersActive ? SearchX : filters.listView === "unassigned" ? CheckCircle2 : Inbox}
                   title={
                     search.trim()
                       ? t("cases.workbench.no-match", { query: search.trim() })
+                      : filtersActive
+                        ? t("cases.workbench.empty-filtered")
+                        : filters.listView === "unassigned"
+                          ? t("cases.workbench.empty-unassigned")
+                          : t("cases.workbench.empty")
+                  }
+                  description={
+                    filtersActive
+                      ? t("cases.workbench.empty-filtered-hint")
                       : filters.listView === "unassigned"
-                        ? t("cases.workbench.empty-unassigned")
-                        : t("cases.workbench.empty")
+                        ? t("cases.workbench.empty-unassigned-hint")
+                        : undefined
                   }
                   action={
-                    <Button onClick={() => void navigate("/cases/new")}>
-                      <Plus />
-                      {t("cases.create.title")}
-                    </Button>
+                    filtersActive ? (
+                      <Button variant="outline" onClick={clearFilters}>
+                        {t("cases.filters.clear")}
+                      </Button>
+                    ) : (
+                      <Button onClick={() => void navigate("/cases/new")}>
+                        <Plus />
+                        {t("cases.create.title")}
+                      </Button>
+                    )
                   }
                 />
               ) : (
-                <table className="w-full border-collapse text-sm">
+                <table className="w-full table-fixed border-collapse text-sm">
                   <thead>
-                    <tr className="text-xs text-muted-foreground">
-                      <th className="sticky top-0 z-10 w-10 border-b border-border bg-surface py-2 ps-5 pe-1 text-start">
+                    <tr className="text-[12px] text-muted-foreground">
+                      <th className="sticky top-0 z-10 w-12 border-b border-border bg-surface py-2.5 ps-5 pe-1 text-start">
                         <Checkbox
                           checked={allVisibleSelected}
                           aria-label={t("cases.workbench.select-all")}
@@ -513,102 +669,157 @@ export default function WorkbenchPage() {
                           }}
                         />
                       </th>
-                      <th className="sticky top-0 z-10 border-b border-border bg-surface px-3 py-2 text-start font-medium">
-                        {t("cases.workbench.col-subject")}
-                      </th>
-                      {!paneOpen && (
-                        <th className="sticky top-0 z-10 hidden border-b border-border bg-surface px-3 py-2 text-start font-medium md:table-cell">
-                          {t("cases.workbench.col-owner")}
-                        </th>
-                      )}
-                      {!paneOpen && (
-                        <th className="sticky top-0 z-10 hidden border-b border-border bg-surface px-3 py-2 text-start font-medium sm:table-cell">
-                          {t("cases.workbench.col-status")}
-                        </th>
-                      )}
-                      {!paneOpen && (
-                        <th className="sticky top-0 z-10 hidden border-b border-border bg-surface px-3 py-2 text-start font-medium sm:table-cell">
-                          {t("cases.workbench.col-sla")}
-                        </th>
-                      )}
-                      {!paneOpen && (
-                        <th className="sticky top-0 z-10 hidden border-b border-border bg-surface px-3 py-2 text-end font-medium xl:table-cell">
-                          {t("cases.workbench.col-updated")}
-                        </th>
-                      )}
+                      {header("subject", t("cases.workbench.col-subject"))}
+                      {showCustomer && header("customer", t("cases.workbench.col-customer"), "w-36")}
+                      {showCategory && header("category", t("cases.workbench.col-category"), "w-36")}
+                      {showOwner && header("owner", t("cases.workbench.col-owner"), "w-36")}
+                      {roomy && header("status", t("cases.workbench.col-status"), "w-[9.5rem]")}
+                      {roomy && header("sla", t("cases.workbench.col-sla"), "w-32")}
+                      {showUpdated && header("updated", t("cases.workbench.col-updated"), "w-24 pe-5", true)}
                       {showClaimColumn && (
                         <th className="sticky top-0 z-10 w-20 border-b border-border bg-surface" />
                       )}
                     </tr>
                   </thead>
                   <tbody>
-                    {visible.map((row) => {
+                    {rows.map((row) => {
                       const owner = row.assignedUserId ? userLabel(row.assignedUserId) : null;
+                      const customer = row.customerProfileId
+                        ? customerLabel(row.customerProfileId, row.conversations[0]?.customerName)
+                        : null;
+                      // What the columns leave out, kept under the subject.
+                      const meta = [
+                        !showCustomer && customer,
+                        !showCategory && row.category?.name,
+                        !showOwner && (owner ?? t("cases.unassigned")),
+                      ]
+                        .filter(Boolean)
+                        .join(" · ");
                       return (
                         <tr
                           key={row.id}
+                          tabIndex={0}
                           data-selected={caseId === row.id || undefined}
                           onClick={() => selectCase(row.id)}
+                          onKeyDown={(event) => {
+                            if (event.target !== event.currentTarget) return;
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              selectCase(row.id);
+                            } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                              event.preventDefault();
+                              const next =
+                                event.key === "ArrowDown"
+                                  ? event.currentTarget.nextElementSibling
+                                  : event.currentTarget.previousElementSibling;
+                              (next as HTMLElement | null)?.focus();
+                            }
+                          }}
                           className={cn(
-                            "group cursor-pointer border-b border-border/60 transition-colors hover:bg-surface-2/60",
+                            "group cursor-pointer border-b border-border/60 transition-colors outline-none hover:bg-surface-2/60 focus-visible:bg-surface-2/60",
                             "data-[selected]:bg-primary-soft/40 data-[selected]:shadow-[inset_3px_0_0_var(--color-primary)]",
-                            compact ? "h-11" : "h-[3.75rem]",
-                            paneOpen && "h-[4.25rem]",
+                            compact ? "h-11" : "h-14",
                           )}
                         >
-                          <td className="ps-5 pe-1" onClick={(event) => event.stopPropagation()}>
+                          <td className="relative ps-5 pe-1" onClick={(event) => event.stopPropagation()}>
+                            <span
+                              aria-hidden
+                              className={cn(
+                                "absolute inset-y-2.5 start-0 w-1 rounded-e-full",
+                                PRIORITY_BAR[priorityLevel(row.priority)],
+                              )}
+                            />
                             <Checkbox
                               checked={selected.has(row.id)}
                               aria-label={t("cases.workbench.select-row", { ref: row.caseReferenceId })}
                               onCheckedChange={() => setSelected((s) => toggleIn(s, row.id))}
                             />
                           </td>
-                          <td className="w-full max-w-0 px-3" title={`${row.caseReferenceId} — ${row.title}`}>
+                          <td className="px-3" title={row.title}>
                             <div className="flex min-w-0 items-center gap-2">
                               <PriorityBadge priority={row.priority} variant="compact" />
-                              <span className="truncate font-medium">{row.title}</span>
+                              <span className="truncate font-semibold">{row.title}</span>
                             </div>
-                            <div
-                              className={cn(
-                                "mt-1 flex flex-wrap items-center gap-x-3 gap-y-1",
-                                !paneOpen && "sm:hidden",
-                              )}
-                            >
-                              <StatusBadge
-                                label={row.status.label}
-                                code={row.status.code}
-                                category={row.status.statusCategory}
-                              />
-                              <SlaBadge
-                                slaState={row.slaState}
-                                slaTimeLabel={row.slaTimeLabel}
-                                slaMinutesRemaining={row.slaMinutesRemaining}
-                                slaPausedAt={row.slaPausedAt}
-                              />
-                            </div>
-                            {!compact && (
-                              <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                                <RefId value={row.caseReferenceId} className="font-normal" />
-                                {" · "}
-                                {groupLabel(row.assignedGroupId)}
-                                {paneOpen && ` · ${owner ?? t("cases.unassigned")}`}
-                              </span>
+                            {(!compact || meta) && (
+                              <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                                {!compact && (
+                                  <>
+                                    <RefId
+                                      value={row.caseReferenceId}
+                                      className="font-normal whitespace-nowrap"
+                                    />
+                                    <span aria-hidden>·</span>
+                                    <span className="truncate">{groupLabel(row.assignedGroupId)}</span>
+                                  </>
+                                )}
+                                {meta && (
+                                  <span className="truncate">
+                                    {!compact && <span aria-hidden>· </span>}
+                                    {meta}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {!roomy && (
+                              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                                <StatusBadge
+                                  label={row.status.label}
+                                  code={row.status.code}
+                                  category={row.status.statusCategory}
+                                />
+                                <SlaBadge
+                                  slaState={row.slaState}
+                                  slaTimeLabel={row.slaTimeLabel}
+                                  slaMinutesRemaining={row.slaMinutesRemaining}
+                                  slaPausedAt={row.slaPausedAt}
+                                />
+                              </div>
                             )}
                           </td>
-                          {!paneOpen && (
-                            <td className="hidden px-3 whitespace-nowrap md:table-cell">
+                          {showCustomer && (
+                            <td className="px-3">
+                              {customer ? (
+                                <span className="flex min-w-0 items-center gap-2">
+                                  <Initials name={customer} />
+                                  <span className="truncate">{customer}</span>
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                          )}
+                          {showCategory && (
+                            <td className="px-3">
+                              {row.category ? (
+                                <>
+                                  <span className="block truncate font-medium text-foreground/90">
+                                    {row.category.name}
+                                  </span>
+                                  {!compact && row.subCategory && (
+                                    <span className="block truncate text-xs text-muted-foreground">
+                                      {row.subCategory.name}
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                          )}
+                          {showOwner && (
+                            <td className="px-3">
                               {owner ? (
-                                <span className="flex items-center gap-2">
+                                <span className="flex min-w-0 items-center gap-2">
                                   <Initials name={owner} />
-                                  <span className="max-w-32 truncate">{owner}</span>
+                                  <span className="truncate">{owner}</span>
                                 </span>
                               ) : (
                                 <span className="text-muted-foreground">{t("cases.unassigned")}</span>
                               )}
                             </td>
                           )}
-                          {!paneOpen && (
-                            <td className="hidden px-3 whitespace-nowrap sm:table-cell">
+                          {roomy && (
+                            <td className="px-3">
                               <StatusBadge
                                 label={row.status.label}
                                 code={row.status.code}
@@ -616,8 +827,8 @@ export default function WorkbenchPage() {
                               />
                             </td>
                           )}
-                          {!paneOpen && (
-                            <td className="hidden px-3 whitespace-nowrap sm:table-cell">
+                          {roomy && (
+                            <td className="px-3">
                               <SlaBadge
                                 slaState={row.slaState}
                                 slaTimeLabel={row.slaTimeLabel}
@@ -626,8 +837,8 @@ export default function WorkbenchPage() {
                               />
                             </td>
                           )}
-                          {!paneOpen && (
-                            <td className="hidden px-3 text-end text-xs whitespace-nowrap text-muted-foreground tabular-nums xl:table-cell">
+                          {showUpdated && (
+                            <td className="ps-3 pe-5 text-end text-xs text-muted-foreground tabular-nums">
                               {relativeUpdated(row.updatedAt, t("cases.just-now"))}
                             </td>
                           )}

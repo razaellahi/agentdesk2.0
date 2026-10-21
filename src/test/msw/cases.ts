@@ -22,6 +22,8 @@ const DIRECTORY = [
   { userId: "u-sup-1", username: "supervisor", displayName: "Omar Khan", groups: ["billing", "technical"] },
   { userId: "u-admin-1", username: "admin", displayName: "Ayesha Malik", groups: [] },
   { userId: "u-bo-1", username: "bilal.bo", displayName: "Bilal Hassan", groups: ["technical"] },
+  // The demo login (see MOCK_USERS.demo): sees every case page.
+  { userId: "u-demo-1", username: "demo", displayName: "Demo User", groups: ["billing", "technical"] },
 ];
 
 const GROUPS = [

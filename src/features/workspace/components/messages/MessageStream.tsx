@@ -46,7 +46,7 @@ function PastActivitiesBar({ context }: { context?: { past?: PastActivities } })
         type="button"
         disabled={loading}
         onClick={past.loadMore}
-        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none disabled:opacity-60"
+        className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none disabled:opacity-60"
       >
         {loading ? (
           <Loader2 className="size-3 animate-spin" aria-hidden />
@@ -231,7 +231,7 @@ export function MessageStream({
           <ArrowDown className="size-3.5" />
           <span>Jump to latest</span>
           {conversation.unread > 0 && (
-            <span className="py-0.2 rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground tabular">
+            <span className="py-0.2 rounded-full bg-primary px-1.5 text-[11px] font-bold text-primary-foreground tabular">
               {conversation.unread}
             </span>
           )}

@@ -156,7 +156,7 @@ export default function RulesPage() {
                   {DAYS.map((day) => (
                     <span
                       key={day}
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase ${rule[day] ? "bg-primary-soft text-primary" : "text-muted-foreground/50"}`}
+                      className={`rounded px-1.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase ${rule[day] ? "bg-primary-soft text-primary" : "text-muted-foreground/50"}`}
                     >
                       {day}
                     </span>

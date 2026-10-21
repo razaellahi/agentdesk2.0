@@ -490,11 +490,25 @@
       "general-info": "General Information",
       "knowledge-base": {
         "title": "Knowledge base",
-        "placeholder": "search knowledge base",
+        "placeholder": "Search the knowledge base",
         "search-results": "search results",
         "show-more": "show more",
         "show-less": "show less",
-        "sources": "sources"
+        "sources": "sources",
+        "search": "Search",
+        "empty": "Ask a question to find answers you can add straight to the chat.",
+        "add-to-chat": "Add to chat",
+        "added": "Added",
+        "copy": "Copy",
+        "copied": "Copied",
+        "expand": "Open in full panel",
+        "read-full": "Read full answer",
+        "back": "Back",
+        "clear": "Clear",
+        "no-answer": "No answer found for this question.",
+        "other-searches": "Other searches",
+        "more-sources": "+{{count}} more",
+        "show-customer-info": "Customer info"
       },
       "no-active-conversation": "Active conversation not found",
       "summary": "Summary",
@@ -612,7 +626,12 @@
       "chat-whatsapp": "Chat on WhatsApp",
       "signature": "Signature",
       "secure-video-link": "Secure video link",
-      "insert-signature": "Insert signature"
+      "insert-signature": "Insert signature",
+      "refining": "Refining your message…",
+      "refined-by-ai": "Refined with AI",
+      "refined-preview": "Refined message preview",
+      "show-all": "Show all",
+      "suggestion-confidence": "How sure the assistant is of this reply"
     },
     "wrap-up-form": {
       "Added-Wrap-ups": "Added Wrap-ups",
@@ -1079,7 +1098,17 @@
     "tags": "Tags",
     "tags-placeholder": "billing, greeting, follow-up",
     "tags-hint": "Separate tags with commas",
-    "new-reply": "New Reply"
+    "new-reply": "New Reply",
+    "all-tags": "All",
+    "insert": "Insert in message",
+    "send-now": "Send now",
+    "close": "Close",
+    "keys-navigate": "navigate",
+    "keys-insert": "insert",
+    "keys-close": "close",
+    "empty-none": "No quick replies yet",
+    "empty-none-hint": "Save the answers you give most often, then find them here by typing / in the message box.",
+    "no-match-hint": "Nothing fits “{{term}}”. Try a tag, or fewer letters."
   },
   "change-password": {
     "change-password": "Change Password",
@@ -1146,7 +1175,15 @@
     },
     "create": "Create",
     "update": "Update",
-    "delete-filter": "Delete Filter"
+    "delete-filter": "Delete Filter",
+    "search-placeholder": "Search customers by name, email, phone…",
+    "search-in": "Search in",
+    "search-all-fields": "All fields",
+    "clear-search": "Clear search",
+    "clear-all": "Clear all",
+    "remove-filter": "Remove filter",
+    "no-match": "No customers match “{{query}}”",
+    "no-match-hint": "Check the spelling, search in all fields, or try part of a name, email or number."
   },
   "voicemail": {
     "title": "Voicemail Inbox",
@@ -1227,7 +1264,12 @@
       "inactivity": "You were logged out due to inactivity."
     },
     "caps-lock-on": "Caps Lock is on",
-    "trouble-signing-in": "Trouble signing in? Contact your administrator."
+    "trouble-signing-in": "Trouble signing in? Contact your administrator.",
+    "hero-subtitle": "Voice, chat, email and social channels, unified with the context your agents need to answer well.",
+    "hero-secure": "Secure sign-in",
+    "hero-title-lead": "Every",
+    "hero-title-accent": "conversation,",
+    "hero-title-rest": "one calm workspace."
   },
   "errors": {
     "config-invalid": "Configuration problem",
@@ -1671,7 +1713,6 @@
     "pane-number-remove": "Pane {{index}} · click to remove from side by side",
     "pane-number-shortcut": "Pane {{index}} · Alt+{{index}} to focus",
     "floating-window": "Floating window",
-    "board-tip": "Ctrl/⌘-click or ◫ to view side by side",
     "load-previous-activities": "Load previous activities",
     "no-messages-yet": "No messages yet",
     "move-pane-left": "Move pane left",
@@ -1752,7 +1793,22 @@
     "filter-sla": "SLA",
     "filter-waiting": "Waiting",
     "activity-unavailable": "This activity can't be displayed",
-    "history-unavailable": "This history couldn't be displayed. The conversation itself is unaffected."
+    "history-unavailable": "This history couldn't be displayed. The conversation itself is unaffected.",
+    "open-file": "Open {{name}}",
+    "download-file": "Download {{name}}",
+    "participants": {
+      "title": "Participants",
+      "description": "The customer and the agents in this conversation",
+      "customer": "Customer",
+      "agents": "Agents ({{count}})",
+      "you": "You",
+      "role-primary": "Primary",
+      "role-whisper": "Listening",
+      "role-silent-monitor": "Monitoring",
+      "role-assistant": "Assistant",
+      "role-wrap-up": "Wrapping up",
+      "role-barge-in": "Joined in"
+    }
   },
   "recordings": {
     "calling": "Calling",
@@ -2019,7 +2075,9 @@
       "clear": "Clear filters",
       "n-selected_one": "{{count}} selected",
       "n-selected_other": "{{count}} selected",
-      "n-selected": "{{count}} selected"
+      "n-selected": "{{count}} selected",
+      "status-open": "Open",
+      "status-closed": "Closed"
     },
     "workbench": {
       "breadcrumb": "Workbench / {{view}}",
@@ -2039,23 +2097,29 @@
       "compact": "Compact",
       "load-more": "Load more",
       "no-match": "No cases match \"{{query}}\".",
-      "empty-unassigned": "No unassigned cases. The pool shows cases with no assignee.",
+      "empty-unassigned": "All caught up",
       "empty": "No cases match this view.",
       "select-all": "Select all visible",
       "select-row": "Select {{ref}}",
-      "col-subject": "Case / Subject",
+      "col-subject": "Subject",
       "col-owner": "Owner",
       "col-status": "Status",
       "col-group": "Group",
       "col-sla": "SLA",
-      "col-updated": "Upd",
+      "col-updated": "Updated",
       "claim-failed": "Failed to claim case",
       "bulk-failed": "Bulk action failed",
       "count": "{{count}} cases",
       "n-unassigned": "{{count}} unassigned",
       "n-at-risk": "{{count}} at risk",
       "n-breached": "{{count}} breached",
-      "team-open": "{{count}} open on your teams"
+      "team-open": "{{count}} open on your teams",
+      "empty-unassigned-hint": "No case is waiting for an owner. New cases land here until someone claims them.",
+      "empty-filtered": "No cases match these filters",
+      "empty-filtered-hint": "Try widening the filters, or clear them to see the whole view again.",
+      "col-case": "Case",
+      "col-customer": "Customer",
+      "col-category": "Category"
     },
     "bulk": {
       "label": "Bulk actions",
@@ -2093,7 +2157,9 @@
       "ai-summary": "AI summary",
       "overview": "Overview",
       "show-more": "Show more",
-      "show-less": "Show less"
+      "show-less": "Show less",
+      "created-by": "by {{name}}",
+      "sla-progress": "Share of the SLA time already used"
     },
     "activity": {
       "label": "Case activity",

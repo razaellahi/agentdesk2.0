@@ -20,11 +20,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePermission, useScope } from "@/core/auth";
 import { formatDuration } from "@/core/i18n";
-import { useNow } from "@/shared/hooks/useNow";
+import { Countdown } from "@/components/common/Countdown";
+import { useBefore, useNow } from "@/shared/hooks/useNow";
 import { cn } from "@/shared/lib/utils";
 import { useMaskedValue } from "../hooks/useMaskedValue";
 import { maskPii, piiAttribute } from "../model/pii";
 import { useSchemaStore } from "../store/schemaStore";
+import { usePastActivities } from "../hooks/usePastActivities";
 import { lastMessagePreview } from "../model/display";
 import {
   useActiveConversationId,
@@ -37,7 +39,7 @@ import { removeFromBoard, showSideBySide } from "../board/sideBySide";
 import { maxPanes } from "../store/boardStore";
 import { ResizeHandle } from "@/components/common/ResizeHandle";
 import { useResizableWidth } from "@/shared/hooks/useResizableWidth";
-import { ChannelIcon } from "./ChannelIcon";
+import { ChannelGlyph } from "./ChannelIcon";
 import { CustomerAvatar } from "./CustomerInitials";
 
 const RailItem = memo(function RailItem({
@@ -58,7 +60,7 @@ const RailItem = memo(function RailItem({
 }) {
   const { t } = useTranslation();
   const c = useConversation(id);
-  const now = useNow();
+  const typing = useBefore(c?.typingUntil);
   const firstName = useMaskedValue(c?.customer.firstName, "firstName", "manage_in_conversation", {
     preferViewPii: true,
   });
@@ -67,16 +69,15 @@ const RailItem = memo(function RailItem({
   });
   const name = [firstName, lastName].filter(Boolean).join(" ");
   const isPoppedOut = usePopoutStore((s) => s.ids.includes(id));
+  // A conversation opened from customer history has no messages of its own: preview the latest past one.
+  const past = usePastActivities(c, { announce: false });
   if (!c) return null;
-  const slaSecondsLeft =
-    c.sla.deadline !== null ? Math.max(0, Math.floor((c.sla.deadline - now) / 1000)) : null;
   const channel =
     c.activeChannelSessions[0]?.channel.channelType ?? c.firstChannelSession?.channel.channelType;
-  const typing = Boolean(c.typingUntil && c.typingUntil > now);
 
   const label = name || t("globals.UNIDENTIFIED-CUSTOMER");
   const onBoard = boardIndex >= 0;
-  const preview = lastMessagePreview(c.messages, t);
+  const preview = lastMessagePreview(c.messages, t) || lastMessagePreview(past.messages, t);
 
   const cardContent = (
     <div className="group/row relative">
@@ -104,27 +105,28 @@ const RailItem = memo(function RailItem({
         <span className="relative shrink-0">
           <CustomerAvatar name={name} size={narrowRail ? "sm" : "md"} />
 
-          {/* Channel badge: solid backing + ring so it reads cleanly over the avatar, above it and the unread dot */}
+          {/* Channel badge: one tile (backing + ring that matches the row, so it looks cut out of the avatar) holding the glyph at nearly its full size */}
           {channel && (
             <span
               className={cn(
-                "absolute -end-2.5 -bottom-2.5 isolate z-20 grid place-items-center rounded-full bg-surface shadow-xs ring-2",
-                // The ring matches the row behind it so the badge looks cut out of the avatar.
+                "absolute -end-2 -bottom-2 isolate z-20 grid place-items-center rounded-full bg-surface shadow-xs ring-[1.5px]",
                 active ? "ring-chat-panel-left-active" : "ring-chat-panel-left",
-                narrowRail || mini ? "size-5" : "size-6",
+                narrowRail || mini ? "size-[18px]" : "size-5",
               )}
               title={channel.name}
+              aria-label={channel.name}
             >
-              <span className="grid size-full place-items-center">
-                <ChannelIcon channelType={channel} className={narrowRail || mini ? "size-3" : "size-3.5"} />
-              </span>
+              <ChannelGlyph
+                name={channel.name ?? ""}
+                className={narrowRail || mini ? "size-[13px]" : "size-4"}
+              />
             </span>
           )}
 
           {/* Mini mode unread badge */}
           {mini && c.unread > 0 && (
             <span
-              className="absolute -end-1.5 -top-1.5 z-30 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground tabular shadow-xs ring-2 ring-surface"
+              className="absolute -end-1.5 -top-1.5 z-30 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-foreground tabular shadow-xs ring-2 ring-surface"
               aria-label={t("workspace.new-messages", { count: c.unread })}
             >
               {c.unread}
@@ -153,7 +155,7 @@ const RailItem = memo(function RailItem({
             <span className="flex shrink-0 items-center gap-1">
               {isPoppedOut && (
                 <span
-                  className="inline-flex items-center gap-0.5 rounded bg-primary-soft/80 px-1.5 py-0.5 text-[9px] font-semibold text-primary"
+                  className="inline-flex items-center gap-0.5 rounded bg-primary-soft/80 px-1.5 py-0.5 text-[10px] font-semibold text-primary"
                   title={t("workspace.popped-out-badge", { defaultValue: "Open in floating window" })}
                 >
                   <SquareArrowOutUpRight className="size-2.5" aria-hidden />
@@ -161,15 +163,15 @@ const RailItem = memo(function RailItem({
                 </span>
               )}
               {c.hold.active ? (
-                <span className="py-0.2 inline-flex items-center gap-0.5 rounded bg-warning-soft px-1 text-[10px] font-semibold text-warning-text">
+                <span className="py-0.2 inline-flex items-center gap-0.5 rounded bg-warning-soft px-1 text-[11px] font-semibold text-warning-text">
                   <Clock className="size-2.5" aria-hidden />
                   {t("workspace.paused")}
                 </span>
-              ) : slaSecondsLeft !== null &&
+              ) : c.sla.deadline !== null &&
                 (c.sla.color === "sla-warn" || c.sla.color === "sla-red" || c.sla.color === "sla-ended") ? (
                 <span
                   className={cn(
-                    "py-0.2 inline-flex items-center gap-0.5 rounded px-1 text-[10px] font-bold tabular",
+                    "py-0.2 inline-flex items-center gap-0.5 rounded px-1 text-[11px] font-bold tabular",
                     c.sla.color === "sla-warn"
                       ? "bg-warning-soft text-warning-text"
                       : "bg-destructive-soft text-destructive-text",
@@ -177,7 +179,7 @@ const RailItem = memo(function RailItem({
                   title={t("workspace.sla-left-hint")}
                 >
                   <Timer className="size-2.5" aria-hidden />
-                  {formatDuration(slaSecondsLeft)}
+                  <Countdown deadline={c.sla.deadline}>{(left) => formatDuration(left)}</Countdown>
                 </span>
               ) : null}
             </span>
@@ -216,7 +218,7 @@ const RailItem = memo(function RailItem({
             {/* Unread badge on row */}
             {c.unread > 0 && !mini && (
               <span
-                className="grid h-4.5 min-w-4.5 shrink-0 place-items-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground tabular shadow-xs"
+                className="grid h-4.5 min-w-4.5 shrink-0 place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-foreground tabular shadow-xs"
                 aria-label={t("workspace.new-messages", { count: c.unread })}
               >
                 {c.unread}
@@ -229,7 +231,7 @@ const RailItem = memo(function RailItem({
       {mini && onBoard && (
         <span
           title={t("workspace.pane-number", { index: boardIndex + 1 })}
-          className="pointer-events-none absolute start-1 bottom-1 grid size-4 place-items-center rounded-md bg-primary text-[9px] font-bold text-primary-foreground tabular shadow-xs"
+          className="pointer-events-none absolute start-1 bottom-1 grid size-4 place-items-center rounded-md bg-primary text-[10px] font-bold text-primary-foreground tabular shadow-xs"
           aria-hidden
         >
           {boardIndex + 1}
@@ -251,7 +253,7 @@ const RailItem = memo(function RailItem({
               : t("workspace.show-side-by-side-hint")
           }
           className={cn(
-            "absolute end-2 top-1/2 grid h-6 min-w-6 -translate-y-1/2 place-items-center rounded-lg px-1 text-[11px] font-bold tabular transition-all",
+            "absolute end-2 top-1/2 grid h-6 min-w-6 -translate-y-1/2 place-items-center rounded-lg px-1 text-[12px] font-bold tabular transition-all",
             "focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
             onBoard
               ? "bg-primary text-primary-foreground shadow-xs hover:bg-destructive"
@@ -278,8 +280,8 @@ const RailItem = memo(function RailItem({
       <TooltipTrigger asChild>{cardContent}</TooltipTrigger>
       <TooltipContent side="right" className="max-w-xs space-y-1">
         <p className="text-xs font-semibold">{label}</p>
-        {channel && <p className="text-[11px] text-muted-foreground">{channel.name}</p>}
-        {preview && <p className="line-clamp-2 text-[11px] text-muted-foreground">{preview}</p>}
+        {channel && <p className="text-[12px] text-muted-foreground">{channel.name}</p>}
+        {preview && <p className="line-clamp-2 text-[12px] text-muted-foreground">{preview}</p>}
       </TooltipContent>
     </Tooltip>
   );
@@ -312,7 +314,8 @@ export function ConversationRail({
   const full = manageHere || viewPii;
   const masked = useScope("customer", "masked_pii");
   const schema = useSchemaStore((s) => s.schema);
-  const now = useNow();
+  // The Waiting tab counts conversations unanswered for a minute: a coarse tick is plenty.
+  const now = useNow({ every: 15000 });
 
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
   const [filter, setFilter] = useState("");
@@ -415,7 +418,7 @@ export function ConversationRail({
               </Button>
             )}
             <span
-              className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary tabular"
+              className="rounded-full bg-primary/10 px-2 py-0.5 text-[12px] font-bold text-primary tabular"
               title={t("workspace.conversations")}
             >
               {order.length}
@@ -434,7 +437,7 @@ export function ConversationRail({
                 >
                   {t("workspace.conversations")}
                 </h2>
-                <span className="py-0.2 shrink-0 rounded-full bg-primary/10 px-1.5 text-[10px] font-bold text-primary tabular">
+                <span className="py-0.2 shrink-0 rounded-full bg-primary/10 px-1.5 text-[11px] font-bold text-primary tabular">
                   {order.length}
                 </span>
               </div>
@@ -482,7 +485,7 @@ export function ConversationRail({
                 onClick={() => setActiveTab("all")}
                 className={cn(
                   "shrink-0 rounded-full font-medium transition-colors",
-                  isNarrowRail ? "px-2.5 py-0.5 text-[11px]" : "px-3 py-1 text-xs",
+                  isNarrowRail ? "px-2.5 py-0.5 text-[12px]" : "px-3 py-1 text-xs",
                   activeTab === "all"
                     ? "bg-primary-lt font-semibold text-primary shadow-2xs"
                     : "text-muted-foreground hover:bg-chat-panel-left-hover hover:text-foreground",
@@ -497,7 +500,7 @@ export function ConversationRail({
                 onClick={() => setActiveTab("unread")}
                 className={cn(
                   "flex shrink-0 items-center gap-1 rounded-full font-medium transition-colors",
-                  isNarrowRail ? "px-2.5 py-0.5 text-[11px]" : "px-3 py-1 text-xs",
+                  isNarrowRail ? "px-2.5 py-0.5 text-[12px]" : "px-3 py-1 text-xs",
                   activeTab === "unread"
                     ? "bg-primary-lt font-semibold text-primary shadow-2xs"
                     : "text-muted-foreground hover:bg-chat-panel-left-hover hover:text-foreground",
@@ -505,7 +508,7 @@ export function ConversationRail({
               >
                 {t("workspace.filter-unread")}
                 {unreadCount > 0 && (
-                  <span className="py-0.2 rounded-full bg-primary/15 px-1.5 text-[10px] font-bold text-primary">
+                  <span className="py-0.2 rounded-full bg-primary/15 px-1.5 text-[11px] font-bold text-primary">
                     {unreadCount}
                   </span>
                 )}
@@ -518,14 +521,14 @@ export function ConversationRail({
                   onClick={() => setActiveTab("sla")}
                   className={cn(
                     "flex shrink-0 items-center gap-1 rounded-full font-medium transition-colors",
-                    isNarrowRail ? "px-2.5 py-0.5 text-[11px]" : "px-3 py-1 text-xs",
+                    isNarrowRail ? "px-2.5 py-0.5 text-[12px]" : "px-3 py-1 text-xs",
                     activeTab === "sla"
                       ? "bg-warning-soft font-semibold text-warning-text"
                       : "text-warning-text hover:bg-warning-soft/70",
                   )}
                 >
                   {t("workspace.filter-sla")}
-                  <span className="rounded-full bg-warning px-1 text-[10px] font-bold text-on-warning">
+                  <span className="rounded-full bg-warning px-1 text-[11px] font-bold text-on-warning">
                     {slaRiskCount}
                   </span>
                 </button>
@@ -538,14 +541,14 @@ export function ConversationRail({
                   onClick={() => setActiveTab("waiting")}
                   className={cn(
                     "flex shrink-0 items-center gap-1 rounded-full font-medium transition-colors",
-                    isNarrowRail ? "px-2.5 py-0.5 text-[11px]" : "px-3 py-1 text-xs",
+                    isNarrowRail ? "px-2.5 py-0.5 text-[12px]" : "px-3 py-1 text-xs",
                     activeTab === "waiting"
                       ? "bg-surface-3 font-semibold text-foreground shadow-2xs"
                       : "text-muted-foreground hover:bg-chat-panel-left-hover hover:text-foreground",
                   )}
                 >
                   {t("workspace.filter-waiting")}
-                  <span className="rounded-full bg-surface-3 px-1 text-[10px] font-bold">{waitingCount}</span>
+                  <span className="rounded-full bg-surface-3 px-1 text-[11px] font-bold">{waitingCount}</span>
                 </button>
               )}
             </div>
@@ -571,16 +574,6 @@ export function ConversationRail({
                 </button>
               )}
             </div>
-
-            {canSplit && order.length > 1 && (boardIds?.length ?? 0) < 2 && (
-              <p
-                className="flex items-center gap-1.5 truncate px-1 text-[11px] text-muted-foreground"
-                title={t("workspace.board-tip")}
-              >
-                <Columns2 className="size-3 shrink-0 text-primary" aria-hidden />
-                <span>{t("workspace.board-tip")}</span>
-              </p>
-            )}
           </div>
         )}
 

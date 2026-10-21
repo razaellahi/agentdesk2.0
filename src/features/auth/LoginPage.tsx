@@ -28,6 +28,7 @@ import {
 import { cn } from "@/shared/lib/utils";
 import { useBootError } from "./bootError";
 import { ChangePasswordDialog } from "./components/ChangePasswordDialog";
+import { LoginHero } from "./components/LoginHero";
 
 const TwoFactorStep = lazy(() =>
   import("./components/TwoFactorStep").then((m) => ({ default: m.TwoFactorStep })),
@@ -114,28 +115,22 @@ export function LoginPage() {
 
   const { errors, isSubmitting } = form.formState;
   const fieldClass =
-    "h-12 rounded-xl border-transparent bg-muted/70 ps-11 text-[15px] hover:border-border hover:bg-muted focus-visible:border-primary focus-visible:bg-surface focus-visible:ring-4 focus-visible:ring-primary/12";
+    "h-12 rounded-xl border-transparent bg-muted/70 ps-11 text-[14px] hover:border-border hover:bg-muted focus-visible:border-primary focus-visible:bg-surface focus-visible:ring-4 focus-visible:ring-primary/12";
   const iconClass =
     "pointer-events-none absolute start-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground transition-colors peer-focus-visible:text-primary";
   const trackCapsLock = (event: KeyboardEvent<HTMLInputElement>) =>
     setCapsLock(event.getModifierState?.("CapsLock") ?? false);
 
   return (
-    <div className="relative isolate flex min-h-full flex-col bg-canvas">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px]"
-        style={{
-          background:
-            "radial-gradient(55% 100% at 30% 0%, color-mix(in oklab, var(--primary) 10%, transparent), transparent 75%), radial-gradient(45% 80% at 75% 10%, color-mix(in oklab, var(--accent-cool) 8%, transparent), transparent 75%)",
-        }}
-      />
+    <div className="grid min-h-full lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+      <LoginHero />
 
-      <main className="flex flex-1 flex-col items-center justify-center px-4 py-10">
-        <div className="desk-enter w-full max-w-[420px]">
-          <BrandLogo className="mx-auto mb-10 h-14 w-auto max-w-[280px]" />
+      <main className="relative flex flex-col items-center justify-center bg-surface px-6 py-10">
+        <div className="desk-enter w-full max-w-[400px]">
+          {/* The hero carries the logo from large screens up. */}
+          <BrandLogo className="mb-10 h-10 w-auto max-w-[220px] lg:hidden" />
 
-          <div className="rounded-3xl border border-border/50 bg-surface/90 p-8 shadow-[0_2px_4px_rgba(16,24,40,.03),0_24px_60px_-24px_rgba(16,24,40,.18)] backdrop-blur-xl sm:p-10 dark:shadow-none">
+          <div>
             {error && (
               <div
                 role="alert"
@@ -157,8 +152,8 @@ export function LoginPage() {
               </Suspense>
             ) : (
               <form onSubmit={submit} className="flex flex-col gap-7" noValidate>
-                <div className="text-center">
-                  <h1 className="font-display text-[1.65rem] font-semibold tracking-[-0.025em]">
+                <div>
+                  <h1 className="font-display text-[1.9rem] font-semibold tracking-[-0.03em]">
                     {t("auth.welcome")}
                   </h1>
                   <p className="mt-2 text-sm leading-relaxed text-balance text-muted-foreground">
@@ -228,7 +223,7 @@ export function LoginPage() {
                 <Button
                   type="submit"
                   size="lg"
-                  className="group mt-1 h-12 w-full rounded-xl bg-gradient-to-b from-primary to-primary-hover text-[15px] font-medium shadow-[inset_0_1px_0_rgba(255,255,255,.18),0_10px_24px_-12px_var(--primary)] transition-[box-shadow,transform] hover:shadow-[inset_0_1px_0_rgba(255,255,255,.18),0_14px_28px_-12px_var(--primary)] active:scale-[0.99]"
+                  className="group mt-1 h-12 w-full rounded-xl bg-gradient-to-b from-primary to-primary-hover text-[14px] font-medium shadow-[inset_0_1px_0_rgba(255,255,255,.18),0_10px_24px_-12px_var(--primary)] transition-[box-shadow,transform] hover:shadow-[inset_0_1px_0_rgba(255,255,255,.18),0_14px_28px_-12px_var(--primary)] active:scale-[0.99]"
                   disabled={isSubmitting}
                   aria-busy={isSubmitting || undefined}
                 >
@@ -245,7 +240,7 @@ export function LoginPage() {
             )}
           </div>
 
-          <p className="mt-6 text-center text-[13px] text-muted-foreground">{t("auth.trouble-signing-in")}</p>
+          <p className="mt-8 text-[13px] text-muted-foreground">{t("auth.trouble-signing-in")}</p>
         </div>
       </main>
 

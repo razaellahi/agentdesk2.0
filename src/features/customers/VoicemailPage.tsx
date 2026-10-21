@@ -175,7 +175,7 @@ export default function VoicemailPage() {
                     : "voicemail.tab-unread",
               )}
               {value === "Unread" && Boolean(unread.data) && (
-                <span className="rounded-full bg-destructive px-1.5 text-[11px] leading-5 font-bold text-white tabular">
+                <span className="rounded-full bg-destructive px-1.5 text-[12px] leading-5 font-bold text-white tabular">
                   {unread.data}
                 </span>
               )}

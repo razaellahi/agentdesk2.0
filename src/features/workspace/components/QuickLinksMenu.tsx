@@ -67,7 +67,7 @@ export function QuickLinksMenu() {
         >
           <span className="block truncate text-sm font-medium">{link.title}</span>
           {link.description && (
-            <span className="block truncate text-[11px] text-muted-foreground">{link.description}</span>
+            <span className="block truncate text-[12px] text-muted-foreground">{link.description}</span>
           )}
         </button>
         <Button
@@ -106,7 +106,7 @@ export function QuickLinksMenu() {
         <ul className="mt-2 max-h-80 space-y-1 overflow-auto">
           {pinnedLinks.length > 0 && (
             <>
-              <li className="px-1 pt-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+              <li className="px-1 pt-1 text-[12px] font-semibold tracking-wide text-muted-foreground uppercase">
                 {t("app-header.pinned-links")}
               </li>
               {renderList(pinnedLinks)}
@@ -114,7 +114,7 @@ export function QuickLinksMenu() {
           )}
           {otherLinks.length > 0 && (
             <>
-              <li className="px-1 pt-2 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+              <li className="px-1 pt-2 text-[12px] font-semibold tracking-wide text-muted-foreground uppercase">
                 {t("app-header.quick-links")}
               </li>
               {renderList(otherLinks)}

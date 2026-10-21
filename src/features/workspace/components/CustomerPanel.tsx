@@ -1,21 +1,9 @@
-import {
-  Check,
-  Copy,
-  CornerDownLeft,
-  History,
-  Link2,
-  Loader2,
-  Pencil,
-  Search,
-  ShieldAlert,
-} from "lucide-react";
+import { Check, Copy, CornerDownLeft, History, Link2, Loader2, Pencil, ShieldAlert } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useDeskSettings } from "@/core/agent-settings";
 import { usePermission } from "@/core/auth";
 import { CasesTab } from "@/features/cases";
 import {
@@ -26,7 +14,6 @@ import {
   useCustomerLabels,
 } from "@/features/customers";
 import { cn } from "@/shared/lib/utils";
-import { searchKnowledgeBase, type KnowledgeBaseHit } from "../api";
 import { destinationKey, kindOfChannelType, type OutboundKind } from "../model/outboundPlan";
 import { useCaseConversationContext } from "../hooks/useCaseConversationContext";
 import { useOutboundReach } from "../hooks/useOutboundReach";
@@ -38,8 +25,9 @@ import { phonebookLinkingPath } from "../linking/phonebookLink";
 import { formatDataValue, parseConversationInsight } from "../model/conversationInsight";
 import { readWebChannel } from "../model/webChannel";
 import { ActiveSessionCard } from "./ActiveSessionCard";
+import { KnowledgeFocusView, KnowledgeFullView, KnowledgeSearch } from "./KnowledgeBase";
 import type { Conversation } from "../model/types";
-import { useComposerStore, composerKey } from "../store/composerStore";
+import { useKnowledgeStore } from "../store/knowledgeStore";
 import { ChannelMark, OutboundActionIcon } from "./ChannelIcon";
 import { CustomerAvatar } from "./CustomerInitials";
 import {
@@ -50,13 +38,15 @@ import {
 } from "../hooks/useCustomerContext";
 
 /**
- * The leading icon of an identifier group: one neutral line icon in a uniform tile. The group's
- * icon is shown once, never per value, and the tile never changes colour by type.
+ * The leading icon of an identifier group: the channel's mark on its small round tile with a hairline ring,
+ * the same tile used wherever a channel is shown. Shown once per group, never per value.
  */
 function FactGlyph({ label }: { label: string }) {
   return (
-    <span className="grid size-8 shrink-0 place-items-center">
-      <ChannelMark name={label} />
+    <span className="flex h-8 shrink-0 items-center">
+      <span className="size-7">
+        <ChannelMark name={label} />
+      </span>
     </span>
   );
 }
@@ -131,7 +121,7 @@ function Fact({
       >
         {value}
       </div>
-      {caption && <span className="shrink-0 text-[11px] text-muted-foreground">{caption}</span>}
+      {caption && <span className="shrink-0 text-[12px] text-muted-foreground">{caption}</span>}
 
       {/* Trailing: outbound actions and copy. Over the end of the row on hover or focus, so the
           value keeps the full width; always shown where there is no hover (touch). */}
@@ -179,7 +169,7 @@ function Fact({
               ) : isContinue ? (
                 <CornerDownLeft className="size-3.5" />
               ) : (
-                <OutboundActionIcon kind={act.kind} className="size-3.5" />
+                <OutboundActionIcon kind={act.kind} className="size-[18px]" />
               )}
             </Button>
           );
@@ -224,6 +214,8 @@ export function CustomerPanel({ conversation, tab }: { conversation: Conversatio
   const [editing, setEditing] = useState(false);
   const labels = useCustomerLabels(customer.labels);
   const name = ctx.name || t("globals.UNIDENTIFIED-CUSTOMER");
+  const expandedAnswer = useKnowledgeStore((state) => state.expanded[conversation.conversationId] ?? null);
+  const knowledgeFocused = useKnowledgeStore((state) => state.focused[conversation.conversationId] ?? false);
 
   // Primary contact facts: profile fields first, then schema channel identifiers, without repeats.
   const facts: FactRow[] = [];
@@ -256,6 +248,12 @@ export function CustomerPanel({ conversation, tab }: { conversation: Conversatio
       addFact(`${attr.key}-${index}`, attr.label || attr.key, value, attr.key, attr.channelTypes ?? []),
     );
   }
+
+  const knowledgeAvailable = ctx.kbEnabled && ctx.hasSessions;
+  if (tab === "profile" && knowledgeAvailable && expandedAnswer)
+    return <KnowledgeFullView conversation={conversation} query={expandedAnswer} />;
+  if (tab === "profile" && knowledgeAvailable && knowledgeFocused)
+    return <KnowledgeFocusView conversation={conversation} />;
 
   return (
     <div className="flex min-h-0 flex-col bg-chat-panel-right">
@@ -298,7 +296,7 @@ export function CustomerPanel({ conversation, tab }: { conversation: Conversatio
               </h3>
             </div>
             {ctx.unidentified ? (
-              <span className="mt-1 inline-flex rounded-full border border-warning/30 bg-warning-soft px-2 py-0.5 text-[10px] font-medium text-warning-text">
+              <span className="mt-1 inline-flex rounded-full border border-warning/30 bg-warning-soft px-2 py-0.5 text-[11px] font-medium text-warning-text">
                 {t("workspace.unidentified-hint")}
               </span>
             ) : (
@@ -355,7 +353,6 @@ export function CustomerPanel({ conversation, tab }: { conversation: Conversatio
       {tab === "profile" && <ProfileTab conversation={conversation} facts={facts} ctx={ctx} />}
       {tab === "conversation" && <ConversationTab conversation={conversation} ctx={ctx} />}
       {tab === "cases" && <CaseManagementTab conversation={conversation} />}
-      {tab === "knowledge" && <KnowledgeTab conversation={conversation} />}
       {(tab === "outbound" || tab === "sms") && <OutboundTab conversation={conversation} />}
 
       {editing && (
@@ -564,7 +561,7 @@ function ProfileTab({
         {facts.length ? (
           <div className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-surface shadow-2xs">
             {groups.map((group) => (
-              <div key={group.key} className="flex items-start gap-2.5 px-2.5 py-2">
+              <div key={group.key} className="flex items-start gap-2.5 px-2.5 py-1.5">
                 <FactGlyph label={group.label} />
                 <div className="min-w-0 flex-1">
                   {group.facts.map((fact, index) => (
@@ -585,6 +582,7 @@ function ProfileTab({
           <p className="text-xs text-muted-foreground">{t("chat-features.customer-info.not-found")}</p>
         )}
       </Section>
+      {ctx.kbEnabled && ctx.hasSessions && <KnowledgeSection conversation={conversation} />}
       {reach.composeRequest && (
         <OutboundComposeSheet
           key={`${reach.composeRequest.channel}:${reach.composeRequest.destination}`}
@@ -593,6 +591,30 @@ function ProfileTab({
         />
       )}
     </>
+  );
+}
+
+function KnowledgeSection({ conversation }: { conversation: Conversation }) {
+  const { t } = useTranslation();
+  const id = conversation.conversationId;
+  const found = useKnowledgeStore((state) => (state.hits[id]?.length ?? 0) > 0);
+  return (
+    <Section
+      title={t("chat-features.customer-info.knowledge-base.title")}
+      action={
+        found && (
+          <button
+            type="button"
+            className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            onClick={() => useKnowledgeStore.getState().clear(id)}
+          >
+            {t("chat-features.customer-info.knowledge-base.clear")}
+          </button>
+        )
+      }
+    >
+      <KnowledgeSearch conversation={conversation} />
+    </Section>
   );
 }
 
@@ -679,109 +701,6 @@ function ConversationTab({ conversation, ctx }: { conversation: Conversation; ct
         </Section>
       )}
     </>
-  );
-}
-
-function KnowledgeTab({ conversation }: { conversation: Conversation }) {
-  const { t, i18n } = useTranslation();
-  const settings = useDeskSettings();
-  const [kbQuery, setKbQuery] = useState("");
-  const [kbBusy, setKbBusy] = useState(false);
-  const [kbResults, setKbResults] = useState<KnowledgeBaseHit[]>([]);
-  const [kbExpanded, setKbExpanded] = useState(false);
-  return (
-    <Section title={t("chat-features.customer-info.knowledge-base.title")}>
-      <form
-        className="flex gap-1.5"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!kbQuery.trim() || !settings?.knowledgeBaseUrl) return;
-          setKbBusy(true);
-          void searchKnowledgeBase({
-            url: settings.knowledgeBaseUrl,
-            query: kbQuery,
-            language: i18n.language || "en",
-          })
-            .then((hit) => {
-              setKbResults((prev) => [hit, ...prev.filter((row) => row.query !== hit.query)].slice(0, 2));
-            })
-            .catch((error: unknown) => toast.error(String(error)))
-            .finally(() => setKbBusy(false));
-        }}
-      >
-        <Input
-          value={kbQuery}
-          onChange={(event) => setKbQuery(event.target.value)}
-          placeholder={t("chat-features.customer-info.knowledge-base.placeholder")}
-          className="h-8 rounded-lg"
-        />
-        <Button
-          type="submit"
-          size="icon-sm"
-          className="size-8 shrink-0 rounded-lg"
-          disabled={kbBusy || !kbQuery.trim()}
-        >
-          {kbBusy ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
-        </Button>
-      </form>
-      <div className="mt-2 space-y-2">
-        {kbResults.map((hit) => {
-          const answer = hit.answer || "";
-          const short = answer.length > 280 && !kbExpanded ? `${answer.slice(0, 280)}…` : answer;
-          return (
-            <article
-              key={hit.query}
-              className="space-y-1.5 rounded-xl border border-border/60 bg-card p-3 text-xs shadow-2xs"
-            >
-              <p className="font-semibold text-foreground">{hit.query}</p>
-              <p className="leading-relaxed whitespace-pre-wrap text-muted-foreground">{short}</p>
-              {answer.length > 280 && (
-                <button
-                  type="button"
-                  className="font-medium text-primary hover:underline"
-                  onClick={() => setKbExpanded((value) => !value)}
-                >
-                  {t(
-                    kbExpanded
-                      ? "chat-features.customer-info.knowledge-base.show-less"
-                      : "chat-features.customer-info.knowledge-base.show-more",
-                  )}
-                </button>
-              )}
-              {hit.sources && hit.sources.length > 0 && (
-                <div className="mt-2 space-y-1 border-t border-border/40 pt-1.5">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    {t("chat-features.customer-info.knowledge-base.sources")}
-                  </p>
-                  {hit.sources.map((source, index) => (
-                    <a
-                      key={`${source.url ?? source.title ?? index}`}
-                      href={source.url || "#"}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="block truncate text-primary underline-offset-2 hover:underline"
-                    >
-                      {source.title || source.url}
-                    </a>
-                  ))}
-                </div>
-              )}
-              {answer && (
-                <Button
-                  type="button"
-                  size="xs"
-                  variant="outline"
-                  className="mt-2 h-7 rounded-lg text-xs font-medium"
-                  onClick={() => useComposerStore.getState().insertText(composerKey(conversation), answer)}
-                >
-                  {t("chat-features.interactions.apply")}
-                </Button>
-              )}
-            </article>
-          );
-        })}
-      </div>
-    </Section>
   );
 }
 

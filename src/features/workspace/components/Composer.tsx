@@ -8,13 +8,14 @@ import {
   Pencil,
   PenLine,
   Send,
+  SendHorizontal,
   Smile,
-  Sparkles,
+  BotMessageSquare,
+  WandSparkles,
   Video,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, useId } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState, useId } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,8 @@ import { useDeskSettings } from "@/core/agent-settings";
 import { getSession, useCurrentUser } from "@/core/auth";
 import { getVoicePassword } from "@/features/voice";
 import { cn } from "@/shared/lib/utils";
-import { loadQuickReplies, refineText } from "../api";
+import { refineText } from "../api";
+import { filterQuickReplies, slashKeyAction } from "../model/quickReplies";
 import { createSecureVideoLink, isSecureLinkConfigured, loadEmailSignature } from "../api/extras";
 import { sendEmail, sendFiles, sendText, sendTyping } from "../session/actions";
 import { useComposerStore, composerKey, EMPTY_DRAFT } from "../store/composerStore";
@@ -39,7 +41,11 @@ import { useMaskedValue } from "../hooks/useMaskedValue";
 import { ChannelBadge } from "./ChannelIcon";
 import { EmailEditor } from "./email/EmailEditor";
 import { plainEmailHtml, sanitizeEmailHtml } from "../model/emailEditor";
-import { QuickRepliesButton } from "./QuickRepliesButton";
+import { useQuickReplies } from "../hooks/useQuickReplies";
+import { QuickRepliesButton, QuickRepliesManager } from "./QuickRepliesButton";
+import { HoverAction, HoverActions } from "./HoverActions";
+import { QuickRepliesPanel } from "./QuickRepliesPanel";
+import { RefinedPreview, RefineWorking } from "./RefineAssist";
 import { useConversationStore } from "../store/conversationStore";
 import { useSpelling } from "../spellcheck/useSpelling";
 import { onComposerFocusRequest } from "../store/composerFocus";
@@ -91,6 +97,14 @@ export function Composer({ conversation }: { conversation: Conversation }) {
   const setWhisper = (whisper: boolean) => patchDraft({ whisper });
   const uploading = draft.sending;
   const [refining, setRefining] = useState(false);
+  // Quick replies: the lightning button's list (browse), what is typed in it, the tag chosen, and the list
+  // the manager dialog edits. A slash list the agent dismissed stays shut for that very text.
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [quickSearch, setQuickSearch] = useState("");
+  const [quickTag, setQuickTag] = useState<string | null>(null);
+  const [quickManage, setQuickManage] = useState(false);
+  const [slashDismissed, setSlashDismissed] = useState<string | null>(null);
+  const [quickActive, setQuickActive] = useState({ key: "", index: 0 });
   const [refinement, setRefinement] = useState<{ key: string; original: string; text: string } | null>(null);
   const [signature, setSignature] = useState("");
   const area = useRef<HTMLTextAreaElement>(null);
@@ -145,11 +159,12 @@ export function Composer({ conversation }: { conversation: Conversation }) {
     confidence?: number;
     confidenceLevel?: string | number;
   }[];
-  // Collapsed for one set of suggestions: choosing a reply closes it, a new set opens again.
-  const [collapsedFor, setCollapsedFor] = useState<string | null>(null);
+  // The list stays closed until the agent opens it, for the set of suggestions they opened it on: a new set
+  // (the customer wrote again) starts closed, and choosing a reply closes it.
+  const [openFor, setOpenFor] = useState<string | null>(null);
   const suggestionsKey = suggestions.map((suggestion) => suggestion.text ?? "").join("\u0000");
-  const suggestionsOpen = collapsedFor !== suggestionsKey;
-  const toggleSuggestions = () => setCollapsedFor(suggestionsOpen ? suggestionsKey : null);
+  const suggestionsOpen = openFor === suggestionsKey;
+  const toggleSuggestions = () => setOpenFor(suggestionsOpen ? null : suggestionsKey);
   // Source interactions.component placeholder ladder for comments and bot suggestions.
   const placeholder = editMessageId
     ? t("chat-features.interactions.edit-message")
@@ -171,23 +186,26 @@ export function Composer({ conversation }: { conversation: Conversation }) {
               )
             : t("chat-features.interactions.Type-a-message");
   const slash = slashQuery(text);
-  const repliesQuery = useQuery({
-    queryKey: ["quick-replies", user?.id],
-    enabled: quickRepliesEnabled && Boolean(slash) && Boolean(user?.id),
-    queryFn: () => loadQuickReplies(user!.id),
-  });
-  const slashMatches = useMemo(() => {
-    if (!slash) return [];
-    const term = slash.term;
-    return (repliesQuery.data?.replies ?? [])
-      .filter(
-        (reply) =>
-          !term ||
-          reply.message.toLowerCase().includes(term) ||
-          reply.tags.some((tag) => tag.toLowerCase().includes(term)),
-      )
-      .slice(0, 6);
-  }, [repliesQuery.data?.replies, slash]);
+  const slashOpen =
+    quickRepliesEnabled && slash !== null && slashDismissed !== text && !refining && !refinement;
+  const panelMode = slashOpen ? "slash" : quickRepliesEnabled && quickOpen ? "browse" : null;
+  const saved = useQuickReplies(panelMode !== null);
+  const quickTerm = slashOpen ? slash.term : quickSearch;
+  const quickMatches = filterQuickReplies(saved.replies, quickTerm, quickTag);
+  // The highlighted reply starts at the top again whenever the search or the tag changes.
+  const activeKey = `${quickTerm}|${quickTag ?? ""}`;
+  const activeReply = Math.min(
+    quickActive.key === activeKey ? quickActive.index : 0,
+    quickMatches.length - 1,
+  );
+  const setActiveReply = (index: number) => setQuickActive({ key: activeKey, index });
+  const closeQuick = () => {
+    setQuickOpen(false);
+    setQuickSearch("");
+    setQuickTag(null);
+    setSlashDismissed(text);
+    area.current?.focus();
+  };
 
   useEffect(
     () =>
@@ -338,9 +356,32 @@ export function Composer({ conversation }: { conversation: Conversation }) {
     });
   };
 
-  const applySlash = (message: string) => {
-    if (!slash) return;
-    setText(`${text.slice(0, slash.start)}${message}${text.slice(slash.start + 1 + slash.term.length)}`);
+  /** The text without the "/search" the agent typed to find a reply. */
+  const withoutSlash = () =>
+    slashOpen ? `${text.slice(0, slash.start)}${text.slice(slash.start + 1 + slash.term.length)}` : text;
+  const insertQuick = (message: string) => {
+    if (slashOpen)
+      setText(`${text.slice(0, slash.start)}${message}${text.slice(slash.start + 1 + slash.term.length)}`);
+    else setText(text.trim() ? `${text.replace(/\s+$/, "")} ${message}` : message);
+    setQuickOpen(false);
+    setQuickSearch("");
+    setQuickTag(null);
+    area.current?.focus();
+  };
+  const sendQuick = (message: string) => {
+    if (blocked || draft.sending) return;
+    const ok = sendText(conversation.conversationId, message, {
+      privateReply: draft.privateReply,
+      whisper,
+      originalMessageId: replyToId,
+      intent: replyToId ? "REPLY_TO" : null,
+    });
+    if (!ok) return;
+    // What the agent had written stays, minus the "/search" that found the reply.
+    if (slashOpen) setText(withoutSlash());
+    setQuickOpen(false);
+    setQuickSearch("");
+    setQuickTag(null);
     area.current?.focus();
   };
 
@@ -349,6 +390,7 @@ export function Composer({ conversation }: { conversation: Conversation }) {
       ref={composerRoot}
       className={cn(
         "relative rounded-2xl border transition-all",
+        refining && "desk-ai-glow",
         whisper
           ? "border-amber-500/50 bg-amber-500/[0.03] ring-1 ring-amber-500/20"
           : "border-border/70 bg-surface shadow-2xs focus-within:border-primary/60 focus-within:ring-2 focus-within:ring-primary/15",
@@ -360,7 +402,7 @@ export function Composer({ conversation }: { conversation: Conversation }) {
           <div className="flex items-center gap-1.5 font-semibold">
             <Lock className="size-3.5 shrink-0" />
             <span>{t("chat-features.interactions.whisper")}</span>
-            <span className="hidden text-[11px] font-normal opacity-90 sm:inline">
+            <span className="hidden text-[12px] font-normal opacity-90 sm:inline">
               · {t("workspace.whisper-hint")}
             </span>
           </div>
@@ -403,25 +445,23 @@ export function Composer({ conversation }: { conversation: Conversation }) {
         </div>
       )}
       {suggestions.some((suggestion) => suggestion.text) && (
-        // Like unified-agent's "Suggested replies". Picking a reply fills the composer and closes
-        // the list; the send button sends it straight away. A slim bar reopens it.
-        <section
-          aria-label={t("chat-features.interactions.suggested-replies")}
-          className="mb-2 min-w-0 rounded-2xl border border-primary/15 bg-primary-soft/20 p-1.5"
-        >
+        // Like unified-agent's "Suggested replies", but closed until opened. Picking a reply fills the
+        // composer and closes the list; the send button sends it straight away.
+        <section aria-label={t("chat-features.interactions.suggested-replies")} className="mb-2 min-w-0">
           <button
             type="button"
             aria-expanded={suggestionsOpen}
             onClick={toggleSuggestions}
-            className="flex w-full items-center gap-2.5 rounded-xl px-1.5 py-1 text-start transition-colors hover:bg-primary-soft/40"
+            className={cn(
+              "flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-start transition-colors",
+              suggestionsOpen ? "bg-primary-soft/50" : "bg-primary-soft/30 hover:bg-primary-soft/50",
+            )}
           >
-            <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-primary-soft text-primary">
-              <Sparkles className="size-4" aria-hidden />
-            </span>
-            <span className="text-sm font-semibold text-foreground">
+            <BotMessageSquare className="size-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden />
+            <span className="text-sm font-medium text-foreground">
               {t("chat-features.interactions.suggested-replies")}
             </span>
-            <span className="rounded-full bg-primary px-2 text-xs font-semibold text-primary-foreground tabular-nums">
+            <span className="rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground tabular-nums">
               {suggestions.filter((suggestion) => suggestion.text).length}
             </span>
             <ChevronDown
@@ -433,84 +473,66 @@ export function Composer({ conversation }: { conversation: Conversation }) {
             />
           </button>
           {suggestionsOpen && (
-            <ul className="mt-1.5 max-h-64 space-y-1.5 overflow-y-auto">
+            <ul className="mt-1.5 max-h-64 space-y-1 overflow-y-auto">
               {suggestions
                 .filter((suggestion) => suggestion.text)
                 .map((suggestion, index) => {
                   const confidence = Number(suggestion.confidenceLevel);
                   const scored = Number.isFinite(confidence) && confidence > 0;
-                  const tone = confidence >= 80 ? "success" : confidence >= 50 ? "warning" : "neutral";
                   return (
                     <li
                       key={`${index}-${suggestion.text}`}
-                      className="flex overflow-hidden rounded-xl border border-border bg-surface shadow-2xs transition-shadow focus-within:shadow-sm hover:shadow-sm"
+                      className="group/hover relative rounded-xl bg-surface-2/70 px-3 py-2"
                     >
-                      <span
-                        aria-hidden
-                        className={cn(
-                          "w-1 shrink-0",
-                          tone === "success" && "bg-success",
-                          tone === "warning" && "bg-warning",
-                          tone === "neutral" && "bg-border",
-                        )}
-                      />
-                      <div className="min-w-0 flex-1 px-3 py-2.5">
-                        <button
-                          type="button"
+                      <button
+                        type="button"
+                        disabled={blocked}
+                        onClick={() => {
+                          setText(suggestion.text ?? "");
+                          setOpenFor(null);
+                        }}
+                        className="line-clamp-4 w-full pe-16 text-start text-sm leading-relaxed whitespace-pre-wrap text-foreground disabled:opacity-50"
+                      >
+                        {suggestion.text}
+                      </button>
+                      {scored && (
+                        <span
+                          className={cn(
+                            "mt-1 block text-xs font-medium tabular-nums",
+                            confidence >= 80
+                              ? "text-success-text"
+                              : confidence >= 50
+                                ? "text-warning-text"
+                                : "text-muted-foreground",
+                          )}
+                          title={t("chat-features.interactions.suggestion-confidence")}
+                        >
+                          {Math.round(confidence)}%
+                        </span>
+                      )}
+                      <HoverActions>
+                        <HoverAction
+                          label={t("chat-features.interactions.edit-message")}
                           disabled={blocked}
                           onClick={() => {
                             setText(suggestion.text ?? "");
-                            setCollapsedFor(suggestionsKey);
+                            setOpenFor(null);
                           }}
-                          className="line-clamp-4 w-full text-start text-sm leading-relaxed whitespace-pre-wrap text-foreground disabled:opacity-50"
                         >
-                          {suggestion.text}
-                        </button>
-                        <div className="mt-2 flex items-center gap-2">
-                          {scored && (
-                            <span
-                              className={cn(
-                                "rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums",
-                                tone === "success" && "bg-success-soft text-success-text",
-                                tone === "warning" && "bg-warning-soft text-warning-text",
-                                tone === "neutral" && "bg-surface-3 text-muted-foreground",
-                              )}
-                            >
-                              {Math.round(confidence)}%
-                            </span>
-                          )}
-                          <div className="ms-auto flex items-center gap-1">
-                            <Button
-                              type="button"
-                              size="icon-sm"
-                              variant="ghost"
-                              className="size-8 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
-                              aria-label={t("chat-features.interactions.edit-message")}
-                              title={t("chat-features.interactions.edit-message")}
-                              disabled={blocked}
-                              onClick={() => {
-                                setText(suggestion.text ?? "");
-                                setCollapsedFor(suggestionsKey);
-                              }}
-                            >
-                              <Pencil className="size-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="h-8 gap-1.5 rounded-full px-3.5 text-xs font-semibold"
-                              disabled={blocked}
-                              onClick={() => {
-                                sendText(conversation.conversationId, suggestion.text ?? "", { whisper });
-                                setCollapsedFor(suggestionsKey);
-                              }}
-                            >
-                              <Send className="size-3.5" />
-                              {t("chat-features.interactions.send")}
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
+                          <Pencil className="size-3.5" aria-hidden />
+                        </HoverAction>
+                        <HoverAction
+                          label={t("chat-features.interactions.send")}
+                          tone="primary"
+                          disabled={blocked}
+                          onClick={() => {
+                            sendText(conversation.conversationId, suggestion.text ?? "", { whisper });
+                            setOpenFor(null);
+                          }}
+                        >
+                          <SendHorizontal className="size-3.5" aria-hidden />
+                        </HoverAction>
+                      </HoverActions>
                     </li>
                   );
                 })}
@@ -518,20 +540,25 @@ export function Composer({ conversation }: { conversation: Conversation }) {
           )}
         </section>
       )}
-      {slashMatches.length > 0 && (
-        <div className="mb-2 overflow-hidden rounded-xl border bg-surface shadow-soft">
-          {slashMatches.map((reply) => (
-            <button
-              key={reply.id}
-              type="button"
-              className="block w-full truncate px-3 py-2 text-start text-xs hover:bg-muted"
-              onClick={() => applySlash(reply.message)}
-            >
-              {reply.message}
-            </button>
-          ))}
-        </div>
+      {panelMode && (
+        <QuickRepliesPanel
+          mode={panelMode}
+          replies={saved.replies}
+          matches={quickMatches}
+          loading={saved.loading}
+          term={quickTerm}
+          onTerm={setQuickSearch}
+          tag={quickTag}
+          onTag={setQuickTag}
+          active={activeReply}
+          onActive={setActiveReply}
+          onInsert={(reply) => insertQuick(reply.message)}
+          onSend={email || editMessageId ? undefined : (reply) => sendQuick(reply.message)}
+          onManage={() => setQuickManage(true)}
+          onClose={closeQuick}
+        />
       )}
+      <QuickRepliesManager open={quickManage} onOpenChange={setQuickManage} />
       {email && (
         <div className="mb-2 flex flex-wrap items-center gap-2">
           {(["REPLY_TO", "REPLY_ALL", "FORWARD"] as const).map((mode) => (
@@ -572,7 +599,7 @@ export function Composer({ conversation }: { conversation: Conversation }) {
           role="radiogroup"
           aria-label={t("chat-features.interactions.selected-channel")}
         >
-          <span className="px-1.5 text-[10px] font-semibold text-muted-foreground uppercase">Channel:</span>
+          <span className="px-1.5 text-[11px] font-semibold text-muted-foreground uppercase">Channel:</span>
           {conversation.activeChannelSessions.map((item) => (
             <ChannelChoice
               key={item.id}
@@ -666,29 +693,18 @@ export function Composer({ conversation }: { conversation: Conversation }) {
           ))}
         </ul>
       )}
-      {refinement?.key === draftKey && (
-        <div
-          className="mb-2 rounded-xl border border-primary/30 bg-primary-soft/40 p-3 text-sm"
-          role="region"
-          aria-label="Refined message preview"
-        >
-          <p className="whitespace-pre-wrap">{refinement.text}</p>
-          <div className="mt-2 flex gap-2">
-            <Button
-              size="sm"
-              disabled={text !== refinement.original}
-              onClick={() => {
-                setText(refinement.text);
-                setRefinement(null);
-              }}
-            >
-              Apply
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setRefinement(null)}>
-              Discard
-            </Button>
-          </div>
-        </div>
+      {refining && <RefineWorking />}
+      {refinement?.key === draftKey && !refining && (
+        <RefinedPreview
+          key={refinement.text}
+          text={refinement.text}
+          canApply={text === refinement.original}
+          onApply={() => {
+            setText(refinement.text);
+            setRefinement(null);
+          }}
+          onDiscard={() => setRefinement(null)}
+        />
       )}
       {draft.files.length > 0 && (
         <ul className="mb-2 flex flex-wrap gap-1.5" aria-label="Pending attachments">
@@ -699,7 +715,7 @@ export function Composer({ conversation }: { conversation: Conversation }) {
             >
               <Paperclip className="size-3.5 shrink-0 text-primary" />
               <span className="max-w-40 truncate font-medium">{file.name}</span>
-              <span className="py-0.2 rounded bg-muted px-1 text-[10px] text-muted-foreground">
+              <span className="py-0.2 rounded bg-muted px-1 text-[11px] text-muted-foreground">
                 {Math.ceil(file.size / 1024)} KB
               </span>
               <button
@@ -733,11 +749,13 @@ export function Composer({ conversation }: { conversation: Conversation }) {
             {spelling.suggestions}
             <div className={cn("relative", spelling.active && "rounded-lg")}>
               {spelling.overlay}
+              {refining && <span className="desk-ai-sweep" aria-hidden />}
               <Textarea
                 ref={area}
                 aria-label={t("workspace.message-input")}
                 value={text}
                 disabled={blocked || uploading}
+                readOnly={refining}
                 spellCheck={spelling.textareaProps.spellCheck}
                 onSelect={spelling.textareaProps.onSelect}
                 onScroll={spelling.textareaProps.onScroll}
@@ -752,6 +770,19 @@ export function Composer({ conversation }: { conversation: Conversation }) {
                   if (!blocked && e.target.value.trim()) sendTyping(conversation.conversationId, whisper);
                 }}
                 onKeyDown={(e) => {
+                  // The slash list steers with the arrows and picks with Enter or Tab, before Enter can send.
+                  const action = e.nativeEvent.isComposing
+                    ? null
+                    : slashKeyAction(e, panelMode === "slash", quickMatches.length);
+                  if (action) {
+                    e.preventDefault();
+                    if (action === "down") setActiveReply((activeReply + 1) % quickMatches.length);
+                    else if (action === "up")
+                      setActiveReply((activeReply - 1 + quickMatches.length) % quickMatches.length);
+                    else if (action === "insert") insertQuick(quickMatches[activeReply]!.message);
+                    else closeQuick();
+                    return;
+                  }
                   if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                     e.preventDefault();
                     send();
@@ -843,16 +874,24 @@ export function Composer({ conversation }: { conversation: Conversation }) {
                   .finally(() => setRefining(false));
               }}
             >
-              {refining ? (
-                <Loader2 className="size-3.5 animate-spin text-primary" />
-              ) : (
-                <Sparkles className="size-3.5 text-primary" />
-              )}
+              {/* The one animated mark while the AI works: the status line above is words only. */}
+              <WandSparkles
+                className={cn("size-3.5", refining ? "desk-ai-spark text-(--ai-2)" : "text-primary")}
+                strokeWidth={1.75}
+                aria-hidden
+              />
             </Button>
           )}
           <QuickRepliesButton
+            open={panelMode !== null}
             disabled={blocked}
-            onPick={(message) => setText((current) => (current ? `${current} ${message}` : message))}
+            onToggle={() => {
+              if (panelMode !== null) closeQuick();
+              else {
+                setSlashDismissed(null);
+                setQuickOpen(true);
+              }
+            }}
           />
           {email && signature && (
             <Button

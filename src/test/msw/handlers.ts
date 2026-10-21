@@ -1,5 +1,8 @@
-import { http, HttpResponse, type HttpHandler } from "msw";
+import { delay, http, HttpResponse, type HttpHandler } from "msw";
 import { caseHandlers } from "./cases";
+import { demoLabelsOf, MOCK_LABELS } from "./demoLabels";
+import { demoQuickReplies, refineDemoText, type QuickReplyDoc } from "./composerAssist";
+import { customersGraphql, demoSavedFilters, filtersGraphql } from "./customerSearch";
 import { MOCK_DESK_SETTINGS, MOCK_LOCALE_SETTING, MOCK_TRANSLATIONS, MOCK_USERS, mockUserJwt } from "./data";
 import { mockDemoFile } from "./demoFiles";
 import { demoCustomerActivities } from "./history";
@@ -7,6 +10,8 @@ import { mockRecordingWav } from "./media";
 
 /** Mutable mock state so admin screens can save and read back. */
 export const mockDb = {
+  quickReplies: new Map<string, { _id: string; user_Id: string; quickReplies: QuickReplyDoc[] }>(),
+  savedFilters: demoSavedFilters(),
   deskSettings: structuredClone(MOCK_DESK_SETTINGS),
   localeSetting: structuredClone(MOCK_LOCALE_SETTING),
   preferences: new Map<string, Record<string, unknown>>(),
@@ -55,6 +60,76 @@ export const mockDb = {
       email: "fatima.noor@example.com",
       facebook: "fatima.noor.9",
       instagram: "@fatima.noor",
+      labels: [],
+    },
+    // More people to search and filter: all sort after the four above, so they keep their places.
+    {
+      _id: "customer-hassan",
+      firstName: "Hassan",
+      lastName: "Mirza",
+      voice: "+923011234567",
+      email: "hassan.mirza@example.com",
+      labels: [],
+    },
+    {
+      _id: "customer-ibrahim",
+      firstName: "Ibrahim",
+      lastName: "Khalil",
+      voice: "+96550123456",
+      whatsapp: "+96550123456",
+      email: "ibrahim.khalil@gulfmart.example",
+      labels: [],
+    },
+    {
+      _id: "customer-layla",
+      firstName: "Layla",
+      lastName: "Haddad",
+      email: "layla.haddad@example.com",
+      facebook: "layla.haddad.5",
+      instagram: "@layla.h",
+      labels: [],
+    },
+    {
+      _id: "customer-marcus",
+      firstName: "Marcus",
+      lastName: "Webb",
+      voice: "+14155550142",
+      email: "marcus.webb@northwind.example",
+      labels: [],
+    },
+    {
+      _id: "customer-nadia",
+      firstName: "Nadia",
+      lastName: "Siddiqui",
+      voice: "+923331234000",
+      whatsapp: "+923331234000",
+      email: "nadia.siddiqui@example.com",
+      web: "visitor-71aa",
+      labels: [],
+    },
+    {
+      _id: "customer-omar",
+      firstName: "Omar",
+      lastName: "Farouk",
+      voice: "+201001234567",
+      whatsapp: "+201001234567",
+      labels: [],
+    },
+    {
+      _id: "customer-priya",
+      firstName: "Priya",
+      lastName: "Nair",
+      voice: "+919876543210",
+      email: "priya.nair@example.com",
+      instagram: "@priya.nair",
+      labels: [],
+    },
+    {
+      _id: "customer-sofia",
+      firstName: "Sofia",
+      lastName: "Rossi",
+      email: ["sofia.rossi@example.it", "s.rossi@studio-rossi.example"],
+      facebook: "sofia.rossi.88",
       labels: [],
     },
   ],
@@ -140,6 +215,10 @@ export const mockDb = {
   ],
 };
 
+// The demo customers carry labels (ids, as the customer API stores them).
+for (const customer of mockDb.phonebook)
+  (customer as { labels: string[] }).labels = demoLabelsOf(customer._id);
+
 /** VOICE_MAIL_ACTIVITY documents in the conversation-manager searchActivities shape. */
 function voicemailDocs(query: string) {
   const rows = mockDb.voicemails.filter((v) =>
@@ -179,6 +258,26 @@ const loginResponse = (username: string) => {
   };
 };
 
+// Mock state resets on every reload; preferences are kept in the browser so a saved theme survives it.
+const PREFERENCES_KEY = (userId: string) => `mock:agentSetting:${userId}`;
+
+function readSavedPreferences(userId: string): Record<string, unknown> | null {
+  try {
+    const raw = localStorage.getItem(PREFERENCES_KEY(userId));
+    return raw ? (JSON.parse(raw) as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+function savePreferences(userId: string, prefs: Record<string, unknown>) {
+  try {
+    localStorage.setItem(PREFERENCES_KEY(userId), JSON.stringify(prefs));
+  } catch {
+    /* storage unavailable: the in-memory copy still serves this page load */
+  }
+}
+
 export const handlers: HttpHandler[] = [
   ...caseHandlers,
   http.get("*/channels/defaultoutbound", () => HttpResponse.json({ serviceIdentifier: "support-sms" })),
@@ -194,17 +293,39 @@ export const handlers: HttpHandler[] = [
       },
     ]);
   }),
+  // The customer API's GraphQL: full-text search and saved-filter results, and the saved filters themselves.
+  http.post("*/v2/customers", async ({ request }) =>
+    HttpResponse.json(customersGraphql((await request.json()) as never, mockDb.phonebook as never)),
+  ),
+  http.post("*/filter", async ({ request }) =>
+    HttpResponse.json(filtersGraphql((await request.json()) as never, mockDb.savedFilters)),
+  ),
   http.get("*/customers", ({ request }) => {
-    const search = new URL(request.url).searchParams.get("paginateQuery") ?? "";
+    const params = new URL(request.url).searchParams;
+    const search = params.get("paginateQuery") ?? "";
     const matched = search.includes("5551234567");
     if (matched)
       return HttpResponse.json({
         docs: [{ _id: "outbound-customer", firstName: "Amina", phoneNumber: "+925551234567", labels: [] }],
         totalDocs: 1,
       });
+    // `field:text` and/or `labels:id,id` (the phonebook's label filter): customers with any of the labels.
+    const [fieldPart, labelPart] = search.split(/,?labels:/);
+    const labelIds = labelPart ? labelPart.split(",").filter(Boolean) : [];
+    const [field, ...text] = (fieldPart ?? "").split(":");
+    const needle = text.join(":").toLowerCase();
+    const everyone = mockDb.phonebook as unknown as Record<string, unknown>[];
+    const filtered = everyone.filter(
+      (row) =>
+        (!field ||
+          !needle ||
+          String(row[field] ?? "")
+            .toLowerCase()
+            .includes(needle)) &&
+        (!labelIds.length || ((row.labels as string[]) ?? []).some((id) => labelIds.includes(id))),
+    );
     // An unfiltered phonebook lists a few customers so the screen and its row actions can be exercised.
-    const phonebook = search ? [] : mockDb.phonebook;
-    const params = new URL(request.url).searchParams;
+    const phonebook = search && !labelIds.length && !field ? [] : filtered;
     const limit = Number(params.get("limit")) || phonebook.length;
     const offset = Number(params.get("offset")) || 0;
     return HttpResponse.json({ docs: phonebook.slice(offset, offset + limit), totalDocs: phonebook.length });
@@ -260,12 +381,7 @@ export const handlers: HttpHandler[] = [
       { key: "labels", label: "Labels", type: "labels" },
     ]),
   ),
-  http.get("*/label", () =>
-    HttpResponse.json([
-      { _id: "label-vip", name: "VIP", colorCode: "#16a34a" },
-      { _id: "label-callback", name: "Call back", colorCode: "#f59e0b" },
-    ]),
-  ),
+  http.get("*/label", () => HttpResponse.json(MOCK_LABELS)),
   http.post("*/label", async ({ request }) => {
     const body = (await request.json()) as { name: string; colorCode: string };
     return HttpResponse.json({ _id: `label-${body.name.toLowerCase()}`, ...body });
@@ -836,23 +952,106 @@ export const handlers: HttpHandler[] = [
     return HttpResponse.json({ ok: true });
   }),
 
+  // --- unified-admin reason codes: why an agent goes Not Ready or logs out
+  http.get("*/reasons", () =>
+    HttpResponse.json([
+      { id: "reason-break", name: "Break", type: "NOT_READY", code: 1 },
+      { id: "reason-lunch", name: "Lunch", type: "NOT_READY", code: 2 },
+      { id: "reason-meeting", name: "Meeting", type: "NOT_READY", code: 3 },
+      { id: "reason-training", name: "Training", type: "NOT_READY", code: 4 },
+      { id: "reason-shift-end", name: "End of shift", type: "LOGOUT", code: 11 },
+      { id: "reason-tech", name: "Technical issue", type: "LOGOUT", code: 12 },
+    ]),
+  ),
+
+  // --- knowledge base (the URL in the mock desk settings): a short answer, and a long one for returns
+  http.post("https://kb.example.com/query", async ({ request }) => {
+    const { query } = (await request.json()) as { query?: string };
+    const asked = (query ?? "").toLowerCase();
+    if (/refund|return|exchange/.test(asked))
+      return HttpResponse.json({
+        answer:
+          "Customers can return most items within 30 days of delivery for a full refund.\n\nTo start a return:\n1. Ask for the order number and the email used at checkout.\n2. Confirm the item is unused and in its original packaging.\n3. Create a return label from the Orders page and email it to the customer.\n\nRefunds are issued to the original payment method within 5 to 7 business days of the parcel arriving at the warehouse. Gift purchases are refunded as store credit unless the buyer is the one asking.\n\nItems that cannot be returned: opened software, personalised products, perishable goods and gift cards. If the item arrived damaged, skip the 30 day check and offer a free replacement or a refund straight away, and ask for a photo of the damage for the claim.\n\nFor orders over 500 USD, a supervisor must approve the refund before the label is created.",
+        sources: [
+          {
+            title: "Returns and refunds policy",
+            url: "https://kb.example.com/articles/returns",
+            score: 0.94,
+          },
+          {
+            title: "Damaged items checklist",
+            url: "https://kb.example.com/articles/damaged-items",
+            score: 0.81,
+          },
+          {
+            title: "Refund approval limits",
+            url: "https://kb.example.com/articles/refund-approvals",
+            score: 0.72,
+          },
+        ],
+      });
+    if (/deliver|shipping|track/.test(asked))
+      return HttpResponse.json({
+        answer:
+          "Standard delivery takes 3 to 5 business days and express takes 1 to 2. The tracking link is in the dispatch email and under Orders in the customer's account.",
+        sources: [{ title: "Delivery times", url: "https://kb.example.com/articles/delivery", score: 0.9 }],
+      });
+    return HttpResponse.json({
+      answer: `Here is what the knowledge base says about "${query ?? ""}": check the customer's plan and account status first, then follow the standard troubleshooting steps before escalating.`,
+      sources: [{ title: "Support handbook", url: "https://kb.example.com/articles/handbook", score: 0.6 }],
+    });
+  }),
+
+  // --- composer helpers: AI text refine (LLM connector) and the agent's quick replies (cim-customer)
+  http.post("*/refine-text", async ({ request }) => {
+    const { text } = (await request.json()) as { text?: string };
+    await delay(900);
+    return HttpResponse.json({ status: 200, data: { text: refineDemoText(text ?? "") } });
+  }),
+  http.get("*/quick-replies", ({ request }) => {
+    const userId = new URL(request.url).searchParams.get("user_Id") ?? "";
+    // Every agent starts with the same demo set, kept for the rest of the session once saved.
+    const doc = mockDb.quickReplies.get(userId) ?? {
+      _id: `quick-replies-${userId}`,
+      user_Id: userId,
+      quickReplies: demoQuickReplies(),
+    };
+    mockDb.quickReplies.set(userId, doc);
+    return HttpResponse.json([doc]);
+  }),
+  http.post("*/quick-replies", async ({ request }) => {
+    const body = (await request.json()) as { user_Id: string; quickReplies: QuickReplyDoc[] };
+    const doc = { _id: `quick-replies-${body.user_Id}`, ...body };
+    mockDb.quickReplies.set(body.user_Id, doc);
+    return HttpResponse.json(doc);
+  }),
+  http.put("*/quick-replies/:id", async ({ request, params }) => {
+    const body = (await request.json()) as { user_Id: string; quickReplies: QuickReplyDoc[] };
+    const doc = { _id: String(params.id), ...body };
+    mockDb.quickReplies.set(body.user_Id, doc);
+    return HttpResponse.json(doc);
+  }),
+
   // --- cim-customer agent preferences
   http.get("*/agentSetting", ({ request }) => {
     const userId = new URL(request.url).searchParams.get("user_Id") ?? "";
-    const prefs = mockDb.preferences.get(userId) ?? {
-      _id: `pref-${userId}`,
-      user_Id: userId,
-      // Mock state resets on every reload, so a "system" default would follow a dark OS and
-      // override the light theme. The mock desk stays light.
-      theme: "light",
-      language: "en",
-    };
+    const prefs = mockDb.preferences.get(userId) ??
+      readSavedPreferences(userId) ?? {
+        _id: `pref-${userId}`,
+        user_Id: userId,
+        // A "system" default would follow a dark OS and override the light theme. The mock desk stays light.
+        theme: "light",
+        language: "en",
+      };
     mockDb.preferences.set(userId, prefs);
     return HttpResponse.json(prefs);
   }),
   http.put("*/agentSetting/:id", async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
-    if (typeof body.user_Id === "string") mockDb.preferences.set(body.user_Id, body);
+    if (typeof body.user_Id === "string") {
+      mockDb.preferences.set(body.user_Id, body);
+      savePreferences(body.user_Id, body);
+    }
     return HttpResponse.json(body);
   }),
 ];

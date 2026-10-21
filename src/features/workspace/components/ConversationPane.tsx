@@ -8,7 +8,8 @@ import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/compo
 import { useDeskSettings } from "@/core/agent-settings";
 import { usePermission } from "@/core/auth";
 import { formatDuration } from "@/core/i18n";
-import { useSecondsLeft, useNow } from "@/shared/hooks/useNow";
+import { Countdown } from "@/components/common/Countdown";
+import { useBefore } from "@/shared/hooks/useNow";
 import { cn } from "@/shared/lib/utils";
 import { useMaskedValue } from "../hooks/useMaskedValue";
 import { usePastActivities } from "../hooks/usePastActivities";
@@ -30,6 +31,7 @@ import { ContextDock, ContextSheetBody } from "./ContextPanel";
 import { useContextPanelState } from "../hooks/useContextPanelState";
 import { EmbeddedApps } from "./EmbeddedApps";
 import { MessageStream } from "./messages/MessageStream";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { WrapUpPanel } from "./WrapUpPanel";
 import { ConversationActions, type PaneLayout } from "./ConversationActions";
 import { MessageBoundary } from "./messages/MessageBoundary";
@@ -49,9 +51,7 @@ export function ConversationPane({
   const { t } = useTranslation();
   const conversation = useConversation(conversationId);
   const settings = useDeskSettings();
-  const slaLeft = useSecondsLeft(conversation?.sla.deadline ?? null);
-  const holdLeft = useSecondsLeft(conversation?.hold.deadline ?? null);
-  const now = useNow();
+  const typing = useBefore(conversation?.typingUntil);
   const firstName = useMaskedValue(conversation?.customer.firstName, "firstName", "manage_in_conversation");
   const lastName = useMaskedValue(conversation?.customer.lastName, "lastName", "manage_in_conversation");
   const name = [firstName, lastName].filter(Boolean).join(" ").trim();
@@ -117,12 +117,11 @@ export function ConversationPane({
 
   const signal = Boolean(board && board.count > 1 && !board.focused && conversation.unread > 0);
   const displayName = name || t("globals.UNIDENTIFIED-CUSTOMER");
-  const channelLine =
-    conversation.typingUntil && conversation.typingUntil > now
-      ? t("workspace.typing")
-      : activeSession
-        ? [channelLabel(activeSession.channel.channelType.name), activeIdentifier].filter(Boolean).join(" · ")
-        : "";
+  const channelLine = typing
+    ? t("workspace.typing")
+    : activeSession
+      ? [channelLabel(activeSession.channel.channelType.name), activeIdentifier].filter(Boolean).join(" · ")
+      : "";
   const wrapUpOpen = conversation.wrapUp.show;
 
   const insight = parseConversationInsight(conversation.activeConversationData);
@@ -157,7 +156,7 @@ export function ConversationPane({
   };
 
   // One height for the SLA pill and the round action buttons beside it, so their centres line up.
-  const timers = slaLeft !== null && (
+  const timers = conversation.sla.deadline !== null && (
     <div className="flex shrink-0 items-center gap-2">
       <span
         className={cn(
@@ -171,7 +170,7 @@ export function ConversationPane({
       >
         <Timer className="size-3.5" aria-hidden />
         <span className={narrow ? "sr-only" : undefined}>{t("workspace.sla-label")}</span>
-        {formatDuration(slaLeft)}
+        <Countdown deadline={conversation.sla.deadline}>{(left) => formatDuration(left)}</Countdown>
       </span>
       <span className="h-5 w-px bg-border" aria-hidden />
     </div>
@@ -198,7 +197,7 @@ export function ConversationPane({
             {board && (
               <span
                 className={cn(
-                  "grid size-5 shrink-0 place-items-center rounded-md bg-surface-2 text-[10px] font-bold text-muted-foreground tabular",
+                  "grid size-5 shrink-0 place-items-center rounded-md bg-surface-2 text-[11px] font-bold text-muted-foreground tabular",
                   board.focused && "bg-primary text-primary-foreground",
                 )}
                 title={t("workspace.pane-number-shortcut", { index: board.index + 1 })}
@@ -244,7 +243,7 @@ export function ConversationPane({
                   {sentiment && !narrow && (
                     <span
                       className={cn(
-                        "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-medium capitalize",
+                        "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium capitalize",
                         sentiment === "positive" && "bg-success-soft text-success-text",
                         sentiment === "negative" && "bg-destructive-soft text-destructive-text",
                         sentiment === "neutral" && "bg-surface-2 text-muted-foreground",
@@ -256,7 +255,7 @@ export function ConversationPane({
                   {sentiment && narrow && !isUltraNarrow && (
                     <span
                       className={cn(
-                        "inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                        "inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium",
                         sentiment === "positive" && "bg-success-soft text-success-text",
                         sentiment === "negative" && "bg-destructive-soft text-destructive-text",
                         sentiment === "neutral" && "bg-surface-2 text-muted-foreground",
@@ -269,13 +268,14 @@ export function ConversationPane({
                   {signal && (
                     <span
                       role="status"
-                      className="shrink-0 rounded-full bg-warning px-2 py-0.5 text-[10px] font-bold text-on-warning tabular"
+                      className="shrink-0 rounded-full bg-warning px-2 py-0.5 text-[11px] font-bold text-on-warning tabular"
                     >
                       {t("workspace.new-messages", { count: conversation.unread })}
                     </span>
                   )}
                 </div>
-                <p className="mt-0.5 flex min-w-0 items-center gap-1.5 truncate text-xs text-muted-foreground">
+                {/* No truncate here: it would clip the badge's ring. The text truncates on its own. */}
+                <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
                   {activeSession && (
                     <ChannelBadge channelType={activeSession.channel.channelType} size="sm" />
                   )}
@@ -315,8 +315,11 @@ export function ConversationPane({
           <span className="inline-flex items-center gap-2">
             <Pause className="size-3.5 animate-pulse" />
             <span>{t("workspace.on-hold")}</span>
-            {holdLeft !== null && (
-              <span className="font-mono font-bold tabular">({formatDuration(holdLeft)})</span>
+            {conversation.hold.deadline !== null && (
+              <span className="font-mono font-bold tabular">
+                (<Countdown deadline={conversation.hold.deadline}>{(left) => formatDuration(left)}</Countdown>
+                )
+              </span>
             )}
           </span>
           <Button
@@ -418,7 +421,8 @@ export function ConversationPane({
         </Sheet>
       )}
 
-      <Sheet
+      {/* The wrap-up form opens in the middle of the screen. While a countdown runs it cannot be dismissed. */}
+      <Dialog
         open={wrapUpOpen}
         onOpenChange={(open) => {
           if (open) return;
@@ -426,11 +430,21 @@ export function ConversationPane({
           useConversationStore.getState().hideWrapUp(conversation.conversationId);
         }}
       >
-        <SheetContent side="bottom" showCloseButton={!conversation.wrapUp.deadline} className="gap-0 p-0">
-          <SheetHeader>
-            <SheetTitle>{t("chat-features.interactions.wrapup")}</SheetTitle>
-          </SheetHeader>
-          <SheetBody className="max-h-[55vh]">
+        <DialogContent
+          showCloseButton={!conversation.wrapUp.deadline}
+          className="max-h-[85vh] gap-0 overflow-hidden p-0 sm:max-w-xl"
+          aria-describedby={undefined}
+          onInteractOutside={(event) => {
+            if (conversation.wrapUp.deadline) event.preventDefault();
+          }}
+          onEscapeKeyDown={(event) => {
+            if (conversation.wrapUp.deadline) event.preventDefault();
+          }}
+        >
+          <DialogHeader className="border-b border-border/60 px-5 py-4">
+            <DialogTitle>{t("chat-features.interactions.wrapup")}</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[calc(85vh-4.5rem)] overflow-auto px-5 py-4">
             <WrapUpPanel
               deadline={conversation.wrapUp.deadline}
               chrome={false}
@@ -444,9 +458,9 @@ export function ConversationPane({
                   : () => useConversationStore.getState().hideWrapUp(conversation.conversationId)
               }
             />
-          </SheetBody>
-        </SheetContent>
-      </Sheet>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {assist && <AssistDialog conversation={conversation} onClose={() => setAssist(false)} />}
     </section>

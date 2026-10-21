@@ -20,6 +20,10 @@
   --sec: #f1f3f4;
   --sec-2: #e8eaed;
 
+  /* The round buttons of a conversation's header: a barely-there tint, apart from the app header's plain icons. */
+  --control-bg: #f0f4f9;
+  --control-bg-hover: #e4eaf2;
+
   /* Google Hairline Borders & Dividers */
   --border: #dadce0;
   --border-subtle: #e8eaed;
@@ -27,9 +31,10 @@
   --border-i: #dadce0;
 
   /* Google Typography Neutrals */
-  --body: #202124;
-  --medium: #3c4043;
-  --muted-text: #5f6368;
+  /* Google Chat's text: near-black for messages, a dark grey (not a pale one) for what is secondary. */
+  --body: #1a1b1c;
+  --medium: #303234;
+  --muted-text: #44474a;
 
   /* Google Semantic Accents */
   --success: #1e8e3e;
@@ -100,9 +105,12 @@
   --border-i: #5f6368;
 
   /* Google Dark Typography */
-  --body: #e8eaed;
-  --medium: #bdc1c6;
-  --muted-text: #9aa0a6;
+  --control-bg: #2a2d31;
+  --control-bg-hover: #34383d;
+
+  --body: #ececec;
+  --medium: #d3d5d7;
+  --muted-text: #b9bcbf;
 
   /* Google Semantic Accents (Dark) */
   --success: #81c995;
@@ -166,13 +174,18 @@
   --brand-linkedin: #0a66c2;
   --brand-youtube: #ff0000;
 
+  /* The colours of anything the AI is doing (refine): indigo, violet, pink, the same in both themes. */
+  --ai-1: #6366f1;
+  --ai-2: #a855f7;
+  --ai-3: #ec4899;
+
   /* Inter: built for dense screen UI, and loaded in index.html. */
   --font-ui: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", Helvetica, Arial, sans-serif;
   --font-display:
     "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", Helvetica, Arial, sans-serif;
 }
 
-/* X's black disc would vanish on a dark surface. */
+/* X's black glyph would vanish on a dark surface. */
 :root[data-theme="dark"] {
-  --brand-x: #4b4f56;
+  --brand-x: #e8eaed;
 }

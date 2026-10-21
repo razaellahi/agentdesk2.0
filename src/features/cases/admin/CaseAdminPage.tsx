@@ -65,7 +65,7 @@ export default function CaseAdminPage() {
       >
         {GROUPS.map((group) => (
           <div key={group.id} className="mb-3">
-            <p className="px-3 pb-1 text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
+            <p className="px-3 pb-1 text-[12px] font-medium tracking-wider text-muted-foreground uppercase">
               {t(`cases.admin.group.${group.id}`)}
             </p>
             {group.items.map((item) => (
@@ -85,7 +85,7 @@ export default function CaseAdminPage() {
                   <span className="flex items-center gap-1.5">
                     {t(`cases.admin.${item.id}.nav`)}
                     {item.comingSoon && (
-                      <span className="rounded-full bg-surface-2 px-1.5 text-[10px] font-normal text-muted-foreground">
+                      <span className="rounded-full bg-surface-2 px-1.5 text-[11px] font-normal text-muted-foreground">
                         {t("cases.admin.coming-soon")}
                       </span>
                     )}

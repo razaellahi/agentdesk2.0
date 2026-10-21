@@ -73,7 +73,7 @@ function TimeStat({
 }) {
   return (
     <span
-      className="grid min-w-[5rem] grid-rows-[auto_auto] justify-items-center gap-y-0.5 text-center"
+      className="grid min-w-[4.25rem] grid-rows-[auto_auto] justify-items-center gap-y-0.5 text-center"
       title={`${label} ${value}`}
     >
       <span
@@ -163,7 +163,9 @@ export function AgentStateMenu() {
         <Button
           variant="outline"
           className={cn(
-            "h-12 gap-2.5 rounded-xl border-border/80 bg-surface ps-2.5 pe-2 font-normal shadow-2xs transition-all hover:bg-surface-2",
+            // The has-[>svg] overrides cancel the Button size's own "px-3 when it holds an icon", which
+            // would otherwise win over this padding because the chevron is a direct child.
+            "h-12 gap-2 rounded-xl border-border/80 bg-surface ps-2.5 pe-2 font-normal shadow-none transition-colors hover:bg-surface-2 has-[>svg]:ps-2.5 has-[>svg]:pe-2",
             pending && "opacity-80",
           )}
           aria-label={`${t("workspace.agent-state", { state: stateLabel })}. ${ariaTimes}`}

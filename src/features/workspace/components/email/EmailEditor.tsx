@@ -411,7 +411,7 @@ export function EmailEditor({
         }}
         onDragOver={(event) => event.preventDefault()}
       />
-      <p className="border-t px-3 py-1 text-[10px] text-muted-foreground">Ctrl / ⌘ + Enter to send</p>
+      <p className="border-t px-3 py-1 text-[11px] text-muted-foreground">Ctrl / ⌘ + Enter to send</p>
     </div>
   );
 }

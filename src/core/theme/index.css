@@ -17,6 +17,8 @@
   --color-surface: var(--surface);
   --color-surface-2: var(--sec);
   --color-surface-3: var(--sec-2);
+  --color-control: var(--control-bg);
+  --color-control-hover: var(--control-bg-hover);
 
   --color-card: var(--surface);
   --color-card-foreground: var(--body);
@@ -424,5 +426,230 @@
   100% {
     background: transparent;
     box-shadow: 0 0 0 2px transparent;
+  }
+}
+
+/*
+ * AI at work (text refine): a gradient that flows round the composer's edge, a soft band that sweeps over the
+ * text being worked on, sparkles that twinkle in turn, and gradient lettering for the status line. All of it
+ * stops for people who ask for less motion.
+ */
+.desk-ai-glow {
+  position: relative;
+}
+.desk-ai-glow::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(90deg, var(--ai-1), var(--ai-2), var(--ai-3), var(--ai-2), var(--ai-1));
+  background-size: 300% 100%;
+  animation: desk-ai-flow 2.6s linear infinite;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+.desk-ai-sweep {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.desk-ai-sweep::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in oklab, var(--ai-2) 20%, transparent) 46%,
+    color-mix(in oklab, var(--ai-3) 22%, transparent) 54%,
+    transparent 70%
+  );
+  transform: translateX(-100%);
+  animation: desk-ai-sweep 1.7s ease-in-out infinite;
+}
+.desk-ai-text {
+  background: linear-gradient(90deg, var(--ai-1), var(--ai-2), var(--ai-3), var(--ai-2), var(--ai-1));
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: desk-ai-flow 2.2s linear infinite;
+}
+.desk-ai-spark {
+  animation: desk-ai-twinkle 1.3s ease-in-out infinite;
+  transform-origin: center;
+}
+.desk-ai-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-inline-start: 1px;
+  vertical-align: text-bottom;
+  background: var(--ai-2);
+  animation: desk-ai-blink 0.9s steps(2, start) infinite;
+}
+@keyframes desk-ai-flow {
+  to {
+    background-position: -300% 0;
+  }
+}
+@keyframes desk-ai-sweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes desk-ai-twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.75) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15) rotate(12deg);
+  }
+}
+@keyframes desk-ai-blink {
+  to {
+    visibility: hidden;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .desk-ai-glow::before,
+  .desk-ai-sweep::after,
+  .desk-ai-text,
+  .desk-ai-spark,
+  .desk-ai-caret {
+    animation: none;
+  }
+  .desk-ai-sweep::after {
+    transform: none;
+    opacity: 0.5;
+  }
+}
+
+/*
+ * The sign-in page's hero: a bright blue field with soft light and a faint grid, and a headset at the centre
+ * of rings that pulse out to the channels around it. Light in both themes. Motion stops for people who ask
+ * for less of it.
+ */
+.desk-login-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  color: #fff;
+  background:
+    radial-gradient(55% 45% at 85% 5%, rgb(255 255 255 / 0.32), transparent 70%),
+    radial-gradient(50% 45% at 0% 60%, rgb(125 211 252 / 0.3), transparent 70%),
+    linear-gradient(200deg, #5ea3f8 0%, #2f80ed 42%, #1a66d8 100%);
+}
+.desk-login-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.07) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(70% 60% at 50% 42%, #000, transparent 85%);
+}
+.desk-glass {
+  background: linear-gradient(145deg, rgb(255 255 255 / 0.28), rgb(255 255 255 / 0.1));
+  border: 1px solid rgb(255 255 255 / 0.4);
+  box-shadow:
+    0 18px 36px -18px rgb(10 40 110 / 0.55),
+    inset 0 1px 0 rgb(255 255 255 / 0.45);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+.desk-float {
+  animation: desk-float 7s ease-in-out infinite;
+}
+.desk-float-slow {
+  animation: desk-float 9s ease-in-out -3s infinite;
+}
+.desk-pulse {
+  animation: desk-pulse 4.5s ease-out infinite;
+}
+.desk-pulse-late {
+  animation-delay: -2.2s;
+}
+@keyframes desk-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+@keyframes desk-pulse {
+  from {
+    opacity: 0.55;
+    transform: scale(0.5);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .desk-float,
+  .desk-float-slow,
+  .desk-pulse {
+    animation: none;
+  }
+  .desk-pulse {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+}
+
+/* One word of the sign-in headline, in a light gradient that reads on the blue. */
+.desk-gradient-text {
+  background: linear-gradient(90deg, #8ff0ff 0%, #a9ffcf 50%, #fff0a0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/*
+ * The sign-in hero's channels breathe: each one drifts a few pixels and swells a little, in place, on its own
+ * slow beat (--dx / --dy the drift, --d one breath, --w where in the breath it starts), so together they
+ * never move in step and nothing circles anything.
+ */
+/* Hovering a channel nudges it a little way off, away from the headset (--px / --py say which way). */
+.desk-push {
+  transition: transform 350ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.desk-push:hover {
+  transform: translate(var(--px, 0), var(--py, 0));
+}
+.desk-breathe {
+  animation: desk-breathe var(--d, 8s) ease-in-out var(--w, 0s) infinite;
+}
+@keyframes desk-breathe {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(var(--dx, 0), var(--dy, 0)) scale(1.05);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .desk-breathe {
+    animation: none;
   }
 }

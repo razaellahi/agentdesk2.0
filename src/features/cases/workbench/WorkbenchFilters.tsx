@@ -112,6 +112,9 @@ export function WorkbenchFilters({
   assignee,
   onAssignee,
   onClear,
+  statusActive: statusActiveProp,
+  statusSummary,
+  assigneeActive: assigneeActiveProp,
   className,
   children,
 }: {
@@ -130,6 +133,11 @@ export function WorkbenchFilters({
   assignee: AssigneeFilterMode;
   onAssignee: (mode: AssigneeFilterMode) => void;
   onClear: () => void;
+  /** Whether the status / assignee filter differs from what this view starts with. */
+  statusActive?: boolean;
+  /** A plain-words name for the selected statuses ("Open"), instead of a count. */
+  statusSummary?: string;
+  assigneeActive?: boolean;
   className?: string;
   /** Controls kept at the end of the same row (counts, sort, density). */
   children?: ReactNode;
@@ -143,10 +151,11 @@ export function WorkbenchFilters({
     { id: "me", label: t("cases.filters.assigned-to-me") },
     { id: "assigned", label: t("cases.filters.has-assignee") },
   ];
-  const statusActive = statuses.size > 0 && statuses.size < statusOptions.length;
+  const statusActive = statusActiveProp ?? (statuses.size > 0 && statuses.size < statusOptions.length);
+  const assigneeActive = assigneeActiveProp ?? assignee !== "all";
   const priorityActive = priorities.size > 0 && priorities.size < priorityOptions.length;
   const hasActive =
-    Boolean(search.trim()) || statusActive || priorityActive || Boolean(group) || assignee !== "all";
+    Boolean(search.trim()) || statusActive || priorityActive || Boolean(group) || assigneeActive;
 
   return (
     <div
@@ -167,7 +176,7 @@ export function WorkbenchFilters({
       </div>
       <FilterChip
         label={t("cases.filters.status")}
-        value={summary(statusOptions, statuses, all, many)}
+        value={statusSummary ?? summary(statusOptions, statuses, all, many)}
         active={statusActive}
       >
         {statusOptions.map((o) => (
@@ -204,7 +213,7 @@ export function WorkbenchFilters({
       <FilterChip
         label={t("cases.filters.assignee")}
         value={assigneeOptions.find((o) => o.id === assignee)?.label ?? all}
-        active={assignee !== "all"}
+        active={assigneeActive}
       >
         {assigneeOptions.map((o) => (
           <Option key={o.id} checked={assignee === o.id} onSelect={() => onAssignee(o.id)}>

@@ -10,6 +10,7 @@ import { VoicemailButton } from "@/features/customers";
 import {
   AgentStateMenu,
   AgentAnnouncementsMenu,
+  ConversationsButton,
   OutboundPanel,
   QuickLinksMenu,
   RequestCenter,
@@ -62,9 +63,9 @@ export function TopBar({
           </Button>
         </IconTooltip>
 
-        <BrandLogo className="hidden h-5 max-w-24 sm:block" />
+        <BrandLogo className="hidden h-7 max-w-36 sm:block" />
 
-        <h1 className="max-w-[18rem] min-w-0 shrink truncate text-sm font-medium tracking-tight text-foreground">
+        <h1 className="max-w-[22rem] min-w-0 shrink truncate text-base font-medium tracking-tight text-foreground">
           {handle?.titleKey ? t(handle.titleKey) : ""}
         </h1>
       </div>
@@ -84,6 +85,7 @@ export function TopBar({
         {/* Action Controls */}
         {agentSession && (
           <div className="hidden items-center gap-0.5 sm:flex">
+            <ConversationsButton />
             <OutboundPanel />
             <AgentAnnouncementsMenu />
             <QuickLinksMenu />

@@ -51,7 +51,7 @@ const PRIORITY_CLASS: Record<PriorityLevel, string> = {
   low: "bg-surface-2 text-muted-foreground",
 };
 
-const PRIORITY_BAR: Record<PriorityLevel, string> = {
+export const PRIORITY_BAR: Record<PriorityLevel, string> = {
   critical: "bg-destructive",
   high: "bg-warning",
   medium: "bg-primary",
@@ -82,7 +82,7 @@ export function PriorityBadge({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-[11px] font-semibold tabular-nums",
+        "inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-[12px] font-semibold tabular-nums",
         PRIORITY_CLASS[level],
         className,
       )}

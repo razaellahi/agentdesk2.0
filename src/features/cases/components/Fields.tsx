@@ -50,7 +50,7 @@ export function Initials({ name, className }: { name: string; className?: string
   return (
     <span
       className={cn(
-        "grid size-6 shrink-0 place-items-center rounded-full bg-primary-soft text-[10px] font-semibold text-primary",
+        "grid size-6 shrink-0 place-items-center rounded-full bg-primary-soft text-[11px] font-semibold text-primary",
         className,
       )}
       aria-hidden

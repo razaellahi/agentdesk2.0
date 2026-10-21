@@ -166,13 +166,13 @@ export function CallDock() {
           )}
         </span>
         {call.recording === "started" && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-destructive-soft px-2 py-0.5 text-[10px] font-bold text-destructive-text">
+          <span className="inline-flex items-center gap-1 rounded-full bg-destructive-soft px-2 py-0.5 text-[11px] font-bold text-destructive-text">
             <span className="size-1.5 animate-pulse rounded-full bg-destructive" />
             REC
           </span>
         )}
         {call.recording === "paused" && (
-          <span className="inline-flex items-center rounded-full bg-warning-soft px-2 py-0.5 text-[10px] font-semibold text-warning-text">
+          <span className="inline-flex items-center rounded-full bg-warning-soft px-2 py-0.5 text-[11px] font-semibold text-warning-text">
             REC paused
           </span>
         )}

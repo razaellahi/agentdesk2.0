@@ -19,7 +19,7 @@ export function UnreadBadge({ count, className }: { count?: number; className?: 
     <span
       aria-hidden
       className={cn(
-        "absolute end-0.5 top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[10px] leading-none font-semibold text-destructive-foreground tabular-nums ring-2 ring-surface",
+        "absolute end-0.5 top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[11px] leading-none font-semibold text-destructive-foreground tabular-nums ring-2 ring-surface",
         className,
       )}
     >

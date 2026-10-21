@@ -190,7 +190,7 @@ export default function CreateCasePage() {
               >
                 <span
                   className={cn(
-                    "grid size-6 place-items-center rounded-full border text-[11px]",
+                    "grid size-6 place-items-center rounded-full border text-[12px]",
                     step === index && "border-primary bg-primary text-primary-foreground",
                     step > index && "border-success bg-success-soft text-success-text",
                   )}

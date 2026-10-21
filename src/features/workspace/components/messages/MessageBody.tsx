@@ -49,14 +49,6 @@ import { mayActOnComment, mayEditMessage, originalChannelSession } from "../../m
 import { SocialPostDialog } from "./SocialPostDialog";
 import type { ChannelSession } from "../../model/types";
 
-function formatBytes(size: unknown) {
-  const n = Number(size);
-  if (!Number.isFinite(n) || n <= 0) return "";
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 function TextBlock({ message, formatting }: { message: CimMessage; formatting: boolean }) {
   const text = messageText(message);
   if (!text) return null;
@@ -103,23 +95,23 @@ function VoiceLeg({
         <span className="font-semibold text-foreground">
           {leg.sender?.type === "IVR" ? "IVR" : name || "Participant"}
         </span>
-        <span className="rounded-md bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground tabular">
+        <span className="rounded-md bg-surface-2 px-1.5 py-0.5 font-mono text-[12px] text-muted-foreground tabular">
           {formatDuration(leg.duration ?? 0)}
         </span>
       </div>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-[12px] text-muted-foreground">
         {[dialog?.queueName, leg.startDirection?.replaceAll("_", " "), leg.endDirection?.replaceAll("_", " ")]
           .filter(Boolean)
           .join(" · ")}
       </p>
       {leg.additionalDetail?.activities?.length ? (
-        <p className="text-[11px] text-muted-foreground/90">
+        <p className="text-[12px] text-muted-foreground/90">
           {leg.additionalDetail.activities
             .map((step) => [step.menu, step.selection].filter(Boolean).join(" → "))
             .join(" → ")}
         </p>
       ) : null}
-      {wrapups && <p className="text-[11px] font-medium text-foreground/80">Wrap-up: {wrapups}</p>}
+      {wrapups && <p className="text-[12px] font-medium text-foreground/80">Wrap-up: {wrapups}</p>}
       {leg.voiceRecordingUrl && canPlayActivityRecording(all, own, me, [leg]) && (
         <div className="pt-1">
           <Media url={leg.voiceRecordingUrl} kind="audio" name="Call leg recording" />
@@ -299,7 +291,7 @@ function FormDataBody({ message }: { message: CimMessage }) {
         <p className="mb-2 text-xs font-semibold text-foreground">
           {title}
           {cancelled && (
-            <span className="py-0.2 ms-1 rounded-full bg-destructive-soft px-1.5 text-[10px] text-destructive-text">
+            <span className="py-0.2 ms-1 rounded-full bg-destructive-soft px-1.5 text-[11px] text-destructive-text">
               ({t("globals.cancelled")})
             </span>
           )}
@@ -309,11 +301,11 @@ function FormDataBody({ message }: { message: CimMessage }) {
         {visible.map((row) => (
           <div key={row.key} className="rounded-lg border border-border/30 bg-surface-2/60 p-1.5">
             {expanded && row.section && (
-              <p className="mb-0.5 text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+              <p className="mb-0.5 text-[11px] font-bold tracking-wider text-muted-foreground uppercase">
                 {row.section}
               </p>
             )}
-            <dt className="text-[11px] font-medium text-muted-foreground">{row.label}</dt>
+            <dt className="text-[12px] font-medium text-muted-foreground">{row.label}</dt>
             <dd className="mt-0.5 text-xs font-semibold whitespace-pre-wrap text-foreground">{row.value}</dd>
           </div>
         ))}
@@ -384,17 +376,18 @@ export function MessageBody({
       </div>
     );
   }
-  if (type === "image" || type === "sticker") return <Media url={file.url} kind="image" name={file.name} />;
+  if (type === "image" || type === "sticker")
+    return (
+      <>
+        <Media url={file.url} kind="image" name={file.name} />
+        {type === "image" && Boolean(message.body.caption) && (
+          <p className="px-2 pt-1.5 pb-0.5 whitespace-pre-wrap">{String(message.body.caption)}</p>
+        )}
+      </>
+    );
   if (type === "video") return <Media url={file.url} kind="video" name={file.name} />;
   if (type === "audio" || type === "voice") return <Media url={file.url} kind="audio" name={file.name} />;
-  if (type === "file") {
-    return (
-      <div className="flex flex-col gap-1">
-        <Media url={file.url} kind="file" name={file.name} />
-        <span className="font-mono text-[11px] text-muted-foreground">{formatBytes(file.size)}</span>
-      </div>
-    );
-  }
+  if (type === "file") return <Media url={file.url} kind="file" name={file.name} size={file.size} />;
   if (type === "comment") {
     if (item === "text" || item === "private_reply" || !item)
       return (
@@ -473,9 +466,9 @@ export function MessageBody({
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-semibold text-foreground">{name}</p>
           {phone ? (
-            <p className="truncate font-mono text-[11px] text-muted-foreground tabular-nums">{phone}</p>
+            <p className="truncate font-mono text-[12px] text-muted-foreground tabular-nums">{phone}</p>
           ) : (
-            <p className="text-[10px] text-muted-foreground">{t("workspace.contact")}</p>
+            <p className="text-[11px] text-muted-foreground">{t("workspace.contact")}</p>
           )}
         </div>
         {phone && (
@@ -513,7 +506,7 @@ export function MessageBody({
   if (type === "outboundsms") return <TextBlock message={message} formatting={formatting} />;
   return (
     <div className="text-sm">
-      <p className="mb-1 text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+      <p className="mb-1 text-[11px] font-bold tracking-wider text-muted-foreground uppercase">
         {type || t("workspace.message")}
       </p>
       <TextBlock message={message} formatting={formatting} />
@@ -621,7 +614,7 @@ export function MessageRow({
         <MessageBody message={message} formatting={false} />
         {Number.isFinite(stamp) && stamp > 0 && (
           <time
-            className="ms-1.5 text-[11px] tabular opacity-70"
+            className="ms-1.5 text-[12px] tabular opacity-70"
             dateTime={new Date(stamp).toISOString()}
             title={formatDateTime(stamp)}
           >
@@ -691,6 +684,8 @@ export function MessageRow({
     );
   }
 
+  const mediaBubble =
+    type === "sticker" ? "sticker" : ["image", "video", "file"].includes(type) && !whisper ? "frame" : null;
   const validStamp = Number.isFinite(stamp) && stamp > 0;
   const fullTime = validStamp ? formatDateTime(stamp) : undefined;
 
@@ -714,7 +709,7 @@ export function MessageRow({
             )}
             {validStamp && (
               <time
-                className="shrink-0 text-[11px] font-normal text-muted-foreground/75 tabular"
+                className="shrink-0 text-[12px] font-normal text-muted-foreground/75 tabular"
                 dateTime={new Date(stamp).toISOString()}
                 title={fullTime}
               >
@@ -731,10 +726,14 @@ export function MessageRow({
           <div
             title={continued ? fullTime : undefined}
             className={cn(
-              "group/bubble relative min-w-0 rounded-2xl px-4 py-2 text-[14px] leading-relaxed transition-shadow",
-              outbound
-                ? cn("bg-bubble-agent text-foreground shadow-2xs", !continued && "rounded-tr-xs")
-                : cn("bg-bubble-customer text-foreground shadow-2xs", !continued && "rounded-tl-xs"),
+              "group/bubble relative min-w-0 rounded-2xl text-[14px] leading-relaxed transition-shadow",
+              // A picture, a video or a file fills its bubble: no padding ring around it. A sticker has no bubble.
+              mediaBubble === "frame" ? "p-1" : mediaBubble === "sticker" ? "p-0" : "px-4 py-2",
+              mediaBubble === "sticker"
+                ? "bg-transparent"
+                : outbound
+                  ? cn("bg-bubble-agent text-foreground shadow-2xs", !continued && "rounded-tr-xs")
+                  : cn("bg-bubble-customer text-foreground shadow-2xs", !continued && "rounded-tl-xs"),
               whisper && "border border-dashed border-warning/50 bg-warning-soft text-foreground",
               deleted && "opacity-60",
               // In flight: soft until the server confirms; full strength once sent.
@@ -745,7 +744,7 @@ export function MessageRow({
           >
             {/* Whisper or Status Badges */}
             {(whisper || message.isEdited || message.isHidden) && (
-              <div className="mb-1 flex items-center gap-2 text-[11px] text-muted-foreground">
+              <div className="mb-1 flex items-center gap-2 text-[12px] text-muted-foreground">
                 {whisper && (
                   <span className="py-0.2 inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 font-semibold text-amber-700 dark:text-amber-300">
                     <Lock className="size-3" aria-hidden />
@@ -956,7 +955,7 @@ function CommentHeader({ message }: { message: CimMessage }) {
   return (
     <div className="mb-1.5 border-b border-border/50 pb-1.5">
       {topLevel && (
-        <p className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+        <p className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">
           {t("chat-features.interactions.post-comment")}
         </p>
       )}
@@ -1005,7 +1004,7 @@ function DeliveryLine({
   // latest one. Sending is the soft bubble itself; sent is just the bubble at full strength.
   if (!failed && !(latest && readers.length)) return null;
   return (
-    <div className="mt-1 flex items-center gap-2 px-1 text-[11px]">
+    <div className="mt-1 flex items-center gap-2 px-1 text-[12px]">
       {failed ? (
         <>
           <span role="status" className="inline-flex items-center gap-1 text-destructive-text">

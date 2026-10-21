@@ -213,7 +213,7 @@ function EmailCard({
         </dl>
       )}
       <div className="border-t border-border/60 px-4 pt-3 pb-3.5">
-        <h4 className="mb-2 text-[15px] leading-snug font-semibold text-foreground">
+        <h4 className="mb-2 text-[14px] leading-snug font-semibold text-foreground">
           {String(message.body.subject ?? "No subject")}
         </h4>
         {open ? (

@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 import CustomersPage from "./CustomersPage";
+import { searchCustomers } from "./phonebook/customersQuery";
 
 vi.mock("@/core/auth", () => ({
   useCurrentUser: () => ({ id: "agent-1", username: "agent" }),
@@ -31,7 +32,9 @@ vi.mock("@/features/workspace", () => ({
   startConversationFromCustomer: vi.fn(),
   useConversationStore: { getState: () => ({ setActive: vi.fn() }) },
   getConversation: vi.fn(),
-  useSchemaStore: () => ({ customerSchema: [] }),
+  useSchemaStore: Object.assign(() => ({ customerSchema: [] }), {
+    getState: () => ({ setSchema: vi.fn() }),
+  }),
   isFakeConversation: () => false,
   getOutboundFromChannels: vi.fn().mockResolvedValue({ channels: [], selected: "sms" }),
   shouldBlockOutbound: vi.fn().mockResolvedValue({ blocked: false }),
@@ -47,7 +50,7 @@ vi.mock("./api", async (importOriginal) => ({
 
 vi.mock("./phonebook/customersQuery", () => ({
   formatCellValue: (v: unknown) => (Array.isArray(v) ? v.join(", ") : String(v ?? "—")),
-  listPhonebookCustomers: vi.fn().mockResolvedValue({
+  searchCustomers: vi.fn().mockResolvedValue({
     docs: [
       {
         _id: "cust-1",
@@ -58,9 +61,10 @@ vi.mock("./phonebook/customersQuery", () => ({
         voice: ["+15551234567"],
       },
     ],
-    total: 1,
+    totalDocs: 1,
   }),
-  getCustomersByFilterQuery: vi.fn().mockResolvedValue({ docs: [], total: 0 }),
+  listPhonebookCustomers: vi.fn().mockResolvedValue({ docs: [], totalDocs: 0 }),
+  getCustomersByFilterQuery: vi.fn().mockResolvedValue({ docs: [], totalDocs: 0 }),
 }));
 
 vi.mock("./phonebook/preferencesApi", () => ({
@@ -74,7 +78,10 @@ vi.mock("./phonebook/preferencesApi", () => ({
 
 vi.mock("@/core/api", () => ({
   cimCustomerApi: {
-    get: vi.fn().mockResolvedValue({ data: [] }),
+    get: vi.fn().mockResolvedValue([
+      { key: "firstName", label: "First Name", type: "string" },
+      { key: "email", label: "Email", type: "email" },
+    ]),
   },
 }));
 
@@ -157,6 +164,35 @@ describe("CustomersPage action button isolation", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+  });
+
+  describe("search", () => {
+    const lastSearch = () => vi.mocked(searchCustomers).mock.calls.at(-1)?.[0];
+
+    it("lists everyone at first and searches every attribute by itself once typing pauses", async () => {
+      const user = userEvent.setup();
+      renderPage();
+      await waitFor(() => expect(screen.getByText("Alice")).toBeInTheDocument());
+      expect(lastSearch()).toMatchObject({ term: "", field: undefined });
+
+      await user.type(screen.getByRole("textbox", { name: /search-placeholder/ }), "ali");
+      // Not at once: the search waits for the pause in typing.
+      expect(lastSearch()?.term).toBe("");
+      await waitFor(() => expect(lastSearch()).toMatchObject({ term: "ali", field: undefined }), {
+        timeout: 3000,
+      });
+    });
+
+    it("searches at once on Enter, without waiting for the pause", async () => {
+      const user = userEvent.setup();
+      renderPage();
+      await waitFor(() => expect(screen.getByText("Alice")).toBeInTheDocument());
+
+      await user.type(screen.getByRole("textbox", { name: /search-placeholder/ }), "alice@{Enter}");
+      await waitFor(() => expect(lastSearch()).toMatchObject({ term: "alice@", field: undefined }), {
+        timeout: 500,
+      });
     });
   });
 });

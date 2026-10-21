@@ -67,7 +67,7 @@ export function CustomerPicker({
               {value.labelNames.map((label) => (
                 <span
                   key={label}
-                  className="rounded-full bg-surface-2 px-2 py-0.5 text-[10px] text-muted-foreground"
+                  className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-muted-foreground"
                 >
                   {label}
                 </span>

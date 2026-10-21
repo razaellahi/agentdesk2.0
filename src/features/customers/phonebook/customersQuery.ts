@@ -26,6 +26,63 @@ export async function listPhonebookCustomers(input: {
   return asCustomerPage(body);
 }
 
+/** Escapes a value for inlining in a GraphQL string literal (the customer API takes its arguments inline). */
+function gqlString(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+}
+
+export interface CustomerSearch {
+  limit: number;
+  offset: number;
+  /** `field:asc` / `field:desc`. */
+  sort?: string;
+  /** Text typed in the search box. With a `field` it filters that attribute, without one it searches them all. */
+  term?: string;
+  field?: string;
+  /** Attributes to read back for each customer. */
+  fields: string[];
+}
+
+/**
+ * The `Customers` query of the customer API (unified-agent's buildDynamicGQLQueryString): a full-text
+ * `searchTerm` across the customer's searchable attributes, or a `contains` filter on one attribute.
+ */
+export function buildCustomersQuery(input: CustomerSearch): string {
+  const term = input.term?.trim() ?? "";
+  const [sortBy, sortOrder] = (input.sort ?? "").split(":");
+  const args = [
+    `pagination: { limit: ${input.limit}, offset: ${input.offset} }`,
+    sortBy
+      ? `sort: { sortBy: "${gqlString(sortBy)}", sortOrder: "${gqlString(sortOrder || "asc")}" }`
+      : "sort: { sortBy: null, sortOrder: null }",
+  ];
+  if (term && input.field)
+    args.push(
+      `Filter: { and: [ { key: "${gqlString(input.field)}", operator: contains, value: "${gqlString(term)}" } ] }`,
+    );
+  else if (term) args.push(`searchTerm: "${gqlString(term)}"`);
+  const fields = [...new Set(["_id", "isAnonymous", ...input.fields])];
+  return `query Customers {
+    Customers(${args.join(", ")}) {
+      totalDocs
+      limit
+      offset
+      docs { ${fields.join("\n")} }
+    }
+  }`;
+}
+
+/** Customers matching what the agent typed, as the phonebook lists them (no typing lists everyone). */
+export async function searchCustomers(input: CustomerSearch, signal?: AbortSignal): Promise<CustomerPage> {
+  const body = await cimCustomerApi.post<{
+    data?: { Customers?: { docs?: CustomerDoc[]; totalDocs?: number } };
+    errors?: { message?: string }[];
+  }>("/v2/customers", { query: buildCustomersQuery(input) }, { signal });
+  if (body.errors?.length) throw new Error(body.errors[0]?.message || "Search failed");
+  const page = body.data?.Customers;
+  return { docs: page?.docs ?? [], totalDocs: page?.totalDocs ?? 0 };
+}
+
 /** Advanced-filter path (UA getFilteredCustomers → POST /v2/customers). */
 export async function getCustomersByFilterQuery(input: {
   filterQuery: FilterQuery;

@@ -75,7 +75,7 @@ export function Sidebar({ sections = [], collapsed, showBrand, onNavigate, onTog
           ) : (
             <>
               <BrandLogo className="h-6 max-w-28" />
-              <span className="ms-auto rounded-md bg-primary-soft px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-primary uppercase">
+              <span className="ms-auto rounded-md bg-primary-soft px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-primary uppercase">
                 Agent Desk
               </span>
             </>
@@ -147,7 +147,7 @@ export function Sidebar({ sections = [], collapsed, showBrand, onNavigate, onTog
                       {showVoicemailBadge && (
                         <Badge
                           variant="destructive"
-                          className="h-4.5 px-1.5 text-[10px] leading-none font-bold"
+                          className="h-4.5 px-1.5 text-[11px] leading-none font-bold"
                         >
                           {unreadVoicemail}
                         </Badge>
@@ -181,7 +181,7 @@ export function Sidebar({ sections = [], collapsed, showBrand, onNavigate, onTog
                               {itemVoicemailBadge && (
                                 <Badge
                                   variant="destructive"
-                                  className="h-4.5 px-1.5 text-[10px] leading-none font-bold"
+                                  className="h-4.5 px-1.5 text-[11px] leading-none font-bold"
                                 >
                                   {unreadVoicemail}
                                 </Badge>
@@ -260,7 +260,7 @@ export function Sidebar({ sections = [], collapsed, showBrand, onNavigate, onTog
                   {showVoicemailBadge && (
                     <Badge
                       variant="destructive"
-                      className="h-4.5 min-w-4.5 px-1.5 text-[10px] leading-none font-bold"
+                      className="h-4.5 min-w-4.5 px-1.5 text-[11px] leading-none font-bold"
                     >
                       {unreadVoicemail}
                     </Badge>
@@ -316,7 +316,7 @@ export function Sidebar({ sections = [], collapsed, showBrand, onNavigate, onTog
                                 {itemVoicemailBadge && (
                                   <Badge
                                     variant="destructive"
-                                    className="h-4 min-w-4 px-1 text-[9px] leading-none font-bold"
+                                    className="h-4 min-w-4 px-1 text-[10px] leading-none font-bold"
                                   >
                                     {unreadVoicemail}
                                   </Badge>

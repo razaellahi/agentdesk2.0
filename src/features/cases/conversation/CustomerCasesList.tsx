@@ -329,19 +329,19 @@ export function CustomerCasesList({
                         isThisChat(c) ? "border-primary/40" : "border-border",
                       )}
                     >
+                      <div className="flex items-center justify-between gap-2 px-3.5 pt-3">
+                        <CopyableRef value={c.caseReferenceId} />
+                        <StatusBadge
+                          label={c.status.label}
+                          code={c.status.code}
+                          category={c.status.statusCategory}
+                        />
+                      </div>
                       <button
                         type="button"
-                        className="block w-full space-y-1.5 rounded-t-xl px-3.5 pt-3 pb-2.5 text-start"
+                        className="block w-full space-y-1.5 rounded-t-xl px-3.5 pt-1.5 pb-2.5 text-start"
                         onClick={() => onOpen(c.id)}
                       >
-                        <span className="flex items-center justify-between gap-2">
-                          <CopyableRef value={c.caseReferenceId} />
-                          <StatusBadge
-                            label={c.status.label}
-                            code={c.status.code}
-                            category={c.status.statusCategory}
-                          />
-                        </span>
                         <span className="block text-sm leading-snug font-medium text-foreground">
                           {c.title}
                         </span>
