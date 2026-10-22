@@ -18,7 +18,6 @@ import {
   SquareArrowOutUpRight,
   UserRound,
   UsersRound,
-  Users,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -43,10 +42,13 @@ import { useCallStore } from "@/features/voice";
 import { IconTooltip } from "@/components/common/IconTooltip";
 import { cn } from "@/shared/lib/utils";
 import { removeFromBoard } from "../board/sideBySide";
+import { useLiveCall, useVoiceStacks } from "../hooks/useLiveCall";
 import { useOutboundReach } from "../hooks/useOutboundReach";
+import { useSessionEvent } from "../hooks/useSessionEvent";
+import { consultedAgents, isCiscoSession, isCxVoiceSession } from "../model/participants";
 import type { Conversation } from "../model/types";
 import { openWrapUp } from "../session/actions";
-import { completeConsult } from "../session/assistance";
+import { assistanceBlock } from "../session/assistance";
 import {
   bargeIntoConversation,
   canChangeSupervisorRole,
@@ -120,6 +122,8 @@ export function ConversationActions({
   const canTransfer = usePermission("directTransfer");
   const canConsult = usePermission("consult");
   const canConference = usePermission("conference");
+  const stacks = useVoiceStacks();
+  const liveCall = useLiveCall();
   const canLeave = usePermission("leaveChat");
   const canWrapUp = usePermission("wrapUp");
   const canInitiate = usePermission("initiateChat");
@@ -130,16 +134,35 @@ export function ConversationActions({
   const [participantsOpen, setParticipantsOpen] = useState(false);
   const reachFromMenu = useRef(false);
   const reach = useOutboundReach(conversation, reachOpen);
+  // Bumped to remount the controls, which closes any menu left open.
+  const [generation, setGeneration] = useState(0);
+  // The customer's channel ended: menus and panels opened for it close (channelSessionEnded$).
+  useSessionEvent<{ conversationId: string }>("channelSessionEnded", (effect) => {
+    if (effect.conversationId !== conversation.conversationId) return;
+    setReachOpen(false);
+    setParticipantsOpen(false);
+    setGeneration((value) => value + 1);
+  });
 
   const id = conversation.conversationId;
   const active = conversation.state === "ACTIVE";
-  const primary = conversation.topicParticipant.role === "PRIMARY";
+  const role = conversation.topicParticipant.role;
+  const primary = role === "PRIMARY";
   const ownsConversation = primary && active;
+  // A silent monitor or an assistant takes part in the conversation but does not run it.
+  const bystander = role === "SILENT_MONITOR" || role === "ASSISTANT";
   const holdOptions = settings?.holdOptions ?? [];
-  const isAssistant = primary && conversation.agentParticipants.some((p) => p.role === "ASSISTANT");
+  const consulted = ownsConversation ? consultedAgents(conversation) : [];
   const multiPane = Boolean(board && board.count > 1);
+  const onVoice = conversation.activeChannelSessions.some(
+    (s) => isCxVoiceSession(s, stacks) || isCiscoSession(s, stacks),
+  );
+  // A supervisor cannot join a voice call from a raised hand (unified-agent hides it there).
+  const handRaiseAvailable = ownsConversation && conversation.activeChannelSessions.length > 0 && !onVoice;
 
-  const wrapUpAvailable = Boolean(canWrapUp && settings?.wrapUp && active && !conversation.wrapUp.show);
+  const wrapUpAvailable = Boolean(
+    canWrapUp && settings?.wrapUp && active && !bystander && !conversation.wrapUp.show,
+  );
   const leaveAllowed = canLeave || !active;
   const startWrapUp = () => openWrapUp(id, settings?.wrapUpSeconds ?? 0);
   const actions: HeaderAction[] = [];
@@ -160,10 +183,10 @@ export function ConversationActions({
       priority: 2,
       onSelect: () => switchToWhisper(id),
     });
-  // Hold follows unified-agent: any active conversation the agent is not only assisting on.
+  // Hold follows unified-agent: not for a silent monitor or an assistant.
   // A whisper (listen-only) keeps the controls visible but disabled.
-  const holdable = active && conversation.topicParticipant.role !== "ASSISTANT";
-  const whispering = conversation.topicParticipant.role === "WHISPER";
+  const holdable = active && !bystander;
+  const whispering = role === "WHISPER";
   // A held conversation always shows Resume in the header, not only in the menu.
   if (conversation.hold.active && holdable)
     actions.push({
@@ -176,7 +199,8 @@ export function ConversationActions({
       disabled: whispering,
       onSelect: onResume,
     });
-  if (ownsConversation)
+  // A raised hand can always be lowered, even after a call joined the conversation.
+  if (handRaiseAvailable || (ownsConversation && conversation.handRaised))
     actions.push({
       id: "hand",
       label: conversation.handRaised
@@ -205,6 +229,7 @@ export function ConversationActions({
       label: t("chat-features.interactions.Transfer"),
       icon: ArrowRightLeft,
       priority: 5,
+      disabled: assistanceBlock(conversation, liveCall, stacks) !== null,
       onSelect: onAssist,
     });
   if (holdable && !conversation.hold.active && holdOptions.length > 0)
@@ -233,13 +258,17 @@ export function ConversationActions({
       onSelect: onToggleInfo,
     });
 
-  // Who is in the conversation, when the desk has it switched on.
-  if (settings?.conversationParticipants)
+  // Who is in the conversation. A consulted agent waiting to take over makes it stand out:
+  // the consult is completed from their row.
+  if (conversation.roomInfo !== "FAKE_CONVERSATION")
     actions.push({
       id: "participants",
-      label: t("workspace.participants.title"),
+      label:
+        consulted.length > 0 ? t("workspace.participants.consult-ready") : t("workspace.participants.title"),
       icon: UsersRound,
       priority: 7,
+      pinned: consulted.length > 0,
+      tone: consulted.length > 0 ? "primary" : undefined,
       onSelect: () => setParticipantsOpen(true),
     });
   if (wrapUpAvailable)
@@ -287,7 +316,7 @@ export function ConversationActions({
   const leaveInMenu = !inline.has("leave");
 
   // Whatever the header does not show is in the menu; with everything shown there is no menu.
-  const hasMore = overflowMain.length > 0 || isAssistant || multiPane || leaveInMenu;
+  const hasMore = overflowMain.length > 0 || multiPane || leaveInMenu;
 
   const openReachFromMenu = () => {
     reachFromMenu.current = true;
@@ -379,7 +408,7 @@ export function ConversationActions({
     if (action.choices)
       return (
         <DropdownMenuSub key={action.id}>
-          <DropdownMenuSubTrigger>
+          <DropdownMenuSubTrigger disabled={action.disabled}>
             <action.icon className="size-4" aria-hidden />
             {action.label}
           </DropdownMenuSubTrigger>
@@ -394,31 +423,16 @@ export function ConversationActions({
         </DropdownMenuSub>
       );
     return (
-      <DropdownMenuItem key={action.id} onSelect={action.reach ? openReachFromMenu : action.onSelect}>
+      <DropdownMenuItem
+        key={action.id}
+        disabled={action.disabled}
+        onSelect={action.reach ? openReachFromMenu : action.onSelect}
+      >
         <action.icon className={cn("size-4", action.tone === "warning" && "text-warning-text")} aria-hidden />
         {action.label}
       </DropdownMenuItem>
     );
   };
-
-  const consultItems = isAssistant
-    ? [
-        {
-          key: "transfer",
-          label: t("workspace.complete-consult-transfer"),
-          icon: ArrowRightLeft,
-          disabled: !canTransfer,
-          mode: "transfer" as const,
-        },
-        {
-          key: "conference",
-          label: t("workspace.complete-consult-conference"),
-          icon: Users,
-          disabled: !canConference,
-          mode: "conference" as const,
-        },
-      ]
-    : [];
 
   return (
     <Popover
@@ -429,7 +443,7 @@ export function ConversationActions({
       }}
     >
       <PopoverAnchor asChild>
-        <div className="flex min-w-0 items-center gap-0.5 sm:gap-1">
+        <div key={generation} className="flex min-w-0 items-center gap-0.5 sm:gap-1">
           {shown.map(inlineButton)}
 
           {hasMore && (
@@ -454,16 +468,6 @@ export function ConversationActions({
                 onCloseAutoFocus={(event) => reachFromMenu.current && event.preventDefault()}
               >
                 {overflowMain.length > 0 && <>{overflowMain.map(menuItem)}</>}
-                {consultItems.map((item) => (
-                  <DropdownMenuItem
-                    key={item.key}
-                    disabled={item.disabled}
-                    onSelect={() => completeConsult(conversation, item.mode)}
-                  >
-                    <item.icon className="size-4" aria-hidden />
-                    {item.label}
-                  </DropdownMenuItem>
-                ))}
                 {board && multiPane && (
                   <>
                     <DropdownMenuItem
@@ -552,6 +556,7 @@ export function ConversationActions({
 
       <ParticipantsDialog
         conversation={conversation}
+        customerName={displayName}
         open={participantsOpen}
         onOpenChange={setParticipantsOpen}
       />

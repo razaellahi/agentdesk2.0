@@ -49,3 +49,32 @@ export function channelLook(name: string): ChannelLook {
   if (badge) return { kind: "badge", Icon: badge[1], tone: badge[2] };
   return { kind: "badge", Icon: Send, tone: "bg-slate-500/15 text-slate-600 dark:text-slate-300" };
 }
+
+/** Channel type names from a schema attribute, which lists them as names or as { name } objects. */
+export function channelTypeNames(types: { name?: string }[] | string[] | null | undefined): string[] {
+  return [
+    ...new Set(
+      (types ?? [])
+        .map((item) => (typeof item === "string" ? item : String(item?.name ?? "")))
+        .filter(Boolean),
+    ),
+  ];
+}
+
+/** Channel names that draw differently (CX Voice and Cisco share one headset, so one is enough). */
+export function distinctChannels(names: string[]): string[] {
+  const seen = new Set<unknown>();
+  return names.filter((name) => {
+    const look = channelLook(name);
+    const key = look.kind === "brand" ? `brand:${look.brand}` : look.Icon;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** Whether a name (a channel type, or an identifier label like "Phone number") has a look of its own. */
+export function hasChannelLook(name: string): boolean {
+  const key = name.toLowerCase();
+  return BRANDS.some(([pattern]) => pattern.test(key)) || BADGES.some(([pattern]) => pattern.test(key));
+}

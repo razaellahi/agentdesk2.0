@@ -26,11 +26,7 @@ const text = (value: unknown) => (typeof value === "string" && value.trim() ? va
 export function readWebChannel(session: ChannelSession): WebChannelInfo | null {
   const attrs = session.channelData?.additionalAttributes ?? [];
   const raw = attrs.find((a) => a?.type?.toLowerCase() === "webchanneldata")?.value;
-  const web = isRecord(session.webChannelData)
-    ? session.webChannelData
-    : isRecord(raw)
-      ? raw
-      : null;
+  const web = isRecord(session.webChannelData) ? session.webChannelData : isRecord(raw) ? raw : null;
   const formValue = isRecord(raw) && isRecord(raw.formData) ? raw.formData.attributes : undefined;
   const formData = Array.isArray(formValue)
     ? formValue.flatMap((item): FormField[] => {

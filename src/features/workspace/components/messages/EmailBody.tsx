@@ -1,12 +1,13 @@
 import { ChevronDown, FileText, Loader2 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { getFileDownloadBaseUrl } from "@/config";
 import { fileEngineApi } from "@/core/api";
 import { formatDateTime } from "@/core/i18n";
 import { cn } from "@/shared/lib/utils";
-import { escapeEmailText, type EmailAttachment } from "../../model/email";
+import { emailTimestamp, escapeEmailText, splitQuotedEmail, type EmailAttachment } from "../../model/email";
+import { emailPlainText } from "../../model/emailEditor";
 import { messageText } from "../../model/outgoing";
 import type { CimMessage, Conversation } from "../../model/types";
 import { CustomerAvatar } from "../CustomerInitials";
@@ -54,11 +55,9 @@ function Attachment({ file }: { file: EmailAttachment }) {
   );
 }
 
-function HtmlEmail({ message, expanded }: { message: CimMessage; expanded: boolean }) {
-  const [loaded, setLoaded] = useState<{ id: string; html: string }>();
-  const raw =
-    String(message.body.htmlBody ?? "") ||
-    `<p>${escapeEmailText(messageText(message)).replaceAll("\n", "<br/>")}</p>`;
+function HtmlEmail({ message, html, expanded }: { message: CimMessage; html: string; expanded: boolean }) {
+  const [loaded, setLoaded] = useState<{ raw: string; html: string }>();
+  const raw = html || `<p>${escapeEmailText(messageText(message)).replaceAll("\n", "<br/>")}</p>`;
   useEffect(() => {
     let cancelled = false;
     const urls: string[] = [];
@@ -71,8 +70,11 @@ function HtmlEmail({ message, expanded }: { message: CimMessage; expanded: boole
       await Promise.all(
         Array.from(document.querySelectorAll("img")).map(async (image) => {
           const source = image.getAttribute("src") ?? "";
+          // Source populateInlineImages: a data-cid names the stored file, whatever the src says.
+          const cid = image.getAttribute("data-cid");
           let search = "";
-          if (source.includes("/api/downloadFileStream"))
+          if (cid) search = `?filename=${encodeURIComponent(cid)}`;
+          else if (source.includes("/api/downloadFileStream"))
             search = new URL(source, globalThis.location.href).search;
           else if (source.startsWith("cid:")) {
             const file = files.find(
@@ -100,15 +102,15 @@ function HtmlEmail({ message, expanded }: { message: CimMessage; expanded: boole
           }
         }),
       );
-      if (!cancelled) setLoaded({ id: message.id, html: document.body.innerHTML });
+      if (!cancelled) setLoaded({ raw, html: document.body.innerHTML });
     };
     void run();
     return () => {
       cancelled = true;
       urls.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [message.id, message.body.attachments, raw]);
-  const content = loaded?.id === message.id ? loaded.html : escapeEmailText(messageText(message));
+  }, [message.body.attachments, raw]);
+  const content = loaded?.raw === raw ? loaded.html : escapeEmailText(messageText(message));
   const srcDoc = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src blob: data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><style>html{overflow-x:auto}body{font:14px/1.6 system-ui;margin:12px;overflow-wrap:break-word;color:#252a34}img{max-width:100%;height:auto}pre{white-space:pre-wrap}blockquote{border-inline-start:2px solid #ddd;padding-inline-start:12px;margin-inline:0}td,th{overflow-wrap:normal}</style></head><body>${content}</body></html>`;
   return (
     <iframe
@@ -147,6 +149,7 @@ function EmailCard({
 }) {
   const [open, setOpen] = useState(expanded);
   const [details, setDetails] = useState(false);
+  const [showQuoted, setShowQuoted] = useState(false);
   const attachments = (
     Array.isArray(message.body.attachments) ? message.body.attachments : []
   ) as EmailAttachment[];
@@ -154,8 +157,14 @@ function EmailCard({
   const to = addressesOf(message.body.recipientsTo);
   const cc = addressesOf(message.body.recipientsCc);
   const sender = name || String(message.header.sender?.senderName ?? "") || from || "Unknown sender";
-  const stamp = Number(message.header.timestamp);
-  const text = messageText(message);
+  const stamp = emailTimestamp(message);
+  const html = String(message.body.htmlBody ?? "");
+  // The earlier conversation quoted below a reply stays folded, as in the source email view.
+  const { content, quoted } = useMemo(
+    () => (html ? splitQuotedEmail(html) : { content: "", quoted: "" }),
+    [html],
+  );
+  const text = useMemo(() => (content ? emailPlainText(content) : messageText(message)), [content, message]);
   const long = text.length > 480 || text.split("\n").length > 8;
   return (
     <article
@@ -217,7 +226,19 @@ function EmailCard({
           {String(message.body.subject ?? "No subject")}
         </h4>
         {open ? (
-          <HtmlEmail message={message} expanded={expanded} />
+          <>
+            <HtmlEmail message={message} html={showQuoted ? html : content} expanded={expanded} />
+            {quoted && (
+              <button
+                type="button"
+                aria-expanded={showQuoted}
+                className="me-3 mt-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
+                onClick={() => setShowQuoted(!showQuoted)}
+              >
+                {showQuoted ? "Hide quoted text" : "Show quoted text"}
+              </button>
+            )}
+          </>
         ) : (
           <p
             className={cn(

@@ -6,6 +6,12 @@ interface MockPresence {
 
 type Dispatch = (event: string, ...args: unknown[]) => void;
 
+interface DemoParticipant {
+  type: string;
+  role?: string;
+  participant: { id?: string };
+}
+
 /**
  * `pnpm mock` has no agent-manager to connect to. This stands in for it: the agent is connected and
  * Ready, and a change of state (Ready, Not Ready with a reason, a channel's state, logout) is answered
@@ -20,6 +26,8 @@ export class MockAgentManager {
     ],
     stateChangeTime: new Date().toISOString(),
   };
+  /** The demo chats' participants, so a completed consult can change the consulted agent's role. */
+  private participants = new Map<string, DemoParticipant[]>();
 
   constructor(
     private readonly dispatch: Dispatch,
@@ -34,13 +42,20 @@ export class MockAgentManager {
       // `pnpm mock` opens with a few live chats (.env.mock); e2e seeds its own.
       if (import.meta.env.VITE_MOCK_LIVE_CHATS !== "true") return;
       void import("@/test/msw/liveConversations").then(({ demoLiveConversations }) => {
-        for (const chat of demoLiveConversations(this.agent))
+        for (const chat of demoLiveConversations(this.agent)) {
+          const topic = chat as { conversationId: string; topicData: { participants: DemoParticipant[] } };
+          this.participants.set(topic.conversationId, topic.topicData.participants);
           this.dispatch("onTopicData", chat, () => undefined);
+        }
       });
     }, 0);
   }
 
   emit(event: string, payload: unknown) {
+    if (event === "consultTransferRequest" || event === "consultConferenceRequest") {
+      this.completeConsult(event, payload);
+      return;
+    }
     if (event !== "changeAgentState") return;
     const change = payload as {
       action?: string;
@@ -65,5 +80,55 @@ export class MockAgentManager {
       };
     } else return;
     this.dispatch("agentPresence", { agentPresence: this.presence });
+  }
+
+  /** A finished consult: the chat goes to the consulted agent, or they join it as a second primary. */
+  private completeConsult(event: string, payload: unknown) {
+    const request = payload as {
+      conversationId?: string;
+      requestedAgentId?: string;
+      channelSession?: unknown;
+    };
+    const conversationId = request.conversationId;
+    if (!conversationId) return;
+    if (event === "consultTransferRequest") {
+      setTimeout(
+        () => this.dispatch("topicUnsubscription", { conversationId, reason: "CHAT TRANSFERRED" }),
+        600,
+      );
+      return;
+    }
+    const consulted = this.participants
+      .get(conversationId)
+      ?.find((row) => row.type === "AGENT" && row.participant.id === request.requestedAgentId);
+    if (!consulted) return;
+    consulted.role = "PRIMARY";
+    const cimEvent = (name: string, data: unknown) => ({
+      conversationId,
+      roomInfo: { id: `room-${conversationId}` },
+      cimEvent: JSON.stringify({
+        id: crypto.randomUUID(),
+        name,
+        type: "NOTIFICATION",
+        timestamp: Date.now(),
+        conversationId,
+        channelSession: request.channelSession,
+        data,
+      }),
+    });
+    setTimeout(() => {
+      this.dispatch(
+        "onCimEvent",
+        cimEvent("TASK_STATE_CHANGED", {
+          task: {
+            activeMedia: [{ type: { direction: "CONSULT_CONFERENCE", mode: "AGENT" }, state: "ACTIVE" }],
+          },
+        }),
+      );
+      this.dispatch(
+        "onCimEvent",
+        cimEvent("PARTICIPANT_ROLE_CHANGED", { conversationParticipant: consulted }),
+      );
+    }, 600);
   }
 }

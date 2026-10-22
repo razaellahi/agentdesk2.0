@@ -175,8 +175,8 @@ const iso = new Date().toISOString();
 export const demoSavedFilters = (): SavedFilterDoc[] => [
   {
     _id: "filter-whatsapp",
-    filterName: "Reachable on WhatsApp",
-    filterQuery: { whatsapp: { isNotEmpty: "true" } },
+    filterName: "Reachable by phone",
+    filterQuery: { phoneNumber: { isNotEmpty: "true" } },
     createdAt: iso,
     updatedAt: iso,
   },

@@ -148,6 +148,10 @@ describe("rich email dispatch", () => {
     expect(event.data.body.htmlBody).toContain('data-cid="inline.png"');
     expect(event.data.body.htmlBody).not.toMatch(/blob:|data-inline-id/);
     expect(event.data.body.inlineImages).toBeUndefined();
+    // Source: the plain-text part is the whole email, and an email carries no reply intent.
+    expect(event.data.body.markdownText).toBe("Answer");
+    expect(event.data.header.intent).toBeNull();
+    expect(event.data.header.originalMessageId).toBeUndefined();
     expect(event.channelSession.id).toBe(session.id);
   });
   it("does not publish on upload failure or cancellation while an inline image uploads", async () => {

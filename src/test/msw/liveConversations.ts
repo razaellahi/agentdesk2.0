@@ -78,7 +78,7 @@ const CHATS: Chat[] = [
       firstName: "Amina",
       lastName: "Raza",
       voice: "+923001112233",
-      whatsapp: "+923001112233",
+      phoneNumber: "+923001112233",
       email: "amina@example.com",
       facebook: "amina.raza.official",
       instagram: "@amina.raza",
@@ -254,7 +254,7 @@ const CHATS: Chat[] = [
       firstName: "Bilal",
       lastName: "Ahmed",
       voice: "+923004445566",
-      whatsapp: "+923009998877",
+      phoneNumber: "+923004445566",
       facebook: "bilal.ahmed.77",
       labels: demoLabelsOf("customer-bilal"),
     },
@@ -404,6 +404,7 @@ const CHATS: Chat[] = [
       firstName: "Fatima",
       lastName: "Noor",
       voice: "+971501234567",
+      phoneNumber: "+971501234567",
       email: "fatima.noor@example.com",
       facebook: "fatima.noor.9",
       instagram: "@fatima.noor",
@@ -455,6 +456,12 @@ const CHATS: Chat[] = [
       { who: "C", ago: 3, body: text("Hi! Do you have the warranty terms for the blender range?") },
     ],
     happenings: [sessionStarted(4.2, "session")],
+    // A colleague consulted on this chat, waiting for the agent to hand it over; the QA lead
+    // listening in silently never shows to the agent.
+    agents: [
+      { role: "ASSISTANT", id: "u-agent-sara", username: "sara", firstName: "Sara", lastName: "Ahmed" },
+      { role: "SILENT_MONITOR", id: "u-sup-2", username: "qa.lead", firstName: "Nadia", lastName: "Rauf" },
+    ],
   },
 ];
 

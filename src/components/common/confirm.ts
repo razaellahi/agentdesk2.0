@@ -8,6 +8,8 @@ export interface ConfirmOptions {
   cancelLabel?: string;
   destructive?: boolean;
   container?: HTMLElement;
+  /** Names the question so whoever asked can withdraw it (dismissConfirm). */
+  id?: string;
 }
 
 interface ConfirmState {
@@ -31,3 +33,8 @@ export const useConfirmStore = create<ConfirmState>()((set, get) => ({
 /** Imperative confirmation: `if (await confirm({ title })) …`. Rendered by <ConfirmHost/>. */
 export const confirm = (options: ConfirmOptions) =>
   useConfirmStore.getState().open({ container: focusedOverlayContainer(), ...options });
+
+/** Withdraws a pending confirmation, answered as "no", when what it asked about is gone. */
+export function dismissConfirm(id: string) {
+  if (useConfirmStore.getState().request?.id === id) useConfirmStore.getState().settle(false);
+}

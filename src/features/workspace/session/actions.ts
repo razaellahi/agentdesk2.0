@@ -15,8 +15,10 @@ import {
   toCimEvent,
   type WrapUpSelection,
 } from "../model/outgoing";
+import { whisperPeers } from "../model/participants";
 import type { CimMessage, Conversation } from "../model/types";
 import { validEmailRecipients, type EmailPayload, type EmailAttachment } from "../model/email";
+import { emailPlainText } from "../model/emailEditor";
 import { getConversation, useConversationStore } from "../store/conversationStore";
 import { emitHandRaise } from "./agentSession";
 import { publishCimEvent, unsubscribeTopic } from "./commands";
@@ -50,8 +52,9 @@ export function mayCompose(
     return false;
   const role = conversation.topicParticipant.role;
   if (role === "SILENT_MONITOR") return false;
-  if (role === "ASSISTANT" && !options.whisper) return false;
-  if (["WHISPER", "ASSISTANT"].includes(role) && conversation.agentParticipants.length === 0) return false;
+  // Whisperers and assistants only ever write to agents, and a new whisper needs an agent to read it.
+  if (["WHISPER", "ASSISTANT"].includes(role) && !options.whisper) return false;
+  if (options.whisper && !options.originalMessageId && whisperPeers(conversation) === 0) return false;
   const session = selectedSession(conversation);
   if (!session || session.isDisabled) return false;
   if (
@@ -242,7 +245,8 @@ export async function sendEmail(
       !latest.activeChannelSessions.some((s) => s.id === session.id && !s.isDisabled)
     )
       return false;
-    const message = buildTextMessage(latest, session, text, {
+    // Source sends the whole email (reply, signature and quote) as its plain-text part.
+    const message = buildTextMessage(latest, session, emailPlainText(htmlBody).trim() || text, {
       ...options,
       email: { ...email, htmlBody, attachments },
     });

@@ -18,6 +18,8 @@ export interface ComposerDraft {
   emailThreads: string[];
   quotedHtml: string;
   forwardedAttachments: EmailAttachment[];
+  /** The agent left the email signature out of this email. */
+  signatureOff: boolean;
   whisper: boolean | undefined;
   privateReply: boolean;
   replyToId: string | null;
@@ -40,6 +42,7 @@ export const EMPTY_DRAFT: Readonly<ComposerDraft> = Object.freeze({
   emailThreads: [],
   quotedHtml: "",
   forwardedAttachments: [],
+  signatureOff: false,
   whisper: undefined,
   privateReply: false,
   replyToId: null,
@@ -61,7 +64,19 @@ interface ComposerState {
   setEdit: (key: string, messageId: string | null, text?: string | null) => void;
   insertText: (key: string, text: string) => void;
   clearInsert: (key: string) => void;
+  /** Applies a change to every draft of one conversation (one per reply channel). */
+  patchConversation: (conversationId: string, patch: Partial<ComposerDraft>) => void;
+  /** Forgets a conversation's drafts once it is gone. */
+  dropConversation: (conversationId: string) => void;
   reset: () => void;
+}
+function conversationOf(key: string): string | undefined {
+  try {
+    const parsed: unknown = JSON.parse(key);
+    return Array.isArray(parsed) ? String(parsed[0]) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 export const useComposerStore = create<ComposerState>()((set, get) => ({
   drafts: {},
@@ -92,6 +107,19 @@ export const useComposerStore = create<ComposerState>()((set, get) => ({
     });
   },
   clearInsert: (key) => get().patch(key, { insertRequest: null }),
+  patchConversation: (conversationId, patch) => {
+    for (const key of Object.keys(get().drafts))
+      if (conversationOf(key) === conversationId) get().patch(key, patch);
+  },
+  dropConversation: (conversationId) => {
+    const drafts = { ...get().drafts };
+    for (const key of Object.keys(drafts)) {
+      if (conversationOf(key) !== conversationId) continue;
+      revokeInlineImages(drafts[key]!.inlineImages);
+      delete drafts[key];
+    }
+    set({ drafts });
+  },
   reset: () => {
     for (const draft of Object.values(get().drafts)) revokeInlineImages(draft.inlineImages);
     set({ drafts: {} });

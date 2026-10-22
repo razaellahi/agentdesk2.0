@@ -77,7 +77,7 @@ export function TopBar({
       <div className="flex shrink-0 items-center gap-2">
         {/* Agent State */}
         {agentSession && (
-          <div className="flex items-center">
+          <div className="flex items-center ltr:-translate-x-2 rtl:translate-x-2">
             <AgentStateMenu />
           </div>
         )}

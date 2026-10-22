@@ -47,7 +47,8 @@ function Instagram({ className }: MarkProps) {
 
 function WhatsApp({ className }: MarkProps) {
   return (
-    <svg viewBox="0 0 24 24" className={className} aria-hidden focusable="false">
+    // Cropped around the bubble, so it reads about 15% larger than the other marks in the same box.
+    <svg viewBox="1.7 1.6 20.8 20.8" className={className} aria-hidden focusable="false">
       <path
         fill="none"
         strokeWidth="1.9"

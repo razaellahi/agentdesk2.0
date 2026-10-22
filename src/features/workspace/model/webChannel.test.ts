@@ -12,7 +12,9 @@ const session = (patch: Partial<ChannelSession["channelData"]> = {}, extra: Part
 
 describe("readWebChannel", () => {
   it("returns null for a session that is not a web chat", () => {
-    expect(readWebChannel(session({ additionalAttributes: [{ key: "x", type: "other", value: 1 }] }))).toBeNull();
+    expect(
+      readWebChannel(session({ additionalAttributes: [{ key: "x", type: "other", value: 1 }] })),
+    ).toBeNull();
   });
 
   it("reads device, browser, locale and the submitted form", () => {

@@ -6,12 +6,14 @@ import {
   CornerDownLeft,
   Eye,
   EyeOff,
+  Forward,
   Heart,
   Info,
   Lock,
   MapPin,
   Pencil,
   Phone,
+  ReplyAll,
   RotateCcw,
   Star,
   ThumbsUp,
@@ -26,6 +28,7 @@ import { getSession, useScope } from "@/core/auth";
 import { cn } from "@/shared/lib/utils";
 import { useMaskedValue } from "../../hooks/useMaskedValue";
 import { messageText } from "../../model/outgoing";
+import { ChannelBadge } from "../ChannelIcon";
 import { lower } from "../../model/systemMessages";
 import type { CimMessage, Conversation, Sender } from "../../model/types";
 import { CustomerAvatar } from "../CustomerInitials";
@@ -37,7 +40,7 @@ import { Media } from "./Media";
 import { StructuredBody } from "./StructuredBody";
 import { httpLink } from "../../model/links";
 import { EmailBody } from "./EmailBody";
-import { emailReplyContext } from "../../model/email";
+import { emailReplyContext, type EmailMode } from "../../model/email";
 import {
   activityCustomerNumber,
   canPlayActivityRecording,
@@ -575,10 +578,11 @@ export function MessageRow({
     conversation.activeChannelSessions.find(
       (session) => session.id === (message.header.channelSession as ChannelSession | undefined)?.id,
     ) ?? (message.header.channelSession as ChannelSession | undefined);
+  const fromChannel = originalSession?.channel?.channelType;
   const canSocial = (action: Parameters<typeof mayActOnComment>[2]) =>
     mayActOnComment(message, originalSession, action);
 
-  const reply = (privateReply = false) => {
+  const reply = (privateReply = false, emailMode: EmailMode = "REPLY_TO") => {
     const channelSession = originalChannelSession(conversation, message);
     if (!channelSession) return;
     useConversationStore.getState().selectReplySession(conversation.conversationId, channelSession.id);
@@ -588,8 +592,8 @@ export function MessageRow({
     useComposerStore.getState().patch(key, { privateReply, whisper: false });
     if (type === "email")
       useComposerStore.getState().patch(key, {
-        ...emailReplyContext(message, channelSession, "REPLY_TO"),
-        emailMode: "REPLY_TO",
+        ...emailReplyContext(message, channelSession, emailMode),
+        emailMode,
         emailInitialized: true,
       });
   };
@@ -627,7 +631,11 @@ export function MessageRow({
 
   // An email is not a chat bubble: a full-width email card with its own small header actions.
   if (type === "email" && !whisper) {
-    const canReplyByEmail = conversation.state === "ACTIVE" && conversation.composerEnabled;
+    // Source isEmailSessionActive: answering needs this email's session to still be live.
+    const canReplyByEmail =
+      conversation.state === "ACTIVE" &&
+      conversation.composerEnabled &&
+      Boolean(editSession && !editSession.isDisabled);
     const iconButton =
       "grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface-2 hover:text-foreground";
     const emailActions = (
@@ -644,18 +652,25 @@ export function MessageRow({
             </button>
           </IconTooltip>
         )}
-        {canReplyByEmail && (
-          <IconTooltip label={t("chat-features.interactions.reply")}>
-            <button
-              type="button"
-              className={cn(iconButton, "hover:text-primary")}
-              aria-label={t("chat-features.interactions.reply")}
-              onClick={() => reply()}
-            >
-              <CornerDownLeft className="size-3.5" />
-            </button>
-          </IconTooltip>
-        )}
+        {canReplyByEmail &&
+          (
+            [
+              ["REPLY_TO", "chat-features.interactions.reply", CornerDownLeft],
+              ["REPLY_ALL", "chat-features.interactions.reply-all", ReplyAll],
+              ["FORWARD", "chat-features.interactions.forward", Forward],
+            ] as const
+          ).map(([mode, label, Icon]) => (
+            <IconTooltip key={mode} label={t(label)}>
+              <button
+                type="button"
+                className={cn(iconButton, "hover:text-primary")}
+                aria-label={t(label)}
+                onClick={() => reply(false, mode)}
+              >
+                <Icon className="size-3.5" />
+              </button>
+            </IconTooltip>
+          ))}
       </span>
     );
     return (
@@ -706,6 +721,9 @@ export function MessageRow({
           <div className="mb-1 flex items-center gap-1.5 px-1 text-xs">
             {!mine && name && (
               <span className="truncate text-[13px] font-medium tracking-normal text-foreground">{name}</span>
+            )}
+            {senderType === "customer" && fromChannel && (
+              <ChannelBadge channelType={fromChannel} size="sm" className="size-4" />
             )}
             {validStamp && (
               <time

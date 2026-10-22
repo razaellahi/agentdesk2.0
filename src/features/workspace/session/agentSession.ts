@@ -1,4 +1,5 @@
 import { useComposerStore } from "../store/composerStore";
+import { useKnowledgeStore } from "../store/knowledgeStore";
 import { usePopoutStore } from "../store/popout";
 import { useBoardStore } from "../store/boardStore";
 import { resetSeenMessages } from "./seen";
@@ -14,6 +15,7 @@ import { socketManager, useSocketStore } from "@/core/realtime";
 import { getCustomerSchema, getPullModeLists, getReasonCodes } from "../api";
 import type { Effect } from "../model/cimEvents";
 import type { ModelContext, TopicDataPayload } from "../model/conversation";
+import { whisperPeers } from "../model/participants";
 import { lower } from "../model/systemMessages";
 import type { CimEvent, ChannelType } from "../model/types";
 import { useAgentStore, type AgentPresence } from "../store/agentStore";
@@ -118,16 +120,43 @@ function runEffects(effects: Effect[]) {
         if (c) emitHandRaise(c.conversationId);
         break;
       }
-      // whisperCheck / channelSessionEnded / monitoredVoiceEnded / externalGadget are
-      // consumed by later phases (supervisor + voice) through the session event bus.
-      default:
-        sessionBus.dispatchEvent(new CustomEvent(effect.kind, { detail: effect }));
+      case "whisperCheck": {
+        // Nobody left to read a whisper: back to replying to the customer (checkWhisperMode).
+        const c = getConversation(effect.conversationId);
+        if (c && whisperPeers(c) === 0)
+          useComposerStore.getState().patchConversation(c.conversationId, { whisper: false });
+        break;
+      }
+      // A conversation's dialogs close with its channel; a monitored call ends the supervisor's leg.
+      case "channelSessionEnded":
+      case "monitoredVoiceEnded":
+        publish(effect.kind, effect);
+        break;
     }
   }
 }
 
-/** In-app bus for session events other features react to (voice, supervisor, embedded apps). */
+/** In-app bus for session events other features react to (voice, dialogs, header menus). */
 export const sessionBus = new EventTarget();
+
+export type SessionEventName =
+  | "channelSessionEnded"
+  | "monitoredVoiceEnded"
+  | "namedAssistance"
+  | "announcementCreated"
+  | "announcementDeleted"
+  | "qmNotification";
+
+function publish(name: SessionEventName, detail: unknown) {
+  sessionBus.dispatchEvent(new CustomEvent(name, { detail }));
+}
+
+/** Listens to one session event; returns the unsubscribe. */
+export function onSessionEvent<T>(name: SessionEventName, handler: (detail: T) => void) {
+  const listener = (event: Event) => handler((event as CustomEvent<T>).detail);
+  sessionBus.addEventListener(name, listener);
+  return () => sessionBus.removeEventListener(name, listener);
+}
 
 export function emitHandRaise(conversationId: string) {
   const c = getConversation(conversationId);
@@ -312,8 +341,20 @@ function onTopicUnsubscription(res: { conversationId: string; reason?: string })
   // One closing message at a time: leaving several conversations replaces, not stacks.
   if (message) toast[message.variant](message.text, { id: "conversation-ended" });
   recentlyRemoved.set(res.conversationId, Date.now());
-  const removed = useConversationStore.getState().remove(res.conversationId);
-  if (removed) sessionBus.dispatchEvent(new CustomEvent("conversationRemoved", { detail: removed }));
+  useConversationStore.getState().remove(res.conversationId);
+}
+
+/** A conversation that is gone takes its window, drafts and answers with it, however it left. */
+function forgetRemovedConversations() {
+  return useConversationStore.subscribe((state, previous) => {
+    if (state.byId === previous.byId) return;
+    for (const id of Object.keys(previous.byId)) {
+      if (state.byId[id]) continue;
+      usePopoutStore.getState().remove(id);
+      useComposerStore.getState().dropConversation(id);
+      useKnowledgeStore.getState().forget(id);
+    }
+  });
 }
 
 function onAgentPresence(res: { agentPresence: AgentPresence }) {
@@ -328,6 +369,7 @@ function onAgentPresence(res: { agentPresence: AgentPresence }) {
 function register() {
   const on = socketManager.on.bind(socketManager);
   unsubscribers = [
+    forgetRemovedConversations(),
     on("connect", () => {
       useRequestStore.getState().clearPush();
       // Only a recovery is news; the first connect after sign-in is expected.
@@ -385,9 +427,11 @@ function register() {
       // The unsubscription that follows a transfer says the same thing; show it once.
       if (msg) setTimeout(() => toast.success(msg, { id: "conversation-ended" }), 1000);
     }),
-    on("agentAssignedForAssistance", (res: unknown) =>
-      sessionBus.dispatchEvent(new CustomEvent("namedAssistance", { detail: res })),
-    ),
+    on("agentAssignedForAssistance", (res: unknown) => publish("namedAssistance", res)),
+    // Team announcements and QM notifications: the header's announcements menu keeps the list.
+    on("ANNOUNCEMENT_CREATED", (res: unknown) => publish("announcementCreated", res)),
+    on("ANNOUNCEMENT_DELETED", (res: unknown) => publish("announcementDeleted", res)),
+    on("notification", (res: unknown) => publish("qmNotification", res)),
     on("socketSessionRemoved", () => {
       forceEndSession("another-session");
       globalThis.alert(t("snackbar.you-are-logged-In-from-another-session"));

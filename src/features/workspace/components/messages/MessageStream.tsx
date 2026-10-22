@@ -17,6 +17,10 @@ import { MessageRow } from "./MessageBody";
 const TURN_GAP_MS = 5 * 60_000;
 
 /** Consecutive messages from one sender within a few minutes read as one turn. */
+const channelOf = (message: Conversation["messages"][number]) =>
+  (message.header.channelSession as { channel?: { channelType?: { name?: string } } } | undefined)?.channel
+    ?.channelType?.name ?? "";
+
 function sameTurn(
   previous: Conversation["messages"][number] | undefined,
   message: Conversation["messages"][number],
@@ -27,6 +31,8 @@ function sameTurn(
   const type = lower(b?.type);
   if (!type || type === "system" || lower(previous.body.type) === "systemnotification") return false;
   if (lower(a?.type) !== type || (a?.id ?? "") !== (b?.id ?? "")) return false;
+  // A customer who moves to another channel starts a new turn, so the channel shown stays true.
+  if (type === "customer" && channelOf(previous) !== channelOf(message)) return false;
   return Math.abs(Number(message.header.timestamp) - Number(previous.header.timestamp)) < TURN_GAP_MS;
 }
 

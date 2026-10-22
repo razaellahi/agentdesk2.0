@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/shared/lib/utils";
 import {
   ArrowDownAZ,
   ArrowLeft,
@@ -35,7 +36,9 @@ import { useConversationStore, getConversation } from "@/features/workspace";
 import { CustomerForm } from "./CustomerForm";
 import { LabelDots } from "./LabelDots";
 import { getCustomer, hydrateLabels, listLabels, type CustomerRow } from "./api";
+import { useColumnWidths } from "./phonebook/useColumnWidths";
 import { AdvancedFilterDialog } from "./phonebook/AdvancedFilterDialog";
+import { ColumnHeader } from "./phonebook/ColumnHeader";
 import { ColumnPreferencesDialog } from "./phonebook/ColumnPreferencesDialog";
 import { ALL_FIELDS, CustomerSearchBar } from "./phonebook/CustomerSearchBar";
 import {
@@ -45,7 +48,12 @@ import {
   searchCustomers,
 } from "./phonebook/customersQuery";
 import { OutboundRowActions } from "./phonebook/OutboundRowActions";
-import { getUserPreference, resolveColumns } from "./phonebook/preferencesApi";
+import {
+  createUserPreference,
+  getUserPreference,
+  resolveColumns,
+  updateUserPreference,
+} from "./phonebook/preferencesApi";
 import { SavedFiltersMenu } from "./phonebook/SavedFiltersMenu";
 import type { CustomerDoc, PhonebookColumn, SavedFilter, SchemaAttr } from "./phonebook/types";
 import { cimCustomerApi } from "@/core/api";
@@ -148,6 +156,37 @@ function CustomerDirectory() {
       ...base,
     ];
   }, [schemaQuery.data, prefQuery.data?.columns, linking, params]);
+
+  // Flexible columns, as in unified-agent: drag a header to reorder (saved to the user's column
+  // preference), drag its edge to resize (kept in this browser).
+  const client = useQueryClient();
+  const { widths, resize, commit: commitWidths } = useColumnWidths(user?.id);
+  const [dragField, setDragField] = useState<string | null>(null);
+  const saveOrder = useMutation({
+    mutationFn: async (ordered: typeof columns) => {
+      const payload = {
+        user_Id: user!.id,
+        pageSize: null as null,
+        columns: ordered.map((col) => ({ field: col.field, header: col.header, type: col.type ?? "string" })),
+        sortOption: [{ field: "", sortOption: "" }],
+      };
+      const saved = prefQuery.data;
+      return saved?._id ? updateUserPreference(saved._id, payload) : createUserPreference(payload);
+    },
+    onSuccess: () => client.invalidateQueries({ queryKey: ["phonebook-preference"] }),
+  });
+  const moveColumn = (target: string) => {
+    const from = dragField;
+    setDragField(null);
+    if (!from || from === target || !user) return;
+    const ordered = [...columns];
+    const fromIndex = ordered.findIndex((col) => col.field === from);
+    const toIndex = ordered.findIndex((col) => col.field === target);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const [moved] = ordered.splice(fromIndex, 1);
+    ordered.splice(toIndex, 0, moved!);
+    saveOrder.mutate(ordered);
+  };
 
   useEffect(() => {
     if (schemaQuery.data?.length) {
@@ -468,26 +507,26 @@ function CustomerDirectory() {
         <thead>
           <tr>
             {columns.map((col) => (
-              <Th key={col.field}>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1"
-                  onClick={() => {
-                    if (sortField === col.field) {
-                      setSortOrder((value) => (value === "asc" ? "desc" : "asc"));
-                    } else {
-                      setSortField(col.field);
-                      setSortOrder("asc");
-                    }
-                    setPage(0);
-                  }}
-                >
-                  {col.header}
-                  {sortField === col.field && (
-                    <span className="text-[11px]">{sortOrder === "asc" ? "↑" : "↓"}</span>
-                  )}
-                </button>
-              </Th>
+              <ColumnHeader
+                key={col.field}
+                column={col}
+                width={widths[col.field]}
+                sorted={sortField === col.field ? sortOrder : null}
+                onSort={() => {
+                  if (sortField === col.field) {
+                    setSortOrder((value) => (value === "asc" ? "desc" : "asc"));
+                  } else {
+                    setSortField(col.field);
+                    setSortOrder("asc");
+                  }
+                  setPage(0);
+                }}
+                onResize={(width) => resize(col.field, width)}
+                onResizeEnd={commitWidths}
+                dragging={dragField === col.field}
+                onDragStart={() => setDragField(col.field)}
+                onDropOn={() => moveColumn(col.field)}
+              />
             ))}
             <Th />
           </tr>
@@ -542,8 +581,16 @@ function CustomerDirectory() {
                 }}
               >
                 {columns.map((col) => (
-                  <Td key={col.field}>
-                    <div className="flex flex-wrap items-center gap-1.5">
+                  <Td
+                    key={col.field}
+                    className="whitespace-nowrap"
+                    style={
+                      widths[col.field]
+                        ? { maxWidth: widths[col.field], width: widths[col.field] }
+                        : undefined
+                    }
+                  >
+                    <div className="flex items-center gap-1.5">
                       {cellText(row, col) === "—" ? (
                         // Nothing here: a faint placeholder, not something that reads like a value.
                         <span className="text-muted-foreground/35 select-none" title={t("globals.no-value")}>
@@ -551,7 +598,14 @@ function CustomerDirectory() {
                           <span className="sr-only">{t("globals.no-value")}</span>
                         </span>
                       ) : (
-                        <span className={col.field === "firstName" ? "font-medium" : undefined}>
+                        <span
+                          className={cn(
+                            "block truncate",
+                            !widths[col.field] && "max-w-[18rem]",
+                            col.field === "firstName" && "font-medium",
+                          )}
+                          title={cellText(row, col)}
+                        >
                           {cellText(row, col)}
                         </span>
                       )}
@@ -562,22 +616,20 @@ function CustomerDirectory() {
                   </Td>
                 ))}
                 {/* Pinned to the right edge so the actions stay in reach when the table scrolls sideways.
-                    The cell itself is transparent: nothing under it is ever covered while the actions are hidden. */}
+                    Hidden until the row is hovered or focused (or one of its menus is open), so a quiet row
+                    shows only its data; the backing appears with the icons and covers nothing while hidden. */}
                 <Td
                   data-prevent-row-click
                   onClick={(event) => event.stopPropagation()}
                   className="sticky end-0 z-[5] w-px whitespace-nowrap"
                 >
-                  {/* Shown on hover or keyboard focus, and while one of its menus is open (the menu takes the
-                      pointer and focus away from the row). Always shown where there is no hover (touch). The
-                      backing only appears with the icons, so it covers a row's content only while in use. */}
-                  <div className="ms-auto flex w-fit items-center justify-end gap-1 rounded-full px-1 py-0.5 opacity-0 transition-opacity group-focus-within:bg-surface group-focus-within:opacity-100 group-focus-within:shadow-sm group-hover:bg-surface group-hover:opacity-100 group-hover:shadow-sm has-[[data-state=open]]:bg-surface has-[[data-state=open]]:opacity-100 has-[[data-state=open]]:shadow-sm [@media(hover:none)]:opacity-100">
+                  <div className="ms-auto flex w-fit items-center justify-end gap-0.5 rounded-full px-1 py-0.5 opacity-0 transition-opacity group-focus-within:bg-surface group-focus-within:opacity-100 group-focus-within:shadow-sm group-hover:bg-surface group-hover:opacity-100 group-hover:shadow-sm has-[[data-state=open]]:bg-surface has-[[data-state=open]]:opacity-100 has-[[data-state=open]]:shadow-sm [@media(hover:none)]:opacity-100">
                     {canManage && !linking && row._id && (
                       <Button
                         type="button"
                         size="icon-sm"
                         variant="ghost"
-                        className="hover:bg-transparent hover:opacity-70"
+                        className="rounded-full hover:bg-surface-2"
                         aria-label={t("globals.edit")}
                         title={t("globals.edit")}
                         onClick={(event) => {
@@ -585,7 +637,7 @@ function CustomerDirectory() {
                           setEditing(row as CustomerRow);
                         }}
                       >
-                        <Pencil className="size-3.5 text-sky-600 dark:text-sky-400" />
+                        <Pencil className="size-3.5 text-muted-foreground" />
                       </Button>
                     )}
                     {linkingAvailable && canLink && row._id && row._id !== topicCustomerId && (
@@ -593,7 +645,7 @@ function CustomerDirectory() {
                         type="button"
                         size="icon-sm"
                         variant="ghost"
-                        className="hover:bg-transparent hover:opacity-70"
+                        className="rounded-full hover:bg-surface-2"
                         aria-label={t("chat-features.customer-info.link-profile")}
                         title={t("chat-features.customer-info.link-profile")}
                         onClick={(event) => {
@@ -601,7 +653,7 @@ function CustomerDirectory() {
                           linkRow(row);
                         }}
                       >
-                        <Link2 className="size-3.5 text-primary" />
+                        <Link2 className="size-3.5 text-muted-foreground" />
                       </Button>
                     )}
                     {!linking && canInitiateChat && row._id && (
@@ -609,7 +661,7 @@ function CustomerDirectory() {
                         type="button"
                         size="icon-sm"
                         variant="ghost"
-                        className="hover:bg-transparent hover:opacity-70"
+                        className="rounded-full hover:bg-surface-2"
                         aria-label={t("globals.start-conversation")}
                         title={t("globals.start-conversation")}
                         onClick={(event) => {
@@ -617,7 +669,7 @@ function CustomerDirectory() {
                           openConversation(row);
                         }}
                       >
-                        <UserRound className="size-3.5 text-violet-600 dark:text-violet-400" />
+                        <UserRound className="size-3.5 text-muted-foreground" />
                       </Button>
                     )}
                     <OutboundRowActions customer={row} hidden={linking} />

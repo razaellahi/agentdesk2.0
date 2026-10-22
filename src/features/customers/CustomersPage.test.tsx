@@ -27,6 +27,8 @@ vi.mock("@/features/voice", () => ({
 vi.mock("@/features/workspace", () => ({
   WORKSPACE_PATH: "/workspace",
   maskPii: (v: string) => v,
+  ChannelCluster: () => null,
+  OutboundActionIcon: () => null,
   openLinkConversationDialog: vi.fn(),
   linkCustomerWithTopic: vi.fn(),
   startConversationFromCustomer: vi.fn(),

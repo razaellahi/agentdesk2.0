@@ -209,6 +209,7 @@ export function buildConversation(payload: TopicDataPayload, ctx: ModelContext, 
     firstChannelSession: topicData.channelSession ?? null,
     activeChannelSessions: [],
     agentParticipants: [],
+    webConference: false,
     messages: [],
     embeddedApps: [],
     activeConversationData: topicData.conversationData,
@@ -351,6 +352,8 @@ export function buildConversation(payload: TopicDataPayload, ctx: ModelContext, 
       }
     }
   }
+  // Joining a conversation another primary already shares means a conference is running.
+  conversation.webConference = conversation.agentParticipants.some((p) => p.role === "PRIMARY");
   conversation.activeChannelSessions.forEach((s) => {
     s.isDisabled = isVoiceSession(s);
     s.isChecked = false;

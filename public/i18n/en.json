@@ -379,7 +379,8 @@
     "new-announcement-by": "New Announcement by",
     "by": "by",
     "edit": "Edit",
-    "no-more-annoucements": "No more announcements!"
+    "no-more-annoucements": "No more announcements!",
+    "quality": "Quality review"
   },
   "labels": {
     "label": "Label",
@@ -496,7 +497,7 @@
         "show-less": "show less",
         "sources": "sources",
         "search": "Search",
-        "empty": "Ask a question to find answers you can add straight to the chat.",
+        "empty": "Ask a question to find answers from the knowledge base.",
         "add-to-chat": "Add to chat",
         "added": "Added",
         "copy": "Copy",
@@ -1807,8 +1808,10 @@
       "role-silent-monitor": "Monitoring",
       "role-assistant": "Assistant",
       "role-wrap-up": "Wrapping up",
-      "role-barge-in": "Joined in"
-    }
+      "role-barge-in": "Joined in",
+      "consult-ready": "Consult ready: transfer or conference"
+    },
+    "end-call": "End call"
   },
   "recordings": {
     "calling": "Calling",
@@ -1881,7 +1884,13 @@
     "send-sms": "Send SMS",
     "send-close": "Send SMS and close",
     "from-loading": "Loading outbound channels…",
-    "from-unconfigured": "No outbound From channel is configured."
+    "from-unconfigured": "No outbound From channel is configured.",
+    "new-email": "New email",
+    "send-shortcut": "Ctrl / ⌘ + Enter to send",
+    "discard": "Discard",
+    "send": "Send",
+    "new-sms": "New SMS",
+    "new-whatsapp": "New WhatsApp message"
   },
   "teams": {
     "description-page": "Create teams and assign a supervisor, secondary supervisors and agents.",

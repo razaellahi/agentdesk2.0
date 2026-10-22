@@ -73,7 +73,7 @@ function TimeStat({
 }) {
   return (
     <span
-      className="grid min-w-[4.25rem] grid-rows-[auto_auto] justify-items-center gap-y-0.5 text-center"
+      className="grid min-w-[4rem] grid-rows-[auto_auto] justify-items-center gap-y-0.5 text-center"
       title={`${label} ${value}`}
     >
       <span
@@ -161,11 +161,10 @@ export function AgentStateMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant="outline"
+          variant="ghost"
           className={cn(
-            // The has-[>svg] overrides cancel the Button size's own "px-3 when it holds an icon", which
-            // would otherwise win over this padding because the chevron is a direct child.
-            "h-12 gap-2 rounded-xl border-border/80 bg-surface ps-2.5 pe-2 font-normal shadow-none transition-colors hover:bg-surface-2 has-[>svg]:ps-2.5 has-[>svg]:pe-2",
+            // One soft pill, no outline or divider; the has-[>svg] overrides cancel the Button size's own icon padding.
+            "h-12 gap-3 rounded-full bg-control ps-4 pe-3 font-normal shadow-none transition-colors hover:bg-control-hover has-[>svg]:ps-4 has-[>svg]:pe-3",
             pending && "opacity-80",
           )}
           aria-label={`${t("workspace.agent-state", { state: stateLabel })}. ${ariaTimes}`}
@@ -176,7 +175,6 @@ export function AgentStateMenu() {
             value={live ? stateClock : "--:--:--"}
             tone={live && ready ? "ready" : live && notReady ? "away" : "quiet"}
           />
-          <span className="h-6 w-px shrink-0 bg-border" aria-hidden />
           <TimeStat label={t("workspace.logged-in-time")} value={loggedIn} />
           <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         </Button>

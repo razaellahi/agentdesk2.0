@@ -19,11 +19,10 @@ export type Effect =
   | { kind: "incomingMessage"; conversationId: string; event: CimEvent }
   | { kind: "crm"; payload: unknown }
   | { kind: "conversationData"; payload: unknown }
-  | { kind: "whisperCheck" }
+  | { kind: "whisperCheck"; conversationId: string }
   | { kind: "channelSessionEnded"; conversationId: string }
   | { kind: "emitHandRaise"; conversationId: string }
-  | { kind: "monitoredVoiceEnded" }
-  | { kind: "externalGadget"; conversationId: string; data: unknown };
+  | { kind: "monitoredVoiceEnded"; conversationId: string };
 
 const TYPING_MS = 5000;
 
@@ -62,6 +61,20 @@ export function stopSla(conversation: Conversation) {
   conversation.sla.deadline = null;
   conversation.sla.popup = false;
   conversation.sla.color = "sla-normal";
+}
+
+/** A chat consult turned into a conference (CX Voice conferences are tracked by the call). */
+function startsWebConference(event: CimEvent): boolean {
+  const media: { type?: { direction?: string }; state?: string }[] = event.data?.task?.activeMedia ?? [];
+  return (
+    lower(event.channelSession?.channel?.channelType?.name) !== "cx_voice" &&
+    media.some((m) => m.type?.direction === "CONSULT_CONFERENCE" && m.state === "ACTIVE")
+  );
+}
+
+/** Another agent still works the conversation, not only watches it. */
+function sharesConversation(conversation: Conversation): boolean {
+  return conversation.agentParticipants.some((p) => p.role === "PRIMARY" || p.role === "ASSISTANT");
 }
 
 /**
@@ -106,7 +119,8 @@ export function applyCimEvent(conversation: Conversation, event: CimEvent, ctx: 
       if (bodyType !== "notification") conversation.typingUntil = null;
       followCustomerChannel(conversation, data.header.channelSession);
     }
-    if (name === "customer_message" || name === "bot_message") conversation.unread += 1;
+    // Only what the customer sent is unread; bot replies are not waiting on the agent.
+    if (name === "customer_message") conversation.unread += 1;
 
     const itemType = lower(data.body.itemType);
     if (
@@ -172,7 +186,7 @@ export function applyCimEvent(conversation: Conversation, event: CimEvent, ctx: 
           lower(removed.channel.channelType.name) === "cx_voice" &&
           conversation.topicParticipant.role === "SILENT_MONITOR"
         ) {
-          effects.push({ kind: "monitoredVoiceEnded" });
+          effects.push({ kind: "monitoredVoiceEnded", conversationId: conversation.conversationId });
         }
         if (removed?.isChecked) {
           const next = conversation.activeChannelSessions.find(
@@ -214,7 +228,8 @@ export function applyCimEvent(conversation: Conversation, event: CimEvent, ctx: 
       conversation.agentParticipants = conversation.agentParticipants.filter(
         (p) => p.participant.keycloakUser.id !== event.data.agentParticipant.participant.keycloakUser.id,
       );
-      effects.push({ kind: "whisperCheck" });
+      if (!sharesConversation(conversation)) conversation.webConference = false;
+      effects.push({ kind: "whisperCheck", conversationId: conversation.conversationId });
       pushSystem(conversation, event, ctx);
       break;
     case "task_enqueued":
@@ -222,6 +237,7 @@ export function applyCimEvent(conversation: Conversation, event: CimEvent, ctx: 
       pushSystem(conversation, event, ctx);
       break;
     case "task_state_changed":
+      if (startsWebConference(event)) conversation.webConference = true;
       pushSystem(conversation, event, ctx);
       if (event.data?.task?.state?.name === "WRAP_UP") effects.push({ kind: "crm", payload: event });
       break;
@@ -239,7 +255,8 @@ export function applyCimEvent(conversation: Conversation, event: CimEvent, ctx: 
         conversation.agentParticipants = conversation.agentParticipants.map((p) =>
           p.participant.id === participant.participant.id ? participant : p,
         );
-      effects.push({ kind: "whisperCheck" });
+      if (!sharesConversation(conversation)) conversation.webConference = false;
+      effects.push({ kind: "whisperCheck", conversationId: conversation.conversationId });
       pushSystem(conversation, event, ctx);
       if (participant.role === "WHISPER" || participant.role === "PRIMARY") {
         effects.push({ kind: "crm", payload: { ...event, action: "participantRoleChanged" } });
@@ -319,7 +336,6 @@ export function applyCimEvent(conversation: Conversation, event: CimEvent, ctx: 
           conversation.embeddedApps = conversation.embeddedApps.filter((a) => a.id !== gadget.id);
         }
       }
-      effects.push({ kind: "externalGadget", conversationId: conversation.conversationId, data: event.data });
       break;
     }
     default:

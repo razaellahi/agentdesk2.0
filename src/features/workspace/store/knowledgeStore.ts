@@ -3,6 +3,12 @@ import type { KnowledgeBaseHit } from "../api";
 
 const MAX_HITS = 6;
 
+function without<T>(record: Record<string, T>, key: string): Record<string, T> {
+  const next = { ...record };
+  delete next[key];
+  return next;
+}
+
 interface KnowledgeState {
   /** Answers found so far in a conversation, newest first. */
   hits: Record<string, KnowledgeBaseHit[]>;
@@ -14,6 +20,8 @@ interface KnowledgeState {
   expand(conversationId: string, query: string | null): void;
   setFocused(conversationId: string, focused: boolean): void;
   clear(conversationId: string): void;
+  /** Drops everything kept for a conversation that has ended. */
+  forget(conversationId: string): void;
 }
 
 /** Results live here, not in the section, so they stay while the agent moves between panel tabs. */
@@ -43,6 +51,13 @@ export const useKnowledgeStore = create<KnowledgeState>()((set) => ({
       hits: { ...state.hits, [conversationId]: [] },
       expanded: { ...state.expanded, [conversationId]: null },
       focused: { ...state.focused, [conversationId]: false },
+    }));
+  },
+  forget(conversationId) {
+    set((state) => ({
+      hits: without(state.hits, conversationId),
+      expanded: without(state.expanded, conversationId),
+      focused: without(state.focused, conversationId),
     }));
   },
 }));

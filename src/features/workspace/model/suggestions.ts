@@ -21,7 +21,10 @@ export function suggestionText(suggestion: unknown): string {
   if (typeof record?.text === "string") return record.text;
   const raw = record?.messageBody?.markdownText;
   if (typeof raw !== "string" || !raw) return "";
-  const unescaped = ENTITIES.reduce((value, [pattern, replacement]) => value.replace(pattern, replacement), raw);
+  const unescaped = ENTITIES.reduce(
+    (value, [pattern, replacement]) => value.replace(pattern, replacement),
+    raw,
+  );
   if (!record.header?.additionalData?.isEncoded) return unescaped;
   try {
     const bytes = Uint8Array.from(atob(unescaped), (char) => char.charCodeAt(0));

@@ -26,7 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useFeature } from "@/config/featureFlags";
 import { useDeskSettings } from "@/core/agent-settings";
 import { getSession, useCurrentUser } from "@/core/auth";
-import { getVoicePassword } from "@/features/voice";
+import { getVoicePassword, useCallStore } from "@/features/voice";
 import { cn } from "@/shared/lib/utils";
 import { refineText } from "../api";
 import { filterQuickReplies, slashKeyAction } from "../model/quickReplies";
@@ -34,6 +34,8 @@ import { createSecureVideoLink, isSecureLinkConfigured, loadEmailSignature } fro
 import { sendEmail, sendFiles, sendText, sendTyping } from "../session/actions";
 import { useComposerStore, composerKey, EMPTY_DRAFT } from "../store/composerStore";
 import { ALLOWED_EXTENSIONS } from "../model/outgoing";
+import { useVoiceStacks } from "../hooks/useLiveCall";
+import { cxVoiceSessionOf, effectiveWhisper, whisperPeers } from "../model/participants";
 import { lastCustomerSuggestions } from "../model/suggestions";
 import { emailReplyContext, escapeEmailText } from "../model/email";
 import type { ChannelSession, Conversation } from "../model/types";
@@ -73,13 +75,16 @@ export function Composer({ conversation }: { conversation: Conversation }) {
   const user = useCurrentUser();
   const quickRepliesEnabled = useFeature("quickReplies");
   const fieldId = useId();
+  const stacks = useVoiceStacks();
+  const conferenceCall = useCallStore((s) => s.conference);
+  const onCxVoice = Boolean(cxVoiceSessionOf(conversation, stacks));
   const draftKey = composerKey(conversation);
   const draft = useComposerStore((s) => s.drafts[draftKey] ?? EMPTY_DRAFT);
   const { text, subject, emailMode, replyToId, editMessageId } = draft;
   const editTarget = conversation.messages.find((m) => m.id === editMessageId);
   const whisper = editTarget
     ? Boolean(editTarget.body.isWhisper)
-    : (draft.whisper ?? ["WHISPER", "ASSISTANT"].includes(conversation.topicParticipant.role));
+    : effectiveWhisper(conversation, draft.whisper);
   const patchDraft = (patch: Partial<typeof draft>) => useComposerStore.getState().patch(draftKey, patch);
   const setText = (value: string | ((current: string) => string)) => {
     const current = useComposerStore.getState().drafts[draftKey]?.text ?? "";
@@ -118,7 +123,7 @@ export function Composer({ conversation }: { conversation: Conversation }) {
     conversation.state !== "ACTIVE" ||
     conversation.topicParticipant.role === "SILENT_MONITOR" ||
     (["WHISPER", "ASSISTANT"].includes(conversation.topicParticipant.role) &&
-      conversation.agentParticipants.length === 0) ||
+      whisperPeers(conversation) === 0) ||
     (conversation.topicParticipant.role === "ASSISTANT" && !whisper);
 
   const session = sessions.find((item) => item.isChecked);
@@ -129,9 +134,20 @@ export function Composer({ conversation }: { conversation: Conversation }) {
     textareaRef: area,
     onReplace: (next) => setText(next),
   });
+  const emails = conversation.messages.filter((m) => m.body.type.toLowerCase() === "email");
   const emailTarget =
-    conversation.messages.find((m) => m.id === replyToId && m.body.type.toLowerCase() === "email") ??
-    conversation.messages.findLast((m) => m.body.type.toLowerCase() === "email");
+    emails.find((m) => m.id === replyToId) ??
+    // By default answer the customer's latest email; a thread the desk started falls back to its last one.
+    emails.findLast((m) => String(m.header.sender?.type ?? "").toUpperCase() === "CUSTOMER") ??
+    emails.at(-1);
+  /** Something to send: text, files, forwarded attachments, inline images or an email forwarded as it is. */
+  const hasContent = (d: typeof draft) =>
+    Boolean(
+      d.text.trim() ||
+      d.files.length ||
+      d.forwardedAttachments.length ||
+      (email && (/data-inline-id=/.test(d.richHtml) || (d.emailMode === "FORWARD" && d.quotedHtml))),
+    );
   const commentTarget = conversation.messages.find(
     (m) => m.id === replyToId && m.body.type.toLowerCase() === "comment",
   );
@@ -151,9 +167,10 @@ export function Composer({ conversation }: { conversation: Conversation }) {
   };
   const replyRequired = ["youtube", "linkedin", "play_store", "apple_store"].includes(channelName);
   const blocked = stateBlocked || !session || (replyRequired && !replyToId && !editMessageId);
+  // While another agent can read it; only a primary chooses, and not during a voice conference.
   const canWhisper =
-    conversation.agentParticipants.length > 1 ||
-    ["WHISPER", "ASSISTANT"].includes(conversation.topicParticipant.role);
+    conversation.topicParticipant.role !== "SILENT_MONITOR" && whisperPeers(conversation) > 0;
+  const whisperLocked = conversation.topicParticipant.role !== "PRIMARY" || (conferenceCall && onCxVoice);
   const suggestions = lastCustomerSuggestions(conversation.messages) as {
     text?: string;
     confidence?: number;
@@ -255,15 +272,7 @@ export function Composer({ conversation }: { conversation: Conversation }) {
   };
   const send = async () => {
     const current = useComposerStore.getState().drafts[draftKey] ?? EMPTY_DRAFT;
-    if (
-      blocked ||
-      current.sending ||
-      (!current.text.trim() &&
-        !current.files.length &&
-        !current.forwardedAttachments.length &&
-        !(email && /data-inline-id=/.test(current.richHtml)))
-    )
-      return;
+    if (blocked || current.sending || !hasContent(current)) return;
     if (commentAttachmentsBlocked && current.files.length) {
       toast.error("Remove attachments before sending this comment reply.");
       return;
@@ -271,17 +280,17 @@ export function Composer({ conversation }: { conversation: Conversation }) {
     const owner = user?.id;
     patchDraft({ sending: true });
     try {
-      const plainSignature = signature.replace(/<[^>]+>/g, "").trim();
-      const htmlText = current.richHtml
-        ? sanitizeEmailHtml(current.richHtml, current.inlineImages)
-        : escapeEmailText(current.text).replaceAll("\n", "<br/>");
       if (email) {
+        const htmlText = current.richHtml
+          ? sanitizeEmailHtml(current.richHtml, current.inlineImages)
+          : escapeEmailText(current.text).replaceAll("\n", "<br/>");
+        // Source email envelope: no intent or originalMessageId; the thread travels in emailThreads.
         const ok = await sendEmail(
           conversation.conversationId,
           current.text,
           {
             subject: current.subject,
-            htmlBody: `${signature && !current.text.trim().endsWith(plainSignature) ? `${htmlText}<br/>${signature}` : htmlText}${current.quotedHtml ? `<hr/>${current.quotedHtml}` : ""}`,
+            htmlBody: `${signature && !current.signatureOff ? `${htmlText}<br/>${signature}` : htmlText}${current.quotedHtml ? `<hr/>${current.quotedHtml}` : ""}`,
             to: current.to,
             cc: current.cc,
             bcc: current.bcc,
@@ -290,7 +299,6 @@ export function Composer({ conversation }: { conversation: Conversation }) {
             inlineImages: current.inlineImages,
           },
           current.files,
-          { originalMessageId: current.replyToId, intent: current.emailMode },
         );
         if (ok && getSession().user?.id === owner)
           patchDraft({
@@ -302,6 +310,10 @@ export function Composer({ conversation }: { conversation: Conversation }) {
             quotedHtml: "",
             replyToId: null,
             emailThreads: [],
+            emailMode: "REPLY_TO",
+            signatureOff: false,
+            // The next email starts again from the latest one: its thread, recipients and quote.
+            emailInitialized: false,
           });
         return;
       }
@@ -311,19 +323,7 @@ export function Composer({ conversation }: { conversation: Conversation }) {
           privateReply: current.privateReply,
           whisper,
           originalMessageId: editMessageId ?? replyToId,
-          intent: editMessageId ? "UPDATE" : email ? emailMode : replyToId ? "REPLY_TO" : null,
-          email: email
-            ? {
-                subject,
-                htmlBody:
-                  signature && !current.text.trim().endsWith(plainSignature)
-                    ? `${htmlText}<br/>${signature}`
-                    : htmlText,
-                to: current.to || session?.channelData.channelCustomerIdentifier || "",
-                cc: current.cc,
-                bcc: current.bcc,
-              }
-            : undefined,
+          intent: editMessageId ? "UPDATE" : replyToId ? "REPLY_TO" : null,
         });
       if (!ok) return;
       if (current.text.trim())
@@ -434,7 +434,15 @@ export function Composer({ conversation }: { conversation: Conversation }) {
       )}
       {replyToId && !editMessageId && (
         <div className="mb-2 flex animate-in items-center justify-between rounded-xl border border-primary/20 bg-primary-soft/70 px-3 py-1.5 text-xs font-medium text-primary fade-in slide-in-from-bottom-1">
-          <span>{t("chat-features.interactions.reply")}</span>
+          <span>
+            {t(
+              email && emailMode === "REPLY_ALL"
+                ? "chat-features.interactions.reply-all"
+                : email && emailMode === "FORWARD"
+                  ? "chat-features.interactions.forward"
+                  : "chat-features.interactions.reply",
+            )}
+          </span>
           <button
             type="button"
             className="text-muted-foreground hover:text-foreground"
@@ -894,15 +902,20 @@ export function Composer({ conversation }: { conversation: Conversation }) {
             }}
           />
           {email && signature && (
+            // The signature (with its formatting and logo) is added below the message when sent.
             <Button
               type="button"
               size="icon"
               variant="ghost"
-              className="size-7 rounded-full text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+              className={cn(
+                "size-7 rounded-full hover:bg-surface-2",
+                draft.signatureOff ? "text-muted-foreground hover:text-foreground" : "text-primary",
+              )}
               disabled={blocked}
-              aria-label={t("chat-features.interactions.insert-signature")}
-              title={t("chat-features.interactions.insert-signature")}
-              onClick={() => setText((value) => `${value}\n\n${signature.replace(/<[^>]+>/g, "")}`)}
+              aria-pressed={!draft.signatureOff}
+              aria-label={t("chat-features.interactions.signature")}
+              title={t("chat-features.interactions.signature")}
+              onClick={() => patchDraft({ signatureOff: !draft.signatureOff })}
             >
               <PenLine className="size-3.5" />
             </Button>
@@ -994,13 +1007,7 @@ export function Composer({ conversation }: { conversation: Conversation }) {
               <Switch
                 checked={whisper}
                 onCheckedChange={setWhisper}
-                disabled={
-                  blocked ||
-                  email ||
-                  !canWhisper ||
-                  Boolean(editMessageId) ||
-                  conversation.topicParticipant.role === "ASSISTANT"
-                }
+                disabled={blocked || email || !canWhisper || Boolean(editMessageId) || whisperLocked}
                 aria-label={t("chat-features.interactions.whisper")}
               />
               <Lock className="size-3 shrink-0" />
@@ -1018,14 +1025,7 @@ export function Composer({ conversation }: { conversation: Conversation }) {
                   ? "bg-amber-600 text-white shadow-amber-500/20 hover:bg-amber-700"
                   : "bg-primary text-primary-foreground hover:bg-primary/90",
               )}
-              disabled={
-                blocked ||
-                uploading ||
-                (!text.trim() &&
-                  !draft.files.length &&
-                  !draft.forwardedAttachments.length &&
-                  !(email && /data-inline-id=/.test(draft.richHtml)))
-              }
+              disabled={blocked || uploading || !hasContent(draft)}
               onClick={send}
               aria-label={t("chat-features.interactions.send")}
             >

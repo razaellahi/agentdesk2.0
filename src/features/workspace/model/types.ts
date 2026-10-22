@@ -166,6 +166,8 @@ export interface Conversation {
   firstChannelSession: ChannelSession | null;
   activeChannelSessions: ChannelSession[];
   agentParticipants: AgentParticipant[];
+  /** A chat consult conference is running; no new assistance until it ends (webConsultConference). */
+  webConference: boolean;
   messages: CimMessage[];
   embeddedApps: EmbeddedApp[];
   activeConversationData: unknown;

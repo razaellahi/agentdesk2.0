@@ -38,4 +38,19 @@ describe("conversation drafts", () => {
     useComposerStore.getState().reset();
     expect(useComposerStore.getState().drafts).toEqual({});
   });
+  it("turns whisper off and drops drafts for one conversation across its channels", () => {
+    const first = conversationFixture("a");
+    const other = conversationFixture("b");
+    const web = composerKey(first);
+    first.activeChannelSessions[0]!.id = "email";
+    const email = composerKey(first);
+    const b = composerKey(other);
+    for (const key of [web, email, b]) useComposerStore.getState().patch(key, { text: "x", whisper: true });
+    useComposerStore.getState().patchConversation("a", { whisper: false });
+    expect(useComposerStore.getState().drafts[web]?.whisper).toBe(false);
+    expect(useComposerStore.getState().drafts[email]?.whisper).toBe(false);
+    expect(useComposerStore.getState().drafts[b]?.whisper).toBe(true);
+    useComposerStore.getState().dropConversation("a");
+    expect(Object.keys(useComposerStore.getState().drafts)).toEqual([b]);
+  });
 });

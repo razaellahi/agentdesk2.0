@@ -33,6 +33,7 @@ export function conversationFixture(id = "conversation-a", name = "Amina"): Conv
     firstChannelSession: channel,
     activeChannelSessions: [channel],
     agentParticipants: [],
+    webConference: false,
     embeddedApps: [],
     activeConversationData: null,
     messages: [

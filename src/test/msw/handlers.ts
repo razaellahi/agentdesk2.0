@@ -1,4 +1,12 @@
 import { delay, http, HttpResponse, type HttpHandler } from "msw";
+import {
+  listAnnouncements,
+  markAnnouncementSeen,
+  markQmNotificationRead,
+  qmConversationActivities,
+  qmNotificationPage,
+  QM_DEMO_CONVERSATION,
+} from "./announcements";
 import { caseHandlers } from "./cases";
 import { demoLabelsOf, MOCK_LABELS } from "./demoLabels";
 import { demoQuickReplies, refineDemoText, type QuickReplyDoc } from "./composerAssist";
@@ -26,7 +34,6 @@ export const mockDb = {
       voice: "+923001112233",
       email: "amina@example.com",
       // The same number is also her WhatsApp, so the two show as one identifier with both channels.
-      whatsapp: "+923001112233",
       facebook: "amina.raza.official",
       instagram: "@amina.raza",
       web: "visitor-9c41",
@@ -37,7 +44,6 @@ export const mockDb = {
       firstName: "Bilal",
       lastName: "Ahmed",
       voice: "+923004445566",
-      whatsapp: "+923009998877",
       facebook: "bilal.ahmed.77",
       labels: [],
     },
@@ -48,7 +54,6 @@ export const mockDb = {
       lastName: "Wei",
       voice: "+8613800138000",
       email: ["chen.wei@lumina-trading.example", "accounts@lumina-trading.example"],
-      whatsapp: "+8613800138000",
       web: "visitor-2b77",
       labels: [],
     },
@@ -76,7 +81,6 @@ export const mockDb = {
       firstName: "Ibrahim",
       lastName: "Khalil",
       voice: "+96550123456",
-      whatsapp: "+96550123456",
       email: "ibrahim.khalil@gulfmart.example",
       labels: [],
     },
@@ -102,7 +106,6 @@ export const mockDb = {
       firstName: "Nadia",
       lastName: "Siddiqui",
       voice: "+923331234000",
-      whatsapp: "+923331234000",
       email: "nadia.siddiqui@example.com",
       web: "visitor-71aa",
       labels: [],
@@ -112,7 +115,6 @@ export const mockDb = {
       firstName: "Omar",
       lastName: "Farouk",
       voice: "+201001234567",
-      whatsapp: "+201001234567",
       labels: [],
     },
     {
@@ -216,8 +218,11 @@ export const mockDb = {
 };
 
 // The demo customers carry labels (ids, as the customer API stores them).
-for (const customer of mockDb.phonebook)
+for (const customer of mockDb.phonebook) {
   (customer as { labels: string[] }).labels = demoLabelsOf(customer._id);
+  // The same number is reachable by SMS and WhatsApp (phoneNumber) and by voice (voice).
+  (customer as { phoneNumber?: string }).phoneNumber = (customer as { voice?: string }).voice;
+}
 
 /** VOICE_MAIL_ACTIVITY documents in the conversation-manager searchActivities shape. */
 function voicemailDocs(query: string) {
@@ -353,15 +358,29 @@ export const handlers: HttpHandler[] = [
     HttpResponse.json([
       { key: "firstName", label: "First name", type: "string", length: 80, isRequired: true, isPii: true },
       { key: "lastName", label: "Last name", type: "string", length: 80, isPii: true },
-      { key: "email", label: "Email", type: "email", isChannelIdentifier: true, isPii: true },
-      { key: "voice", label: "Phone number", type: "phoneNumber", isChannelIdentifier: true, isPii: true },
       {
-        key: "whatsapp",
-        label: "WhatsApp",
+        key: "email",
+        label: "Email",
+        type: "email",
+        isChannelIdentifier: true,
+        isPii: true,
+        channelTypes: ["EMAIL"],
+      },
+      {
+        key: "phoneNumber",
+        label: "Phone number",
         type: "phoneNumber",
         isChannelIdentifier: true,
         isPii: true,
-        channelTypes: ["WHATSAPP"],
+        channelTypes: ["SMS", "WHATSAPP"],
+      },
+      {
+        key: "voice",
+        label: "Voice",
+        type: "phoneNumber",
+        isChannelIdentifier: true,
+        isPii: true,
+        channelTypes: ["CX_VOICE", "CISCO_CC"],
       },
       {
         key: "facebook",
@@ -377,7 +396,13 @@ export const handlers: HttpHandler[] = [
         isChannelIdentifier: true,
         channelTypes: ["INSTAGRAM"],
       },
-      { key: "web", label: "Web", type: "string", isChannelIdentifier: true, channelTypes: ["WEB"] },
+      {
+        key: "web",
+        label: "Web",
+        type: "string",
+        isChannelIdentifier: true,
+        channelTypes: ["WEB", "WEB_RTC"],
+      },
       { key: "labels", label: "Labels", type: "labels" },
     ]),
   ),
@@ -474,6 +499,19 @@ export const handlers: HttpHandler[] = [
             : [],
     });
   }),
+  // Team announcements and QM notifications (the header's announcements menu).
+  http.get("*/announcement/", () => HttpResponse.json(listAnnouncements())),
+  http.put("*/announcement/seenStatus/:id", async ({ params, request }) => {
+    const body = (await request.json()) as { userId?: string };
+    return HttpResponse.json(markAnnouncementSeen(String(params.id), body.userId ?? ""));
+  }),
+  http.get("*/notification/:userId", () => HttpResponse.json(qmNotificationPage())),
+  http.patch("*/notification/mark-as-read/:id", ({ params }) =>
+    HttpResponse.json(markQmNotificationRead(String(params.id))),
+  ),
+  http.get(`*/customer-topics/${QM_DEMO_CONVERSATION}/activities`, () =>
+    HttpResponse.json(qmConversationActivities()),
+  ),
   http.get("*/customer-topics/:conversationId/activities", () =>
     HttpResponse.json({
       docs: [

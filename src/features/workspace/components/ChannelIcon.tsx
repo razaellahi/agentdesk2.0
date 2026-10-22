@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import { BrandIcon } from "@/components/common/BrandIcons";
 import { cn } from "@/shared/lib/utils";
-import { channelLook } from "../model/channelIcons";
+import { channelLook, channelTypeNames, distinctChannels } from "../model/channelIcons";
 import type { ChannelType } from "../model/types";
 
 /** A channel's glyph with no tile: its logo mark, or its line icon in the channel colour. */
@@ -82,4 +82,30 @@ export function OutboundActionIcon({
   className?: string;
 }) {
   return <ChannelGlyph name={kind} className={className} />;
+}
+
+/**
+ * The channels a customer attribute carries (phone number: SMS and WhatsApp; voice: CX Voice and
+ * Cisco; web: Web and WebRTC) as bare glyphs, one per look. Falls back to the attribute's label when
+ * the schema names no channel.
+ */
+export function ChannelCluster({
+  channelTypes,
+  fallback,
+  className,
+}: {
+  channelTypes?: { name?: string }[] | string[] | null;
+  fallback?: string;
+  className?: string;
+}) {
+  const names = channelTypeNames(channelTypes);
+  const shown = distinctChannels(names.length ? names : fallback ? [fallback] : []);
+  if (!shown.length) return null;
+  return (
+    <span className={cn("inline-flex shrink-0 items-center gap-1", className)} title={names.join(", ")}>
+      {shown.map((name) => (
+        <ChannelGlyph key={name} name={name} className="size-3.5" />
+      ))}
+    </span>
+  );
 }

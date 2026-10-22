@@ -2,17 +2,22 @@ import { EmptyConversationArt } from "./EmptyConversationArt";
 import { ArrowLeft, Pause, Play, Timer, UserRound } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { confirm } from "@/components/common/confirm";
+import { toast } from "sonner";
+import { confirm, dismissConfirm } from "@/components/common/confirm";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useDeskSettings } from "@/core/agent-settings";
 import { usePermission } from "@/core/auth";
+import { useCallStore, voiceCommand } from "@/features/voice";
 import { formatDuration } from "@/core/i18n";
 import { Countdown } from "@/components/common/Countdown";
 import { useBefore } from "@/shared/hooks/useNow";
 import { cn } from "@/shared/lib/utils";
 import { useMaskedValue } from "../hooks/useMaskedValue";
 import { usePastActivities } from "../hooks/usePastActivities";
+import { useSessionEvent } from "../hooks/useSessionEvent";
+import { isVoiceSession } from "../model/conversation";
+import { visibleAgents } from "../model/participants";
 import { parseConversationInsight } from "../model/conversationInsight";
 import { channelLabel } from "../model/display";
 import {
@@ -87,6 +92,14 @@ export function ConversationPane({
     "manage_in_conversation",
   );
 
+  const pauseQuestion = `pause:${conversationId}`;
+  // The customer's channel ended: what the agent had open about it closes (channelSessionEnded$).
+  useSessionEvent<{ conversationId: string }>("channelSessionEnded", (effect) => {
+    if (effect.conversationId !== conversationId) return;
+    setAssist(false);
+    dismissConfirm(pauseQuestion);
+  });
+
   const setInfo = (open: boolean) => {
     if (!docked) setInfoOpen(open);
     else setContextTab(open ? (contextTab ?? "profile") : null);
@@ -123,11 +136,30 @@ export function ConversationPane({
       ? [channelLabel(activeSession.channel.channelType.name), activeIdentifier].filter(Boolean).join(" · ")
       : "";
   const wrapUpOpen = conversation.wrapUp.show;
+  const collaborators = visibleAgents(conversation);
 
   const insight = parseConversationInsight(conversation.activeConversationData);
   const sentiment = insight.sentiment;
 
   const leave = async () => {
+    // A live call would outlive the conversation: end it first (closeConversationConfirmation).
+    const call = useCallStore.getState();
+    const leg = call.main ?? call.consult;
+    if (leg && conversation.activeChannelSessions.some(isVoiceSession)) {
+      const end = await confirm({
+        title: t("snackbar.Close-Conversation"),
+        description: t("snackbar.Call-in-progress-sure-you-want-to-close-this-conversation"),
+        confirmLabel: t("workspace.end-call"),
+        destructive: true,
+      });
+      if (!end) return;
+      try {
+        voiceCommand("end", { dialogId: leg.id });
+      } catch {
+        toast.error(t("snackbar.Unable-To-End-Voice-Session"));
+      }
+      return;
+    }
     const ok = await confirm({
       title: t("chat-features.interactions.leave-conversation"),
       description: `${t("chat-features.interactions.Are-you-sure-you-want-to-leave-the-conversation-with")} ${displayName}?`,
@@ -139,6 +171,7 @@ export function ConversationPane({
 
   const pauseFor = async (minutes: number) => {
     const ok = await confirm({
+      id: pauseQuestion,
       title: t("chat-features.interactions.pause-conversation"),
       description: `${t("chat-features.interactions.are-you-sure-you-want-to-pause-this-conversation-for")} ${t("admin-settings.fields.hold.minutes", { count: minutes })}`,
       confirmLabel: t("chat-features.interactions.pause-conversation"),
@@ -148,6 +181,7 @@ export function ConversationPane({
 
   const resume = async () => {
     const ok = await confirm({
+      id: pauseQuestion,
       title: t("chat-features.interactions.resume-conversation"),
       description: `${t("chat-features.interactions.are-you-sure-you-want-to-resume-conversation-with")} ${displayName}?`,
       confirmLabel: t("chat-features.interactions.resume-conversation"),
@@ -335,12 +369,12 @@ export function ConversationPane({
         </div>
       )}
 
-      {/* Collaborating Agent Participants */}
-      {settings.conversationParticipants && conversation.agentParticipants.length > 0 && (
+      {/* Collaborating agents; a supervisor monitoring silently is never shown. */}
+      {settings.conversationParticipants && collaborators.length > 0 && (
         <div className="flex items-center gap-1.5 border-b border-border/40 bg-surface-2/60 px-3.5 py-1 text-xs text-muted-foreground">
           <UserRound className="size-3 text-primary" />
           <span className="font-medium text-foreground/80">
-            {conversation.agentParticipants.map((p) => p.participant.keycloakUser.username).join(", ")}
+            {collaborators.map((p) => p.participant.keycloakUser.username).join(", ")}
           </span>
         </div>
       )}

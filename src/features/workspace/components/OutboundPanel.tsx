@@ -512,8 +512,13 @@ export function OutboundPanel() {
                   disabled={busy}
                   onChange={(event) => setSms(event.target.value)}
                   rows={3}
+                  // Source outbound message-composer limit.
+                  maxLength={1000}
                   placeholder={t("chat-features.interactions.Type-a-message")}
                 />
+                <p className="text-end text-xs text-muted-foreground tabular-nums" aria-live="polite">
+                  {sms.length}/1000
+                </p>
                 <Button className="w-full" type="submit" disabled={textDisabled || !sms.trim() || busy}>
                   {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
                   {settings.outboundSmsSendAndClose ? t("outbound.send-close") : t("outbound.send-sms")}

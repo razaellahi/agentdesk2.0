@@ -25,12 +25,15 @@ import {
   type AssistTarget,
 } from "../session/assistance";
 import type { Conversation } from "../model/types";
+import { useLiveCall, useVoiceStacks } from "../hooks/useLiveCall";
 
 const ACTIONS: AssistAction[] = ["transfer", "consult", "conference"];
 
 export function AssistDialog({ conversation, onClose }: { conversation: Conversation; onClose: () => void }) {
   const { t } = useTranslation();
   const user = useCurrentUser();
+  const call = useLiveCall();
+  const stacks = useVoiceStacks();
   const allowed = {
     transfer: usePermission("directTransfer"),
     consult: usePermission("consult"),
@@ -86,9 +89,12 @@ export function AssistDialog({ conversation, onClose }: { conversation: Conversa
         ? { mode: "agent", agentId: picked?.id }
         : { mode: "queue", queueName: picked?.queueName },
       note.trim(),
+      call,
+      stacks,
     );
     if (!sent) return;
-    toast.success(t("chat-features.interactions.Transfer"));
+    // Transfers and conferences are confirmed by the server (agentAssistanceRequestPlaced).
+    if (action === "consult") toast.success(t("snackbar.Consult-request-placed-successfully"));
     onClose();
   };
 
@@ -97,7 +103,7 @@ export function AssistDialog({ conversation, onClose }: { conversation: Conversa
       <SheetContent side="right" size="lg" className="gap-0 p-0">
         <SheetHeader className="border-b border-border/50 bg-muted/20 px-6 py-4">
           <SheetTitle className="text-base font-bold">{title}</SheetTitle>
-          <SheetDescription>{t("chat-features.interactions.Transfer")}</SheetDescription>
+          <SheetDescription>{t("chat-features.interactions.agent-assistance")}</SheetDescription>
         </SheetHeader>
         <SheetBody className="flex flex-col gap-4 p-6">
           <div className="flex flex-wrap items-center gap-1.5 rounded-xl bg-muted/40 p-1">

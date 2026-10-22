@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/shared/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { emailPlainText, plainEmailHtml, sanitizeEmailHtml } from "../../model/emailEditor";
@@ -34,6 +35,11 @@ interface Props {
   allowImages?: boolean;
   label?: string;
   onSend?: () => void;
+  /** Fills its container (a full compose window): no frame, the writing area takes the remaining height,
+   * and the formatting bar sits under it, by the send controls. */
+  fill?: boolean;
+  /** Shown between the writing area and a bottom formatting bar (an AI suggestion, attachments). */
+  children?: React.ReactNode;
 }
 /** Each editor owns its DOM and selection, including editors hosted in a pop-out document. */
 export function EmailEditor({
@@ -46,6 +52,8 @@ export function EmailEditor({
   allowImages = true,
   label = "Email message",
   onSend,
+  fill = false,
+  children,
 }: Props) {
   const editor = useRef<HTMLDivElement>(null);
   const selection = useRef<Range | null>(null);
@@ -127,45 +135,58 @@ export function EmailEditor({
       .join("<br>");
     command("insertHTML", markup);
   };
-  const actions = [
+  const marks = [
     ["Bold", "bold", Bold],
     ["Italic", "italic", Italic],
     ["Underline", "underline", Underline],
     ["Strikethrough", "strikeThrough", Strikethrough],
+  ] as const;
+  const blocks = [
     ["Bulleted list", "insertUnorderedList", List],
     ["Numbered list", "insertOrderedList", ListOrdered],
     ["Align left", "justifyLeft", AlignLeft],
     ["Align center", "justifyCenter", AlignCenter],
     ["Align right", "justifyRight", AlignRight],
+  ] as const;
+  const history = [
     ["Clear formatting", "removeFormat", Eraser],
     ["Undo", "undo", Undo2],
     ["Redo", "redo", Redo2],
   ] as const;
+  const tool = (name: string, action: string, Icon: typeof Bold) => (
+    <Button
+      key={name}
+      type="button"
+      size="icon"
+      variant="ghost"
+      className={TOOL}
+      aria-label={name}
+      title={name}
+      disabled={disabled}
+      onPointerDown={(event) => event.preventDefault()}
+      onClick={() => command(action)}
+    >
+      <Icon className="size-4" strokeWidth={1.75} />
+    </Button>
+  );
   return (
-    <div className="min-w-0 overflow-hidden rounded-xl border bg-background">
+    <div
+      className={cn(
+        "min-w-0 overflow-hidden bg-background",
+        fill ? "flex h-full min-h-0 flex-col" : "rounded-xl border",
+      )}
+    >
+      {/* Grouped like a word processor: block style, type, marks, paragraphs, inserts, then history. */}
       <div
-        className="flex flex-wrap items-center gap-0.5 border-b bg-muted/40 p-1"
+        className={cn(
+          "flex flex-wrap items-center gap-0.5",
+          fill ? "order-3 border-t border-border/50 px-4 py-1.5" : "border-b bg-surface px-1.5 py-1",
+        )}
         role="group"
         aria-label="Email formatting"
       >
-        {actions.map(([name, action, Icon]) => (
-          <Button
-            key={name}
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="size-7"
-            aria-label={name}
-            title={name}
-            disabled={disabled}
-            onPointerDown={(event) => event.preventDefault()}
-            onClick={() => command(action)}
-          >
-            <Icon className="size-3.5" />
-          </Button>
-        ))}
         <select
-          className="h-7 max-w-24 rounded border bg-background px-1 text-xs"
+          className={SELECT}
           aria-label="Text style"
           disabled={disabled}
           defaultValue="p"
@@ -178,8 +199,9 @@ export function EmailEditor({
           <option value="blockquote">Quote</option>
           <option value="pre">Code block</option>
         </select>
+        <Divider />
         <select
-          className="h-7 max-w-24 rounded border bg-background px-1 text-xs"
+          className={cn(SELECT, "max-w-28")}
           aria-label="Font"
           disabled={disabled}
           defaultValue="Arial"
@@ -191,7 +213,7 @@ export function EmailEditor({
           ))}
         </select>
         <select
-          className="h-7 rounded border bg-background px-1 text-xs"
+          className={SELECT}
           aria-label="Font size"
           disabled={disabled}
           defaultValue="3"
@@ -204,26 +226,34 @@ export function EmailEditor({
             </option>
           ))}
         </select>
-        <input
-          type="color"
-          aria-label="Text color"
-          title="Text color"
-          className="size-7 rounded border bg-background p-1"
-          disabled={disabled}
-          onFocus={remember}
-          onChange={(event) => command("foreColor", event.target.value)}
-        />
+        <label className={cn(TOOL, "relative grid cursor-pointer place-items-center")} title="Text color">
+          <span className="size-4 rounded-full ring-1 ring-border" style={{ background: "currentColor" }} />
+          <input
+            type="color"
+            aria-label="Text color"
+            className="absolute inset-0 cursor-pointer opacity-0"
+            disabled={disabled}
+            onFocus={remember}
+            onChange={(event) => command("foreColor", event.target.value)}
+          />
+        </label>
+        <Divider />
+        {marks.map(([name, action, Icon]) => tool(name, action, Icon))}
+        <Divider />
+        {blocks.map(([name, action, Icon]) => tool(name, action, Icon))}
+        <Divider />
         <Button
           type="button"
           size="icon"
           variant="ghost"
-          className="size-7"
+          className={TOOL}
           aria-label="Code block"
+          title="Code block"
           disabled={disabled}
           onPointerDown={(event) => event.preventDefault()}
           onClick={() => command("formatBlock", "pre")}
         >
-          <Code className="size-3.5" />
+          <Code className="size-4" strokeWidth={1.75} />
         </Button>
         <Popover open={linkOpen} onOpenChange={setLinkOpen}>
           <PopoverTrigger asChild>
@@ -231,12 +261,13 @@ export function EmailEditor({
               type="button"
               size="icon"
               variant="ghost"
-              className="size-7"
+              className={TOOL}
               aria-label="Insert link"
+              title="Insert link"
               disabled={disabled}
               onPointerDown={remember}
             >
-              <Link className="size-3.5" />
+              <Link className="size-4" strokeWidth={1.75} />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-72 space-y-2" align="start">
@@ -278,12 +309,13 @@ export function EmailEditor({
               type="button"
               size="icon"
               variant="ghost"
-              className="size-7"
+              className={TOOL}
               aria-label="Insert table"
+              title="Insert table"
               disabled={disabled}
               onPointerDown={remember}
             >
-              <Table2 className="size-3.5" />
+              <Table2 className="size-4" strokeWidth={1.75} />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-56 space-y-2" align="start">
@@ -339,8 +371,9 @@ export function EmailEditor({
               type="button"
               size="icon"
               variant="ghost"
-              className="size-7"
+              className={TOOL}
               aria-label="Insert inline image"
+              title="Insert inline image"
               disabled={disabled}
               onPointerDown={(event) => {
                 remember();
@@ -348,7 +381,7 @@ export function EmailEditor({
               }}
               onClick={() => imageInput.current?.click()}
             >
-              <ImagePlus className="size-3.5" />
+              <ImagePlus className="size-4" strokeWidth={1.75} />
             </Button>
             <input
               ref={imageInput}
@@ -364,6 +397,9 @@ export function EmailEditor({
             />
           </>
         )}
+        <span className="ms-auto flex items-center gap-0.5">
+          {history.map(([name, action, Icon]) => tool(name, action, Icon))}
+        </span>
       </div>
       <div
         ref={editor}
@@ -371,11 +407,17 @@ export function EmailEditor({
         suppressContentEditableWarning
         role="textbox"
         aria-label={label}
+        data-placeholder={fill ? label : undefined}
         aria-multiline="true"
         aria-disabled={disabled}
         tabIndex={0}
         spellCheck={spellCheck}
-        className="max-h-56 min-h-24 overflow-auto px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset [&_a]:text-primary [&_a]:underline [&_blockquote]:border-s-2 [&_blockquote]:ps-3 [&_h1]:text-2xl [&_h2]:text-xl [&_img]:max-w-full [&_li]:ms-5 [&_ol]:list-decimal [&_pre]:bg-muted [&_pre]:whitespace-pre-wrap [&_table]:max-w-full [&_td]:min-w-8 [&_ul]:list-disc"
+        className={cn(
+          "overflow-auto text-sm outline-none [&_a]:text-primary [&_a]:underline [&_blockquote]:border-s-2 [&_blockquote]:ps-3 [&_h1]:text-2xl [&_h2]:text-xl [&_img]:max-w-full [&_li]:ms-5 [&_ol]:list-decimal [&_pre]:bg-muted [&_pre]:whitespace-pre-wrap [&_table]:max-w-full [&_td]:min-w-8 [&_ul]:list-disc",
+          fill
+            ? "order-1 min-h-0 flex-1 px-5 py-5 text-[15px] leading-relaxed empty:before:text-muted-foreground empty:before:content-[attr(data-placeholder)]"
+            : "max-h-56 min-h-24 px-3 py-2 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+        )}
         onInput={emit}
         onKeyUp={remember}
         onMouseUp={remember}
@@ -411,7 +453,18 @@ export function EmailEditor({
         }}
         onDragOver={(event) => event.preventDefault()}
       />
-      <p className="border-t px-3 py-1 text-[11px] text-muted-foreground">Ctrl / ⌘ + Enter to send</p>
+      {fill && children && <div className="order-2">{children}</div>}
+      {!fill && (
+        <p className="border-t px-3 py-1 text-[11px] text-muted-foreground">Ctrl / ⌘ + Enter to send</p>
+      )}
     </div>
   );
+}
+
+const TOOL = "size-8 rounded-md text-muted-foreground hover:bg-surface-2 hover:text-foreground";
+const SELECT =
+  "h-8 cursor-pointer rounded-md border-0 bg-transparent px-1.5 text-xs text-foreground hover:bg-surface-2 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:outline-none disabled:cursor-default";
+
+function Divider() {
+  return <span className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden />;
 }

@@ -32,6 +32,7 @@ function conversation(): Conversation {
     firstChannelSession: null,
     activeChannelSessions: [],
     agentParticipants: [],
+    webConference: false,
     messages: [],
     embeddedApps: [],
     activeConversationData: null,
@@ -105,5 +106,56 @@ describe("applyCimEvent", () => {
     );
     expect(current.sla.deadline).toBeNull();
     expect(current.waitingSince).toBeNull();
+  });
+
+  it("does not count a bot reply as unread", () => {
+    const current = conversation();
+    applyCimEvent(
+      current,
+      {
+        name: "BOT_MESSAGE",
+        data: {
+          id: "b1",
+          header: { sender: { type: "BOT", id: "bot", senderName: "Bot" }, timestamp: 2_000 },
+          body: { type: "PLAIN", markdownText: "Hi, how can I help?" },
+        },
+      },
+      ctx,
+    );
+    expect(current.unread).toBe(0);
+  });
+
+  it("tracks a chat consult conference until no other agent works the conversation", () => {
+    const current = conversation();
+    const helper = {
+      role: "PRIMARY",
+      participant: {
+        id: "agent-2",
+        participantType: "CCUser",
+        keycloakUser: { id: "agent-2", username: "helper" },
+      },
+    };
+    current.agentParticipants = [helper as never];
+    applyCimEvent(
+      current,
+      {
+        name: "TASK_STATE_CHANGED",
+        channelSession: { channel: { channelType: { name: "WEB" } } } as never,
+        data: {
+          task: {
+            activeMedia: [{ type: { direction: "CONSULT_CONFERENCE", mode: "AGENT" }, state: "ACTIVE" }],
+          },
+        },
+      },
+      ctx,
+    );
+    expect(current.webConference).toBe(true);
+    const effects = applyCimEvent(
+      current,
+      { name: "AGENT_UNSUBSCRIBED", data: { agentParticipant: helper } },
+      ctx,
+    );
+    expect(current.webConference).toBe(false);
+    expect(effects).toContainEqual({ kind: "whisperCheck", conversationId: "c1" });
   });
 });

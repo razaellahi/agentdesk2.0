@@ -3,6 +3,7 @@ import { useDeskSettings } from "@/core/agent-settings";
 import { useCurrentUser } from "@/core/auth";
 import { CallDock } from "./CallDock";
 import { useCallStore } from "./callStore";
+import { bindSessionEvents } from "./sessionBridge";
 import { startCxVoice, startFinesse, stopVoice } from "./voiceSession";
 
 /** Starts the voice stack selected in Agent Desk settings and shows the call dock. */
@@ -32,6 +33,8 @@ export function VoiceHost() {
     const timer = setInterval(check, 500);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => bindSessionEvents(), []);
 
   useEffect(() => {
     if (!userId || import.meta.env.MODE === "mock") return;

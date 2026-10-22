@@ -1,4 +1,3 @@
-import { Phone, Send, Mail, MessageCircle } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -13,7 +12,7 @@ import {
 import { useDeskSettings } from "@/core/agent-settings";
 import { useCurrentUser, usePermission } from "@/core/auth";
 import { placeOutboundVoice, useCallStore } from "@/features/voice";
-import { getOutboundFromChannels, shouldBlockOutbound } from "@/features/workspace";
+import { getOutboundFromChannels, OutboundActionIcon, shouldBlockOutbound } from "@/features/workspace";
 import { OutboundComposeSheet, type OutboundComposeRequest } from "./OutboundComposeSheet";
 import { formatCellValue } from "./customersQuery";
 import type { CustomerDoc } from "./types";
@@ -88,8 +87,8 @@ export function OutboundRowActions({
 
   const btnClass = cn(
     size === "icon-xs" ? "size-7" : "size-8",
-    // No background, even on hover: the coloured outline icon is the affordance.
-    "rounded-full hover:bg-transparent hover:opacity-70",
+    // The channel's own mark in one round hit area, so every channel reads the same.
+    "rounded-full hover:bg-surface-2",
     className,
   );
 
@@ -109,7 +108,7 @@ export function OutboundRowActions({
                 onClick={(event) => event.stopPropagation()}
                 className={btnClass}
               >
-                <Phone className="size-3.5 text-indigo-600 dark:text-indigo-400" />
+                <OutboundActionIcon kind="voice" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -134,7 +133,7 @@ export function OutboundRowActions({
                       .finally(() => setBusy(false));
                   }}
                 >
-                  <Phone className="me-1.5 size-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <OutboundActionIcon kind="voice" className="me-1.5 size-4" />
                   {phone}
                 </DropdownMenuItem>
               ))}
@@ -153,7 +152,7 @@ export function OutboundRowActions({
                 onClick={(event) => event.stopPropagation()}
                 className={btnClass}
               >
-                <Send className="size-3.5 text-teal-600 dark:text-teal-400" />
+                <OutboundActionIcon kind="sms" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -171,7 +170,7 @@ export function OutboundRowActions({
                     });
                   }}
                 >
-                  <Send className="me-1.5 size-3.5 text-teal-600 dark:text-teal-400" />
+                  <OutboundActionIcon kind="sms" className="me-1.5 size-4" />
                   {phone}
                 </DropdownMenuItem>
               ))}
@@ -190,7 +189,7 @@ export function OutboundRowActions({
                 onClick={(event) => event.stopPropagation()}
                 className={btnClass}
               >
-                <MessageCircle className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                <OutboundActionIcon kind="whatsapp" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -208,7 +207,7 @@ export function OutboundRowActions({
                     });
                   }}
                 >
-                  <MessageCircle className="me-1.5 size-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <OutboundActionIcon kind="whatsapp" className="me-1.5 size-4" />
                   {number}
                 </DropdownMenuItem>
               ))}
@@ -227,7 +226,7 @@ export function OutboundRowActions({
                 onClick={(event) => event.stopPropagation()}
                 className={btnClass}
               >
-                <Mail className="size-3.5 text-amber-600 dark:text-amber-400" />
+                <OutboundActionIcon kind="email" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -245,7 +244,7 @@ export function OutboundRowActions({
                     });
                   }}
                 >
-                  <Mail className="me-1.5 size-3.5 text-amber-600 dark:text-amber-400" />
+                  <OutboundActionIcon kind="email" className="me-1.5 size-4" />
                   {addr}
                 </DropdownMenuItem>
               ))}

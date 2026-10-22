@@ -23,6 +23,10 @@ vi.mock("@/features/workspace", () => ({
   sanitizeEmailHtml: (text: string) => text,
   revokeInlineImages: vi.fn(),
   EmailEditor: () => null,
+  OutboundActionIcon: () => null,
+  RefinedPreview: () => null,
+  RefineWorking: () => null,
+  refineText: vi.fn(),
   useSpelling: () => ({ suggestions: null, overlay: null, active: false, textareaProps: {} }),
 }));
 
@@ -45,7 +49,7 @@ it("cancels a pending compliance check when the compose sheet unmounts before in
   );
   const user = userEvent.setup();
   await user.type(screen.getByRole("textbox", { name: /message/i }), "Review your account");
-  const send = screen.getByRole("button", { name: /send/i });
+  const send = screen.getByRole("button", { name: /send$/i });
   await waitFor(() => expect(send).toBeEnabled());
   await user.click(send);
   expect(mocks.compliance).toHaveBeenCalledTimes(1);

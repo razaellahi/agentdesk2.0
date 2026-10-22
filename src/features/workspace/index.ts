@@ -36,10 +36,16 @@ export {
   type OutboundChannel,
 } from "./api/outbound";
 export { prepareVoiceMrd, restoreVoiceMrd, forgetVoiceMrd } from "./session/voiceMrd";
+export { ChannelCluster, OutboundActionIcon } from "./components/ChannelIcon";
+export { channelTypeNames } from "./model/channelIcons";
+export { onSessionEvent } from "./session/agentSession";
+export { RefinedPreview, RefineWorking } from "./components/RefineAssist";
+export { refineText } from "./api";
+export { cxVoiceSessionOf } from "./model/participants";
 
 export { useAgentStore } from "./store/agentStore";
 export { sendColdOutbound } from "./session/coldOutbound";
-export { escapeEmailText } from "./model/email";
+export { escapeEmailText, validEmailRecipients } from "./model/email";
 export type { InlineEmailImage } from "./model/email";
 export { EmailEditor } from "./components/email/EmailEditor";
 export { useSpelling } from "./spellcheck/useSpelling";

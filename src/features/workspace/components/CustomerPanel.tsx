@@ -28,7 +28,8 @@ import { ActiveSessionCard } from "./ActiveSessionCard";
 import { KnowledgeFocusView, KnowledgeFullView, KnowledgeSearch } from "./KnowledgeBase";
 import type { Conversation } from "../model/types";
 import { useKnowledgeStore } from "../store/knowledgeStore";
-import { ChannelMark, OutboundActionIcon } from "./ChannelIcon";
+import { channelTypeNames, distinctChannels, hasChannelLook } from "../model/channelIcons";
+import { ChannelGlyph, OutboundActionIcon } from "./ChannelIcon";
 import { CustomerAvatar } from "./CustomerInitials";
 import {
   text,
@@ -41,12 +42,18 @@ import {
  * The leading icon of an identifier group: the channel's mark on its small round tile with a hairline ring,
  * the same tile used wherever a channel is shown. Shown once per group, never per value.
  */
-function FactGlyph({ label }: { label: string }) {
+/** The channels a value reaches, as small outline marks in their own colours (the row's actions are the real thing). */
+function ChannelHint({ channels }: { channels: string[] }) {
+  const shown = distinctChannels(channels).slice(0, 3);
+  if (shown.length < 2) return null;
   return (
-    <span className="flex h-8 shrink-0 items-center">
-      <span className="size-7">
-        <ChannelMark name={label} />
-      </span>
+    <span
+      className="flex shrink-0 items-center gap-1 transition-opacity group-hover/fact:opacity-0"
+      title={channels.join(", ")}
+    >
+      {shown.map((name) => (
+        <ChannelGlyph key={name} name={name} className="size-3.5" />
+      ))}
     </span>
   );
 }
@@ -98,14 +105,19 @@ type FactRow = {
 function Fact({
   label,
   value,
-  caption,
+  icon,
+  detail,
+  channels,
   copyable,
   actions = [],
 }: {
   label: string;
   value: string;
-  /** The identifier's type, shown quietly on the first value of a group. */
-  caption?: string;
+  /** What draws the leading tile: the identifier's kind, or its first channel. */
+  icon: string;
+  /** What the value is, e.g. "Phone number · Voice". */
+  detail: string;
+  channels: string[];
   copyable: boolean;
   actions?: FactOutboundAction[];
 }) {
@@ -113,25 +125,26 @@ function Fact({
   const [copied, setCopied] = useState(false);
 
   return (
-    <div className="group/fact relative flex min-h-8 items-center gap-2 rounded-lg px-2 transition-colors duration-150 hover:bg-surface-2">
-      {/* The icon sits once per group beside the values; the row is the value and its type. */}
-      <div
-        className="min-w-0 flex-1 truncate text-sm leading-5 font-medium text-foreground tabular-nums select-text"
-        title={value}
-      >
-        {value}
+    <div className="group/fact relative flex items-center gap-3 px-3 py-2 transition-colors duration-150 hover:bg-surface-2">
+      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-surface-2">
+        <ChannelGlyph name={icon} className="size-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p
+          className="truncate text-[13px] leading-5 font-medium text-foreground tabular-nums select-text"
+          title={value}
+        >
+          {value}
+        </p>
+        <p className="truncate text-xs leading-4 text-muted-foreground">{detail}</p>
       </div>
-      {caption && <span className="shrink-0 text-[12px] text-muted-foreground">{caption}</span>}
+      <ChannelHint channels={channels} />
 
       {/* Trailing: outbound actions and copy. Over the end of the row on hover or focus, so the
           value keeps the full width; always shown where there is no hover (touch). */}
       <div className="pointer-events-none absolute inset-y-0 end-0 flex items-center gap-1 bg-linear-to-l from-surface-2 from-75% to-transparent ps-8 pe-2 opacity-0 transition-opacity group-focus-within/fact:pointer-events-auto group-focus-within/fact:opacity-100 group-hover/fact:pointer-events-auto group-hover/fact:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
         {actions.map((act) => {
           const isContinue = act.mode === "continue";
-          const isVoice = act.kind === "voice";
-          const isSms = act.kind === "sms";
-          const isEmail = act.kind === "email";
-          const isWhatsApp = act.kind === "whatsapp";
 
           return (
             <Button
@@ -144,24 +157,9 @@ function Fact({
               aria-label={act.label}
               onClick={act.onSelect}
               className={cn(
-                "size-8 rounded-full shadow-2xs transition-all duration-150 active:scale-95",
-                isContinue && "hover:bg-primary-container bg-primary-soft text-primary",
-                isVoice &&
-                  "bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:bg-emerald-500/15 dark:text-emerald-300",
-                isSms &&
-                  "bg-blue-500/10 text-blue-700 hover:bg-blue-500/20 dark:bg-blue-500/15 dark:text-blue-300",
-                isEmail &&
-                  "bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:bg-amber-500/15 dark:text-amber-300",
-                isWhatsApp &&
-                  "bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 dark:bg-emerald-500/15 dark:text-emerald-300",
-                !isContinue &&
-                  !isVoice &&
-                  !isSms &&
-                  !isEmail &&
-                  !isWhatsApp &&
-                  "bg-surface-2 text-foreground hover:bg-surface-2/80",
-                act.disabled &&
-                  "cursor-not-allowed opacity-40 shadow-none hover:bg-surface-2/40 active:scale-100",
+                "size-7 rounded-full bg-surface shadow-2xs transition-all duration-150 hover:bg-surface hover:shadow-sm active:scale-95",
+                isContinue && "text-primary",
+                act.disabled && "cursor-not-allowed opacity-40 shadow-none active:scale-100",
               )}
             >
               {act.busy ? (
@@ -169,7 +167,7 @@ function Fact({
               ) : isContinue ? (
                 <CornerDownLeft className="size-3.5" />
               ) : (
-                <OutboundActionIcon kind={act.kind} className="size-[18px]" />
+                <OutboundActionIcon kind={act.kind} className="size-4" />
               )}
             </Button>
           );
@@ -217,37 +215,41 @@ export function CustomerPanel({ conversation, tab }: { conversation: Conversatio
   const expandedAnswer = useKnowledgeStore((state) => state.expanded[conversation.conversationId] ?? null);
   const knowledgeFocused = useKnowledgeStore((state) => state.focused[conversation.conversationId] ?? false);
 
-  // Primary contact facts: profile fields first, then schema channel identifiers, without repeats.
+  // Contact facts, one group per schema channel identifier. Each attribute carries its own channels
+  // (phone number: SMS and WhatsApp; voice: CX Voice and Cisco; web: Web and WebRTC), so the same
+  // number under two attributes shows under both. Email and phone fall back to the profile fields only
+  // when the schema does not list them.
   const facts: FactRow[] = [];
   const addFact = (key: string, label: string, raw: unknown, attrKey: string, channels: string[] = []) => {
     const value = text(raw);
     if (!value) return;
-    const existing = facts.find((fact) => fact.raw === value);
-    if (existing) {
-      // Same value under a schema identifier (e.g. phone + WhatsApp): keep one row, merge its channels.
-      existing.channels = [...new Set([...existing.channels, ...channels])];
-      return;
-    }
     facts.push({ key, label, value: display(value, attrKey), raw: value, attrKey, channels });
   };
   const valuesOf = (raw: unknown): string[] =>
     (Array.isArray(raw) ? raw : [raw])
       .map((item) => text(item))
       .filter((item): item is string => Boolean(item));
-  valuesOf(customer.phoneNumber ?? customer.phone).forEach((value, index) =>
-    addFact(`phone-${index}`, t("workspace.phone"), value, "phoneNumber", ["CX_VOICE", "SMS", "WHATSAPP"]),
-  );
-  valuesOf(customer.email).forEach((value, index) =>
-    addFact(`email-${index}`, t("workspace.email"), value, "email", ["EMAIL"]),
-  );
-  for (const attr of ctx.schema) {
-    if (!attr.isChannelIdentifier || !attr.key) continue;
-    const raw = customer[attr.key as keyof typeof customer];
-    const values = Array.isArray(raw) ? raw.map(String) : raw ? [String(raw)] : [];
-    values.forEach((value, index) =>
-      addFact(`${attr.key}-${index}`, attr.label || attr.key, value, attr.key, attr.channelTypes ?? []),
+  const identifiers = ctx.schema.filter((attr) => attr.isChannelIdentifier && attr.key);
+  const listed = (...keys: string[]) => identifiers.some((attr) => keys.includes(attr.key!));
+  for (const attr of identifiers) {
+    valuesOf(customer[attr.key as keyof typeof customer]).forEach((value, index) =>
+      addFact(
+        `${attr.key}-${index}`,
+        attr.label || attr.key!,
+        value,
+        attr.key!,
+        channelTypeNames(attr.channelTypes),
+      ),
     );
   }
+  if (!listed("phoneNumber", "phone"))
+    valuesOf(customer.phoneNumber ?? customer.phone).forEach((value, index) =>
+      addFact(`phone-${index}`, t("workspace.phone"), value, "phoneNumber", ["SMS", "WHATSAPP"]),
+    );
+  if (!listed("email"))
+    valuesOf(customer.email).forEach((value, index) =>
+      addFact(`email-${index}`, t("workspace.email"), value, "email", ["EMAIL"]),
+    );
 
   const knowledgeAvailable = ctx.kbEnabled && ctx.hasSessions;
   if (tab === "profile" && knowledgeAvailable && expandedAnswer)
@@ -385,10 +387,16 @@ function ProfileTab({
   const navigate = useNavigate();
   const reach = useOutboundReach(conversation, true);
   // Identifiers of one type share a header and its icon, so the icon is never repeated per value.
-  const groups = facts.reduce<{ key: string; label: string; facts: FactRow[] }[]>((all, fact) => {
-    const group = all.find((item) => item.key === fact.attrKey);
-    if (group) group.facts.push(fact);
-    else all.push({ key: fact.attrKey, label: fact.label, facts: [fact] });
+  // One row per value: a number kept under Phone number and Voice is one row, reaching every channel of both.
+  const rows = facts.reduce<{ fact: FactRow; labels: string[]; icon: string }[]>((all, fact) => {
+    const row = all.find((item) => item.fact.raw === fact.raw);
+    if (row) {
+      if (!row.labels.includes(fact.label)) row.labels.push(fact.label);
+      row.fact = { ...row.fact, channels: [...new Set([...row.fact.channels, ...fact.channels])] };
+      return all;
+    }
+    const icon = hasChannelLook(fact.label) ? fact.label : (fact.channels[0] ?? fact.label);
+    all.push({ fact, labels: [fact.label], icon });
     return all;
   }, []);
 
@@ -559,23 +567,18 @@ function ProfileTab({
           </div>
         )}
         {facts.length ? (
-          <div className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-surface shadow-2xs">
-            {groups.map((group) => (
-              <div key={group.key} className="flex items-start gap-2.5 px-2.5 py-1.5">
-                <FactGlyph label={group.label} />
-                <div className="min-w-0 flex-1">
-                  {group.facts.map((fact, index) => (
-                    <Fact
-                      key={fact.key}
-                      label={fact.label}
-                      value={fact.value}
-                      caption={index === 0 ? group.label : undefined}
-                      copyable={ctx.full}
-                      actions={getActionsForFact(fact)}
-                    />
-                  ))}
-                </div>
-              </div>
+          <div className="divide-y divide-border/50 overflow-hidden rounded-xl bg-surface ring-1 ring-border/60">
+            {rows.map(({ fact, labels, icon }) => (
+              <Fact
+                key={fact.key}
+                label={fact.label}
+                value={fact.value}
+                icon={icon}
+                detail={labels.join(" · ")}
+                channels={fact.channels}
+                copyable={ctx.full}
+                actions={getActionsForFact(fact)}
+              />
             ))}
           </div>
         ) : (
