@@ -58,6 +58,10 @@
 
   --color-bubble-customer: var(--bubble-c);
   --color-bubble-agent: var(--bubble-a);
+  --color-chat-ink: var(--chat-ink);
+  --color-chat-rule: var(--chat-rule);
+  --color-chat-avatar: var(--chat-avatar);
+  --color-chat-avatar-foreground: var(--chat-avatar-fg);
 
   --color-brand: var(--brand);
   --color-brand-2: var(--brand-2);

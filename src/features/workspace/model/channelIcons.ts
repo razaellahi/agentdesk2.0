@@ -78,3 +78,18 @@ export function hasChannelLook(name: string): boolean {
   const key = name.toLowerCase();
   return BRANDS.some(([pattern]) => pattern.test(key)) || BADGES.some(([pattern]) => pattern.test(key));
 }
+
+/** The colour a channel carries on a conversation's spine: its brand, else the hue of its badge. */
+export function channelAccent(name: string | undefined | null): string {
+  const key = (name ?? "").toLowerCase();
+  const brand = BRANDS.find(([pattern]) => pattern.test(key));
+  if (brand) {
+    return brand[1] === "instagram" ? "var(--brand-instagram-magenta)" : `var(--brand-${brand[1]})`;
+  }
+  if (/email|mail/.test(key)) return "#d97706";
+  if (/voice|call|cisco/.test(key)) return "#4f46e5";
+  if (/video|web_rtc/.test(key)) return "#7c3aed";
+  if (/sms/.test(key)) return "#0d9488";
+  if (/web|site|browser/.test(key)) return "#0284c7";
+  return "#64748b";
+}

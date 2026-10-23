@@ -37,20 +37,21 @@ export function mayActOnComment(
     message.isDeleted
   )
     return false;
+  // Unhide is offered on any hidden Facebook or Instagram comment, whatever the connector says (source).
+  if (action === "unhide") return Boolean(message.isHidden && ["facebook", "instagram"].includes(channel));
   const key = {
     reply: "COMMENT_REPLY_SUPPORT_SM",
     private: "PRIVATE_REPLY_SUPPORT_SM",
     like: "LIKE_SUPPORT_SM",
     hide: "HIDE_SUPPORT_SM",
-    unhide: "HIDE_SUPPORT_SM",
     delete: "DELETE_SUPPORT_SM",
     post: "ALLOW_VIEW_FULL_POST_SM",
   }[action];
   if (!connectorSupports(session, key)) return false;
-  if (action === "unhide") return Boolean(message.isHidden && ["facebook", "instagram"].includes(channel));
   if (message.isHidden) return false;
   if (action === "private") return ["facebook", "instagram"].includes(channel);
-  if (action === "like") return !["instagram", "youtube"].includes(channel);
+  // As in the source: any Instagram channel type (the name contains it) and YouTube exactly.
+  if (action === "like") return !channel.includes("instagram") && channel !== "youtube";
   if (action === "hide") return !["youtube", "linkedin"].includes(channel);
   if (action === "delete") return channel !== "twitter";
   return true;
@@ -89,7 +90,11 @@ export function mayEditMessage(conversation: Conversation, message: CimMessage, 
     message.header.sender?.id === conversation.topicParticipant.participant.keycloakUser.id &&
     (!message.header.conversationId || message.header.conversationId === conversation.conversationId) &&
     (type === "plain" ||
-      (type === "comment" && message.body.itemType === "TEXT" && Boolean(message.body.postId))) &&
+      (type === "comment" &&
+        message.body.itemType === "TEXT" &&
+        Boolean(message.body.postId) &&
+        // An edited comment reply needs the connector to allow edits (source EDIT_MESSAGE_SUPPORT_SM).
+        connectorSupports(session, "EDIT_MESSAGE_SUPPORT_SM"))) &&
     Boolean(
       session && !session.isDisabled && originalChannelSession(conversation, message)?.id === session.id,
     )

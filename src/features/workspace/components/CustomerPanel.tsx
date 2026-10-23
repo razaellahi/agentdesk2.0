@@ -68,9 +68,9 @@ function linkErrorMessage(error: unknown, t: (key: string) => string) {
 
 function Section({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
   return (
-    <section className="space-y-2 border-b border-border/30 px-4 py-3.5 last:border-b-0">
+    <section className="space-y-2.5 border-b border-chat-rule/60 px-4 py-4 last:border-b-0">
       <div className="flex items-center justify-between gap-2">
-        <h4 className="text-[13px] font-medium tracking-normal text-foreground/80">{title}</h4>
+        <h4 className="text-[13px] font-semibold tracking-normal text-foreground">{title}</h4>
         {action}
       </div>
       {children}
@@ -126,7 +126,7 @@ function Fact({
 
   return (
     <div className="group/fact relative flex items-center gap-3 px-3 py-2 transition-colors duration-150 hover:bg-surface-2">
-      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-surface-2">
+      <span className="grid size-8 shrink-0 place-items-center rounded-md bg-surface-2">
         <ChannelGlyph name={icon} className="size-4" />
       </span>
       <div className="min-w-0 flex-1">
@@ -259,7 +259,7 @@ export function CustomerPanel({ conversation, tab }: { conversation: Conversatio
 
   return (
     <div className="flex min-h-0 flex-col bg-chat-panel-right">
-      <div className="flex items-start gap-3 border-b border-border/40 bg-chat-panel-right-card px-4 py-3.5">
+      <div className="flex items-start gap-3 border-b border-chat-rule/60 bg-chat-panel-right px-4 py-4">
         <div
           role={ctx.canEdit && customer._id ? "button" : undefined}
           tabIndex={ctx.canEdit && customer._id ? 0 : undefined}
@@ -282,14 +282,14 @@ export function CustomerPanel({ conversation, tab }: { conversation: Conversatio
         >
           <CustomerAvatar
             name={name}
-            size="md"
+            size="xl"
             className={cn(ctx.canEdit && customer._id && "transition-transform group-hover:scale-105")}
           />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <h3
                 className={cn(
-                  "truncate text-[16px] font-medium tracking-tight text-foreground",
+                  "truncate text-[18px] leading-snug font-semibold tracking-tight text-foreground",
                   ctx.canEdit && customer._id && "transition-colors group-hover:text-primary",
                 )}
                 title={name}
@@ -309,7 +309,7 @@ export function CustomerPanel({ conversation, tab }: { conversation: Conversatio
             <LabelDots labels={labels} className="mt-1" />
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-0.5 rounded-lg bg-surface-2/60 p-0.5">
+        <div className="flex shrink-0 items-center gap-0.5">
           {(canHistory || canCustomerHistory) && customer._id && (
             <Button
               type="button"
@@ -567,7 +567,7 @@ function ProfileTab({
           </div>
         )}
         {facts.length ? (
-          <div className="divide-y divide-border/50 overflow-hidden rounded-xl bg-surface ring-1 ring-border/60">
+          <div className="divide-y divide-chat-rule/60 overflow-hidden rounded-lg bg-surface ring-1 ring-chat-rule/80">
             {rows.map(({ fact, labels, icon }) => (
               <Fact
                 key={fact.key}

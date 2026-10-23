@@ -30,11 +30,11 @@ function TabButton({
       aria-label={tab.label}
       onClick={onSelect}
       className={cn(
-        "relative grid place-items-center text-muted-foreground transition-all duration-150 hover:bg-chat-panel-left-hover hover:text-foreground",
+        "relative grid place-items-center text-muted-foreground transition-colors duration-150 hover:bg-chat-panel-left-hover hover:text-foreground",
         orientation === "vertical"
-          ? "size-9 rounded-full"
-          : "h-8 flex-1 grid-flow-col gap-1.5 rounded-full px-3 text-xs font-medium",
-        selected && "bg-primary-lt hover:bg-primary-lt font-medium text-primary hover:text-primary",
+          ? "size-9 rounded-lg"
+          : "h-8 flex-1 grid-flow-col gap-1.5 rounded-lg px-3 text-xs font-medium",
+        selected && "bg-surface font-medium text-chat-ink shadow-soft hover:bg-surface hover:text-chat-ink",
       )}
     >
       <Icon className="size-4.5 shrink-0" aria-hidden />
@@ -112,10 +112,10 @@ export function ContextDock({
             )}
             style={{ width: `${contextWidth}px` }}
           >
-            <div className="flex h-14 shrink-0 items-center justify-between border-b border-border/40 bg-chat-panel-right px-4">
+            <div className="flex h-16 shrink-0 items-center justify-between border-b border-chat-rule/70 bg-chat-panel-right px-4">
               <div className="flex min-w-0 items-center gap-2.5">
-                {activeTab && <activeTab.icon className="size-4.5 shrink-0 text-primary" />}
-                <h2 className="truncate text-[16px] font-medium tracking-tight text-foreground">
+                {activeTab && <activeTab.icon className="size-4.5 shrink-0 text-muted-foreground" />}
+                <h2 className="truncate text-[17px] font-semibold tracking-tight text-foreground">
                   {activeTab?.label}
                 </h2>
               </div>
@@ -125,7 +125,7 @@ export function ContextDock({
                   size="icon"
                   variant="ghost"
                   aria-label={t("workspace.fold-context")}
-                  className="size-9 rounded-full text-muted-foreground hover:bg-chat-panel-left-hover hover:text-foreground"
+                  className="size-9 rounded-lg text-muted-foreground hover:bg-chat-panel-left-hover hover:text-foreground"
                   onClick={() => onOpenChange(null)}
                 >
                   <ChevronsRight className="size-[18px]" strokeWidth={1.75} aria-hidden />
@@ -142,7 +142,7 @@ export function ContextDock({
         role="tablist"
         aria-orientation="vertical"
         aria-label={t("workspace.customer-context")}
-        className="flex w-12 shrink-0 flex-col items-center gap-2 border-l border-border/40 bg-chat-panel-right-dock py-3"
+        className="flex w-12 shrink-0 flex-col items-center gap-2 border-s border-chat-rule/70 bg-chat-panel-right-dock py-3"
       >
         {tabs.map((tab) => (
           <TabButton

@@ -10,7 +10,7 @@ import {
   Send,
   SendHorizontal,
   Smile,
-  BotMessageSquare,
+  Bot,
   WandSparkles,
   Video,
   X,
@@ -36,7 +36,9 @@ import { useComposerStore, composerKey, EMPTY_DRAFT } from "../store/composerSto
 import { ALLOWED_EXTENSIONS } from "../model/outgoing";
 import { useVoiceStacks } from "../hooks/useLiveCall";
 import { cxVoiceSessionOf, effectiveWhisper, whisperPeers } from "../model/participants";
-import { lastCustomerSuggestions } from "../model/suggestions";
+import { lastCustomerSuggestions, lastSuggestionMessage } from "../model/suggestions";
+import { originalChannelSession } from "../model/social";
+import { channelLabel } from "../model/display";
 import { emailReplyContext, escapeEmailText } from "../model/email";
 import type { ChannelSession, Conversation } from "../model/types";
 import { useMaskedValue } from "../hooks/useMaskedValue";
@@ -181,7 +183,23 @@ export function Composer({ conversation }: { conversation: Conversation }) {
   const [openFor, setOpenFor] = useState<string | null>(null);
   const suggestionsKey = suggestions.map((suggestion) => suggestion.text ?? "").join("\u0000");
   const suggestionsOpen = openFor === suggestionsKey;
-  const toggleSuggestions = () => setOpenFor(suggestionsOpen ? null : suggestionsKey);
+  // Which of the customer's channels the suggestions answer. With several live, they say so, and using one
+  // moves the reply onto that channel, so an Instagram answer never leaves on Facebook.
+  const suggestionSession = (() => {
+    const message = lastSuggestionMessage(conversation.messages);
+    return message ? originalChannelSession(conversation, message) : undefined;
+  })();
+  const multiChannel = conversation.activeChannelSessions.filter((s) => !s.isDisabled).length > 1;
+  const suggestionChannel =
+    multiChannel && suggestionSession && !suggestionSession.isDisabled ? suggestionSession : undefined;
+  const replyOnSuggestionChannel = () => {
+    if (suggestionChannel && !suggestionChannel.isChecked)
+      useConversationStore.getState().selectReplySession(conversation.conversationId, suggestionChannel.id);
+  };
+  const toggleSuggestions = () => {
+    if (!suggestionsOpen) replyOnSuggestionChannel();
+    setOpenFor(suggestionsOpen ? null : suggestionsKey);
+  };
   // Source interactions.component placeholder ladder for comments and bot suggestions.
   const placeholder = editMessageId
     ? t("chat-features.interactions.edit-message")
@@ -465,7 +483,7 @@ export function Composer({ conversation }: { conversation: Conversation }) {
               suggestionsOpen ? "bg-primary-soft/50" : "bg-primary-soft/30 hover:bg-primary-soft/50",
             )}
           >
-            <BotMessageSquare className="size-4 shrink-0 text-primary" strokeWidth={1.75} aria-hidden />
+            <Bot className="size-[18px] shrink-0 text-primary" strokeWidth={1.5} aria-hidden />
             <span className="text-sm font-medium text-foreground">
               {t("chat-features.interactions.suggested-replies")}
             </span>
@@ -480,6 +498,23 @@ export function Composer({ conversation }: { conversation: Conversation }) {
               aria-hidden
             />
           </button>
+          {suggestionsOpen && suggestionChannel && !suggestionChannel.isChecked && (
+            // The agent moved the reply to another channel after opening the list: one click puts it back.
+            <button
+              type="button"
+              className="mt-1.5 flex w-full items-center gap-1.5 rounded-lg bg-warning-soft px-2.5 py-1 text-start text-xs font-medium text-warning-text hover:bg-warning-soft/80"
+              onClick={replyOnSuggestionChannel}
+            >
+              {t("workspace.answering-channel", {
+                channel: channelLabel(suggestionChannel.channel.channelType.name),
+              })}
+              <span className="ms-auto font-semibold underline underline-offset-2">
+                {t("workspace.reply-on-channel", {
+                  channel: channelLabel(suggestionChannel.channel.channelType.name),
+                })}
+              </span>
+            </button>
+          )}
           {suggestionsOpen && (
             <ul className="mt-1.5 max-h-64 space-y-1 overflow-y-auto">
               {suggestions
@@ -496,6 +531,7 @@ export function Composer({ conversation }: { conversation: Conversation }) {
                         type="button"
                         disabled={blocked}
                         onClick={() => {
+                          replyOnSuggestionChannel();
                           setText(suggestion.text ?? "");
                           setOpenFor(null);
                         }}
@@ -523,6 +559,7 @@ export function Composer({ conversation }: { conversation: Conversation }) {
                           label={t("chat-features.interactions.edit-message")}
                           disabled={blocked}
                           onClick={() => {
+                            replyOnSuggestionChannel();
                             setText(suggestion.text ?? "");
                             setOpenFor(null);
                           }}
@@ -534,6 +571,7 @@ export function Composer({ conversation }: { conversation: Conversation }) {
                           tone="primary"
                           disabled={blocked}
                           onClick={() => {
+                            replyOnSuggestionChannel();
                             sendText(conversation.conversationId, suggestion.text ?? "", { whisper });
                             setOpenFor(null);
                           }}
@@ -603,7 +641,7 @@ export function Composer({ conversation }: { conversation: Conversation }) {
       )}
       {sessions.length > 1 && (
         <div
-          className="mb-2 flex flex-wrap items-center gap-1 rounded-xl bg-muted/40 p-1"
+          className="mb-2 flex flex-wrap items-center gap-3 px-0.5"
           role="radiogroup"
           aria-label={t("chat-features.interactions.selected-channel")}
         >
@@ -1068,26 +1106,24 @@ function ChannelChoice({
       type="button"
       role="radio"
       aria-label={ambiguous && identifier ? `${name} ${identifier}` : name}
+      title={identifier ? `${name} ${identifier}` : name}
       aria-checked={Boolean(session.isChecked)}
       disabled={disabled}
       onClick={() =>
         useConversationStore.getState().selectReplySession(conversation.conversationId, session.id)
       }
       className={cn(
-        "inline-flex max-w-full items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all",
+        "inline-flex max-w-full items-center gap-1.5 border-b-2 px-1 pt-1 pb-0.5 text-xs font-medium transition-colors",
+        // Like a tab: the chosen channel has stronger type and a primary line beneath it, nothing else.
         session.isChecked
-          ? "bg-surface font-semibold text-foreground shadow-2xs ring-1 ring-border/70"
-          : "text-muted-foreground hover:bg-surface/50 hover:text-foreground",
+          ? "border-primary font-semibold text-foreground"
+          : "border-transparent text-muted-foreground hover:text-foreground",
         session.isDisabled && "opacity-50",
       )}
     >
-      <ChannelBadge channelType={session.channel.channelType} size="sm" className="-ms-1.5" />
+      <ChannelBadge channelType={session.channel.channelType} size="sm" className="size-5" />
       <span>{name}</span>
-      {identifier && (
-        <span className="truncate tabular-nums opacity-75" aria-hidden={!ambiguous}>
-          ({identifier})
-        </span>
-      )}
+      {ambiguous && identifier && <span className="truncate tabular-nums opacity-75">({identifier})</span>}
     </button>
   );
 }

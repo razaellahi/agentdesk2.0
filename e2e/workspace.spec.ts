@@ -115,7 +115,7 @@ test("pop-out floats the conversation in this tab, sharing its draft", async ({ 
   await floating.getByRole("button", { name: "Emoji", exact: true }).click();
   await expect(page.getByRole("button", { name: "😀", exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
-  await floating.getByRole("button", { name: "close", exact: true }).click();
+  await floating.getByRole("button", { name: "Merge back into main view", exact: true }).click();
   await expect(floating).toHaveCount(0);
   await expect(a.getByRole("textbox")).toHaveValue("Changed in pop-out");
 });

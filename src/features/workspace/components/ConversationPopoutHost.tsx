@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { GripVertical, Minimize2, X } from "lucide-react";
+import { GripVertical, Minimize2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -126,19 +126,6 @@ function PopoutWindow({ conversationId, offset }: { conversationId: string; offs
             }}
           >
             <Minimize2 className="size-3.5" />
-          </Button>
-
-          {/* Close button */}
-          <Button
-            type="button"
-            size="icon-xs"
-            variant="ghost"
-            className="size-7 rounded-lg text-muted-foreground hover:bg-surface-2 hover:text-foreground"
-            aria-label={t("globals.close")}
-            title={t("globals.close")}
-            onClick={() => usePopoutStore.getState().remove(conversationId)}
-          >
-            <X className="size-3.5" />
           </Button>
         </div>
       </header>

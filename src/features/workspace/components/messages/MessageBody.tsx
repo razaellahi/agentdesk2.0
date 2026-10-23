@@ -399,7 +399,15 @@ export function MessageBody({
           <TextBlock message={message} formatting={formatting} />
         </>
       );
-    if (item === "image" || item === "video") return <Media url={file.url} kind={item} name={file.name} />;
+    // A photo or video comment keeps its words and its review header (source comment-message).
+    if (item === "image" || item === "video")
+      return (
+        <div className="flex flex-col gap-1.5">
+          <CommentHeader message={message} />
+          <TextBlock message={message} formatting={formatting} />
+          <Media url={file.url} kind={item} name={file.name} />
+        </div>
+      );
     return <p className="text-xs text-muted-foreground">{t("workspace.comment-action", { action: item })}</p>;
   }
   if (type === "wrapup") {
@@ -574,6 +582,8 @@ export function MessageRow({
   const canEdit = mine && mayEditMessage(conversation, message, editSession);
   const canRetry = status === "failed" && conversation.state === "ACTIVE";
   const isComment = type === "comment";
+  // A hidden or deleted social comment stays readable, faded, with a tag saying what happened to it.
+  const softened = isComment && (deleted || Boolean(message.isHidden));
   const originalSession =
     conversation.activeChannelSessions.find(
       (session) => session.id === (message.header.channelSession as ChannelSession | undefined)?.id,
@@ -584,7 +594,11 @@ export function MessageRow({
 
   const reply = (privateReply = false, emailMode: EmailMode = "REPLY_TO") => {
     const channelSession = originalChannelSession(conversation, message);
-    if (!channelSession) return;
+    if (!channelSession) {
+      // A comment whose channel session has ended cannot be answered there (source replyToComment).
+      if (isComment) toast.error(t("snackbar.Requested-session-not-available-at-the-moment"));
+      return;
+    }
     useConversationStore.getState().selectReplySession(conversation.conversationId, channelSession.id);
     const current = useConversationStore.getState().byId[conversation.conversationId] ?? conversation;
     const key = composerKey(current);
@@ -753,7 +767,7 @@ export function MessageRow({
                   ? cn("bg-bubble-agent text-foreground shadow-2xs", !continued && "rounded-tr-xs")
                   : cn("bg-bubble-customer text-foreground shadow-2xs", !continued && "rounded-tl-xs"),
               whisper && "border border-dashed border-warning/50 bg-warning-soft text-foreground",
-              deleted && "opacity-60",
+              deleted && !isComment && "opacity-60",
               // In flight: soft until the server confirms; full strength once sent.
               mine &&
                 status === "sending" &&
@@ -761,7 +775,7 @@ export function MessageRow({
             )}
           >
             {/* Whisper or Status Badges */}
-            {(whisper || message.isEdited || message.isHidden) && (
+            {(whisper || message.isEdited || message.isHidden || (isComment && deleted)) && (
               <div className="mb-1 flex items-center gap-2 text-[12px] text-muted-foreground">
                 {whisper && (
                   <span className="py-0.2 inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 font-semibold text-amber-700 dark:text-amber-300">
@@ -770,7 +784,20 @@ export function MessageRow({
                   </span>
                 )}
                 {message.isEdited && <span className="italic">{t("chat-features.interactions.edited")}</span>}
-                {message.isHidden && <span>{t("workspace.hidden")}</span>}
+                {isComment && deleted ? (
+                  <span className="rounded-md bg-destructive-soft px-1.5 py-px font-medium text-destructive-text">
+                    {t("workspace.message-deleted")}
+                  </span>
+                ) : message.isHidden ? (
+                  <span
+                    className={cn(
+                      isComment &&
+                        "rounded-md bg-destructive-soft px-1.5 py-px font-medium text-destructive-text",
+                    )}
+                  >
+                    {t("workspace.hidden")}
+                  </span>
+                ) : null}
               </div>
             )}
 
@@ -781,10 +808,12 @@ export function MessageRow({
               </div>
             )}
 
-            {deleted ? (
+            {deleted && !isComment ? (
               <p className="text-sm italic opacity-80">{t("workspace.message-deleted")}</p>
             ) : (
-              <MessageBody message={message} formatting={formatting} conversation={conversation} />
+              <div className={cn(softened && "opacity-50 transition-opacity group-hover/bubble:opacity-100")}>
+                <MessageBody message={message} formatting={formatting} conversation={conversation} />
+              </div>
             )}
             {/* Floating Message Action Bar */}
             {/* Floating Message Action Bar: a small pill on the bubble's outer top edge, as in Google Chat. */}
@@ -890,7 +919,7 @@ export function MessageRow({
                       onClick={() => sendCommentAction(conversation.conversationId, message, "like")}
                     >
                       {/* Source: heart on X/Twitter, thumbs-up elsewhere. */}
-                      {lower(originalSession?.channel.channelType.name) === "twitter" ? (
+                      {lower(originalSession?.channel.channelType.name).includes("twitter") ? (
                         <Heart className={cn("size-3", message.isLiked && "fill-current")} />
                       ) : (
                         <ThumbsUp className={cn("size-3", message.isLiked && "fill-current")} />

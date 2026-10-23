@@ -15,6 +15,8 @@ interface Line {
   /** Minutes ago. */
   ago: number;
   body: Body;
+  /** Which of the chat's channels this was said on: 0 is the first, 1 the first of `moreChannels`. */
+  via?: number;
   /** Lets a later line refer to this one (a reply, an edit, a delivery receipt). */
   id?: string;
   header?: Body;
@@ -36,6 +38,8 @@ interface Chat {
   identifier: string;
   customer: Record<string, unknown>;
   name: string;
+  /** Further channels the same customer is on in this conversation (a second live channel session). */
+  moreChannels?: { channelType: string; channelName: string; identifier: string }[];
   lines: Line[];
   happenings?: Happening[];
   /** Other agents in the conversation, besides the demo agent. */
@@ -59,6 +63,62 @@ const attachment = (
   ...(caption ? { caption } : {}),
 });
 
+const SPRING_POST = "post-spring-sale";
+
+/** The post the Sofia comments sit under, as CCM's /social-media-post returns it (View full post). */
+export const springSalePost = {
+  socialMediaPost: {
+    username: "Home Goods Store",
+    text: "Spring sale is live! 20% off every blender until Sunday with the code SPRING20.",
+    timestamp: Date.now() - 2 * 86_400_000,
+    permalinkUrl: "https://www.facebook.com/homegoods/posts/spring-sale",
+    attachments: [{ mediaUrl: fileUrl("demo-blender-max.svg"), mimeType: "IMAGE" }],
+    comments: [
+      {
+        id: "fb-comment-201",
+        username: "Marco Bianchi",
+        text: "Does the code work on the Blender Max?",
+        timestamp: Date.now() - 86_400_000,
+        subComments: [
+          { id: "fb-comment-202", username: "Home Goods Store", text: "Yes, on every blender in the range." },
+        ],
+      },
+      {
+        id: "fb-comment-101",
+        username: "Sofia Rossi",
+        text: "Is the spring sale still on? The code SPRING20 does not work for me.",
+        timestamp: Date.now() - 30 * 60_000,
+      },
+    ],
+  },
+};
+
+/** A comment on the page's spring sale post: TEXT, or IMAGE / VIDEO with its attachment spread in. */
+const comment = (markdownText: string, itemType = "TEXT"): Body => ({
+  type: "COMMENT",
+  itemType,
+  postId: SPRING_POST,
+  markdownText,
+});
+
+/** The agent liked, hid or deleted a comment: the event that marks the original (see applyCommentAction). */
+const commentAction = (
+  ago: number,
+  originalMessageId: string,
+  providerMessageId: string,
+  itemType: "LIKE" | "HIDE" | "DELETE",
+  additionalData?: Record<string, unknown>,
+): Happening => ({
+  ago,
+  name: "AGENT_MESSAGE",
+  data: {
+    id: `${originalMessageId}-${itemType.toLowerCase()}`,
+    header: { sender: { type: "AGENT" }, originalMessageId, providerMessageId, additionalData },
+    body: { type: "COMMENT", itemType, postId: SPRING_POST },
+  },
+});
+
+/** `session` is the first channel; `session:1` the first of `moreChannels`. */
 const sessionStarted = (ago: number, session: unknown): Happening => ({
   ago,
   name: "CHANNEL_SESSION_STARTED",
@@ -463,24 +523,172 @@ const CHATS: Chat[] = [
       { role: "SILENT_MONITOR", id: "u-sup-2", username: "qa.lead", firstName: "Nadia", lastName: "Rauf" },
     ],
   },
+  // Comments on the Facebook page's post, not a private chat: reply, like, private reply, hide, delete and the
+  // full post. One comment is already liked, one hidden and one deleted, so each state shows.
+  {
+    id: "live-sofia",
+    channelType: "FACEBOOK",
+    channelName: "Facebook Page",
+    identifier: "sofia.rossi.88",
+    name: "Sofia",
+    customer: {
+      _id: "customer-sofia",
+      firstName: "Sofia",
+      lastName: "Rossi",
+      email: "sofia.rossi@example.it",
+      facebook: "sofia.rossi.88",
+      labels: demoLabelsOf("customer-sofia"),
+    },
+    lines: [
+      {
+        who: "C",
+        ago: 30,
+        id: "sofia-code",
+        header: { providerMessageId: "fb-comment-101" },
+        body: comment("Is the spring sale still on? The code SPRING20 does not work for me."),
+      },
+      {
+        who: "C",
+        ago: 29,
+        id: "sofia-photo",
+        header: { providerMessageId: "fb-comment-102" },
+        body: {
+          ...comment("Is this one in the sale too?", "IMAGE"),
+          ...attachment("demo-blender-pro.svg", "image/svg+xml", 3_200, "blender-pro.svg"),
+        },
+      },
+      {
+        who: "A",
+        ago: 27,
+        header: { intent: "REPLY_TO", originalMessageId: "sofia-code", providerMessageId: "fb-comment-101" },
+        body: comment("Hi Sofia, the sale runs until Sunday. I will check the code for you right away."),
+      },
+      {
+        who: "C",
+        ago: 20,
+        id: "sofia-rant",
+        header: { providerMessageId: "fb-comment-103" },
+        body: comment("Third time asking. This page never answers anyone!!!"),
+      },
+      {
+        who: "C",
+        ago: 18,
+        id: "sofia-phone",
+        header: { providerMessageId: "fb-comment-104" },
+        body: comment("Just call me on +39 333 123 4567"),
+      },
+      {
+        who: "C",
+        ago: 6,
+        id: "sofia-last",
+        header: { providerMessageId: "fb-comment-105" },
+        body: comment("Thanks for the private message, I have sent you my order number."),
+      },
+    ],
+    happenings: [
+      sessionStarted(30.5, "session"),
+      commentAction(26, "sofia-code", "fb-comment-101", "LIKE"),
+      commentAction(19, "sofia-rant", "fb-comment-103", "HIDE", { isHidden: true }),
+      // A phone number posted in public: the agent took it down.
+      commentAction(17, "sofia-phone", "fb-comment-104", "DELETE"),
+    ],
+  },
+  // One customer on two live channels in a single conversation: she started on Facebook and moved to Instagram.
+  {
+    id: "live-layla",
+    channelType: "FACEBOOK",
+    channelName: "Facebook Page",
+    identifier: "layla.haddad.5",
+    moreChannels: [{ channelType: "INSTAGRAM", channelName: "Instagram Business", identifier: "@layla.h" }],
+    name: "Layla",
+    customer: {
+      _id: "customer-layla",
+      firstName: "Layla",
+      lastName: "Haddad",
+      email: "layla.haddad@example.com",
+      facebook: "layla.haddad.5",
+      instagram: "@layla.h",
+      labels: demoLabelsOf("customer-layla"),
+    },
+    lines: [
+      {
+        who: "C",
+        ago: 26,
+        body: text("Hi, I ordered the woven rug from your shop last week and it has not shipped yet."),
+      },
+      { who: "A", ago: 25, body: text("Hello Layla, let me look into that for you.") },
+      {
+        who: "C",
+        ago: 7,
+        via: 1,
+        body: text("Hey, it is Layla again. I am on Instagram now, easier on my phone."),
+      },
+      {
+        who: "A",
+        ago: 6,
+        via: 1,
+        body: text("Thanks Layla, I can see you on both. I will reply here on Instagram from now on."),
+      },
+      {
+        who: "C",
+        ago: 5,
+        via: 1,
+        id: "layla-last",
+        body: text("Perfect. Can you confirm the delivery date?"),
+      },
+    ],
+    happenings: [
+      sessionStarted(26.5, "session"),
+      sessionStarted(7.5, "session:1"),
+      {
+        ago: 4.8,
+        name: "BOT_SUGGESTION",
+        data: {
+          requestedMessage: { id: "layla-last" },
+          suggestions: [
+            {
+              confidenceLevel: 0.92,
+              messageBody: {
+                markdownText:
+                  "Your rug ships tomorrow and should reach you within 3 to 4 working days. I will send the tracking link here.",
+              },
+            },
+            {
+              confidenceLevel: 0.7,
+              messageBody: {
+                markdownText:
+                  "It is packed and waiting for the courier. Would you like the tracking link on Facebook too?",
+              },
+            },
+          ],
+        },
+      },
+    ],
+  },
 ];
 
 /** What the agent-manager sends on login: three chats already assigned to the agent. */
 export function demoLiveConversations(agent: Agent): Record<string, unknown>[] {
   return CHATS.map((chat) => {
-    const session = {
-      id: `${chat.id}-session`,
+    const sessions = [
+      { channelType: chat.channelType, channelName: chat.channelName, identifier: chat.identifier },
+      ...(chat.moreChannels ?? []),
+    ].map((channel, index) => ({
+      id: index === 0 ? `${chat.id}-session` : `${chat.id}-session-${index}`,
       channel: {
-        id: `${chat.channelType.toLowerCase()}-channel`,
-        name: chat.channelName,
-        channelType: { name: chat.channelType },
+        id: `${channel.channelType.toLowerCase()}-channel`,
+        name: channel.channelName,
+        channelType: { name: channel.channelType },
       },
       channelData: {
-        channelCustomerIdentifier: chat.identifier,
+        channelCustomerIdentifier: channel.identifier,
         serviceIdentifier: "support",
-        ...(chat.additionalAttributes ? { additionalAttributes: chat.additionalAttributes } : {}),
+        ...(index === 0 && chat.additionalAttributes
+          ? { additionalAttributes: chat.additionalAttributes }
+          : {}),
       },
-    };
+    }));
+    const session = sessions[0]!;
     const customerRef = { _id: chat.customer._id as string, firstName: chat.name };
     const senders: Record<Who, Body> = {
       C: { id: customerRef._id, type: "CUSTOMER", senderName: chat.name },
@@ -500,7 +708,7 @@ export function demoLiveConversations(agent: Agent): Record<string, unknown>[] {
         id: `${chat.id}-event-${index}`,
         name: eventNames[line.who],
         timestamp,
-        channelSession: session,
+        channelSession: sessions[line.via ?? 0] ?? session,
         data: {
           id: line.id ?? `${chat.id}-message-${index}`,
           header: {
@@ -517,11 +725,14 @@ export function demoLiveConversations(agent: Agent): Record<string, unknown>[] {
       id: `${chat.id}-happening-${index}`,
       name: happening.name,
       timestamp: minutesAgo(happening.ago),
-      channelSession: session,
+      channelSession:
+        typeof happening.data === "string" && happening.data.startsWith("session")
+          ? (sessions[Number(happening.data.split(":")[1] ?? 0)] ?? session)
+          : session,
       // A session event carries the session itself, and an agent event the logged-in agent.
       data:
-        happening.data === "session"
-          ? session
+        typeof happening.data === "string" && happening.data.startsWith("session")
+          ? (sessions[Number(happening.data.split(":")[1] ?? 0)] ?? session)
           : happening.data === "agent"
             ? {
                 agentParticipant: {
@@ -541,7 +752,7 @@ export function demoLiveConversations(agent: Agent): Record<string, unknown>[] {
         channelSession: session,
         topicEvents,
         participants: [
-          { type: "CUSTOMER", participant: session },
+          ...sessions.map((each) => ({ type: "CUSTOMER", participant: each })),
           ...(chat.agents ?? []).map((other) => ({
             type: "AGENT",
             role: other.role,

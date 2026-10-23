@@ -63,22 +63,28 @@
   --on-brand: #ffffff;
   --accent-cool: #007b83;
 
-  /* Google Chat 3-Panel Hierarchy Tokens (Light) */
-  --chat-panel-left: #f8fafd; /* Left rail: Material 3 Surface Container Low */
-  --chat-panel-left-hover: #e9edf4; /* Hover conversation card */
-  --chat-panel-left-active: #d3e3fd; /* Active conversation pill / container (Google light blue) */
-  --chat-panel-left-active-text: #041e49; /* Active conversation title text (Google deep blue) */
-  --chat-panel-left-search: #ffffff; /* Crisp white search pill on tinted sidebar */
-  --chat-panel-left-divider: #e0e3e7; /* Subtle hairline divider */
+  /* The conversation workspace. A cool desk mat carries the transcript; white sheets (customer messages,
+     composer, the open conversation) sit on it. Colour is kept for meaning: channel, SLA, unread. */
+  --chat-panel-left: #f4f6f9; /* Conversation list */
+  --chat-panel-left-hover: #e9edf3; /* A row under the pointer */
+  --chat-panel-left-active: #ffffff; /* The open conversation: a white sheet on the list */
+  --chat-panel-left-active-text: #10213f;
+  --chat-panel-left-search: #ffffff;
+  --chat-panel-left-divider: #e1e6ed;
 
   --chat-panel-middle: #ffffff; /* Middle chat transcript: Pure Surface White */
   --chat-panel-middle-header: #ffffff; /* Clean elevated header */
   --chat-panel-middle-composer: #ffffff; /* Composer bar background */
 
-  --chat-panel-right: #f8fafd; /* Right info panel: Surface Container (airy neutral tint) */
-  --chat-panel-right-card: #ffffff; /* Profile & fact cards on right panel */
-  --chat-panel-right-dock: #f0f4f9; /* Far-right vertical companion tab strip */
-  --chat-panel-right-divider: #e0e3e7; /* Subtle hairline divider */
+  --chat-panel-right: #ffffff; /* Customer context */
+  --chat-panel-right-card: #f4f6f9;
+  --chat-panel-right-dock: #f4f6f9;
+  --chat-panel-right-divider: #e1e6ed;
+
+  --chat-ink: #10213f;
+  --chat-rule: #d6dce5;
+  --chat-avatar: #e3e8f0;
+  --chat-avatar-fg: #2a3a57;
 }
 
 :root[data-theme="dark"] {
@@ -139,22 +145,27 @@
   --on-brand: #04101f;
   --accent-cool: #78d9ec;
 
-  /* Google Chat 3-Panel Hierarchy Tokens (Dark) */
-  --chat-panel-left: #1a1d20; /* Left rail: Material 3 Dark Surface Container Low */
-  --chat-panel-left-hover: #282a2c; /* Hover row in left rail */
-  --chat-panel-left-active: #004a77; /* Active conversation pill (M3 dark primary container) */
-  --chat-panel-left-active-text: #c2e7ff; /* Active conversation title text */
-  --chat-panel-left-search: #282a2c; /* Search pill in dark rail */
-  --chat-panel-left-divider: #3c4043; /* Subtle dark hairline divider */
+  /* The conversation workspace (dark). */
+  --chat-panel-left: #181b20;
+  --chat-panel-left-hover: #20242b;
+  --chat-panel-left-active: #272c34;
+  --chat-panel-left-active-text: #eef2fa;
+  --chat-panel-left-search: #20242b;
+  --chat-panel-left-divider: #2b3037;
 
   --chat-panel-middle: #232528; /* Middle chat transcript: Elevated Dark Surface */
   --chat-panel-middle-header: #282a2c; /* Elevated dark header */
   --chat-panel-middle-composer: #232528; /* Composer bar background */
 
-  --chat-panel-right: #1e1f21; /* Right info panel: Dark Surface Container */
-  --chat-panel-right-card: #282a2c; /* Cards inside dark info panel */
-  --chat-panel-right-dock: #1a1d20; /* Far-right vertical companion tab strip */
-  --chat-panel-right-divider: #3c4043; /* Subtle dark hairline divider */
+  --chat-panel-right: #1c2027;
+  --chat-panel-right-card: #232830;
+  --chat-panel-right-dock: #181b20;
+  --chat-panel-right-divider: #2b3037;
+
+  --chat-ink: #8ab4f8;
+  --chat-rule: #343a43;
+  --chat-avatar: #2c323b;
+  --chat-avatar-fg: #cbd5e6;
 }
 
 :root {

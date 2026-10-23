@@ -7,6 +7,7 @@ import { useMediaQuery } from "@/shared/hooks/useMediaQuery";
 import { cn } from "@/shared/lib/utils";
 import { ConversationPane } from "./components/ConversationPane";
 import { ConversationRail } from "./components/ConversationRail";
+import { PoppedOutNotice } from "./components/PoppedOutNotice";
 import { useBoardStore } from "./store/boardStore";
 import { visiblePanes } from "./board/visiblePanes";
 import { CustomerAvatar } from "./components/CustomerInitials";
@@ -131,6 +132,8 @@ export default function ConversationsPage() {
   // A conversation in a floating window gives its place back: the others take the room, and with nothing
   // left on the board the main area shows the empty state. Closing the window restores the pane as it was.
   const shown = ids.map((id, index) => ({ id, index })).filter(({ id }) => !(id && popoutIds.includes(id)));
+  // With every conversation in a floating window the main view says so, rather than showing "no conversation".
+  const poppedOnly = !shown.some(({ id }) => id) && popoutIds.length > 0;
   if (!shown.length) shown.push({ id: null, index: 0 });
   const railMini = railPref === "collapsed" || (railPref === "auto" && count === 3 && tight);
   const [boardWidth, setBoardWidth] = useState(0);
@@ -184,12 +187,16 @@ export default function ConversationsPage() {
                       if (id && id !== activeId) useConversationStore.getState().setActive(id);
                     }}
                   >
-                    <ConversationPane
-                      key={id ?? "empty"}
-                      conversationId={id}
-                      onBack={isMobile ? () => useConversationStore.getState().setActive(null) : undefined}
-                      board={count > 1 ? { index, count, focused: focus === index } : undefined}
-                    />
+                    {poppedOnly ? (
+                      <PoppedOutNotice ids={popoutIds} />
+                    ) : (
+                      <ConversationPane
+                        key={id ?? "empty"}
+                        conversationId={id}
+                        onBack={isMobile ? () => useConversationStore.getState().setActive(null) : undefined}
+                        board={count > 1 ? { index, count, focused: focus === index } : undefined}
+                      />
+                    )}
                   </div>
                 ),
               )}

@@ -39,6 +39,7 @@ import { removeFromBoard, showSideBySide } from "../board/sideBySide";
 import { maxPanes } from "../store/boardStore";
 import { ResizeHandle } from "@/components/common/ResizeHandle";
 import { useResizableWidth } from "@/shared/hooks/useResizableWidth";
+import { channelAccent } from "../model/channelIcons";
 import { ChannelGlyph } from "./ChannelIcon";
 import { CustomerAvatar } from "./CustomerInitials";
 
@@ -73,7 +74,8 @@ const RailItem = memo(function RailItem({
   const past = usePastActivities(c, { announce: false });
   if (!c) return null;
   const channel =
-    c.activeChannelSessions[0]?.channel.channelType ?? c.firstChannelSession?.channel.channelType;
+    (c.activeChannelSessions.find((session) => session.isChecked) ?? c.activeChannelSessions[0])?.channel
+      .channelType ?? c.firstChannelSession?.channel.channelType;
 
   const label = name || t("globals.UNIDENTIFIED-CUSTOMER");
   const onBoard = boardIndex >= 0;
@@ -91,16 +93,22 @@ const RailItem = memo(function RailItem({
         aria-label={label}
         aria-describedby={mini ? undefined : `rail-preview-${id}`}
         className={cn(
-          "group relative flex w-full items-center rounded-2xl text-start transition-all",
-          mini ? "justify-center p-2" : narrowRail ? "gap-2.5 px-2.5 py-2" : "gap-3 px-3 py-2.5",
+          "group relative flex w-full items-center rounded-xl text-start transition-colors",
+          mini ? "justify-center p-2" : narrowRail ? "gap-2.5 px-2.5 py-2.5" : "gap-3 px-3.5 py-3",
           canSplit && !mini && (onBoard ? "pe-9" : "group-hover/row:pe-9"),
+          // The open conversation is a white sheet lifted off the list; a channel-coloured spine marks its edge.
           active
-            ? "bg-chat-panel-left-active font-semibold text-chat-panel-left-active-text"
-            : c.unread > 0
-              ? "bg-surface/60 font-semibold text-foreground hover:bg-surface/80"
-              : "font-normal text-foreground/90 hover:bg-chat-panel-left-hover",
+            ? "bg-chat-panel-left-active text-chat-panel-left-active-text shadow-soft ring-1 ring-chat-rule/80"
+            : "text-foreground/90 hover:bg-chat-panel-left-hover",
         )}
       >
+        {active && !mini && (
+          <span
+            className="absolute inset-y-2.5 start-0 w-[3px] rounded-full"
+            style={{ backgroundColor: channelAccent(channel?.name) }}
+            aria-hidden
+          />
+        )}
         {/* Avatar */}
         <span className="relative shrink-0">
           <CustomerAvatar name={name} size={narrowRail ? "sm" : "md"} />
@@ -109,7 +117,7 @@ const RailItem = memo(function RailItem({
           {channel && (
             <span
               className={cn(
-                "absolute -end-2 -bottom-2 isolate z-20 grid place-items-center rounded-full bg-surface shadow-xs ring-[1.5px]",
+                "absolute -end-1.5 -bottom-1.5 isolate z-20 grid place-items-center rounded-full bg-surface shadow-xs ring-[1.5px]",
                 active ? "ring-chat-panel-left-active" : "ring-chat-panel-left",
                 narrowRail || mini ? "size-[18px]" : "size-5",
               )}
@@ -126,7 +134,7 @@ const RailItem = memo(function RailItem({
           {/* Mini mode unread badge */}
           {mini && c.unread > 0 && (
             <span
-              className="absolute -end-1.5 -top-1.5 z-30 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-foreground tabular shadow-xs ring-2 ring-surface"
+              className="absolute -end-1.5 -top-1.5 z-30 grid h-4 min-w-4 place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-foreground tabular ring-2 ring-chat-panel-left"
               aria-label={t("workspace.new-messages", { count: c.unread })}
             >
               {c.unread}
@@ -141,11 +149,7 @@ const RailItem = memo(function RailItem({
               className={cn(
                 "min-w-0 flex-1 truncate leading-snug tracking-tight",
                 narrowRail ? "text-[13px]" : "text-[14px]",
-                c.unread > 0
-                  ? "font-semibold text-foreground"
-                  : active
-                    ? "font-semibold text-chat-panel-left-active-text"
-                    : "font-medium text-foreground",
+                c.unread > 0 || active ? "font-semibold text-foreground" : "font-medium text-foreground",
               )}
             >
               {label}
@@ -163,7 +167,7 @@ const RailItem = memo(function RailItem({
                 </span>
               )}
               {c.hold.active ? (
-                <span className="py-0.2 inline-flex items-center gap-0.5 rounded bg-warning-soft px-1 text-[11px] font-semibold text-warning-text">
+                <span className="inline-flex items-center gap-0.5 rounded-md bg-warning-soft px-1 py-px text-[11px] font-semibold text-warning-text">
                   <Clock className="size-2.5" aria-hidden />
                   {t("workspace.paused")}
                 </span>
@@ -171,7 +175,7 @@ const RailItem = memo(function RailItem({
                 (c.sla.color === "sla-warn" || c.sla.color === "sla-red" || c.sla.color === "sla-ended") ? (
                 <span
                   className={cn(
-                    "py-0.2 inline-flex items-center gap-0.5 rounded px-1 text-[11px] font-bold tabular",
+                    "inline-flex items-center gap-0.5 rounded-md px-1 py-px text-[11px] font-bold tabular",
                     c.sla.color === "sla-warn"
                       ? "bg-warning-soft text-warning-text"
                       : "bg-destructive-soft text-destructive-text",
@@ -205,9 +209,7 @@ const RailItem = memo(function RailItem({
                   preview
                     ? c.unread > 0
                       ? "font-medium text-foreground/85"
-                      : active
-                        ? "font-normal text-chat-panel-left-active-text/80"
-                        : "font-normal text-muted-foreground"
+                      : "font-normal text-muted-foreground"
                     : "text-muted-foreground/60 italic",
                 )}
               >
@@ -218,7 +220,7 @@ const RailItem = memo(function RailItem({
             {/* Unread badge on row */}
             {c.unread > 0 && !mini && (
               <span
-                className="grid h-4.5 min-w-4.5 shrink-0 place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-foreground tabular shadow-xs"
+                className="grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-foreground tabular"
                 aria-label={t("workspace.new-messages", { count: c.unread })}
               >
                 {c.unread}
@@ -425,19 +427,19 @@ export function ConversationRail({
             </span>
           </div>
         ) : (
-          <div className="space-y-2.5 border-b border-border/40 bg-chat-panel-left p-2.5 pb-2.5 sm:p-3">
+          <div className="space-y-3 bg-chat-panel-left px-3 pt-3.5 pb-2.5">
             {/* Header row */}
             <div className="flex items-center justify-between gap-1">
               <div className="flex min-w-0 items-center gap-1.5">
                 <h2
                   className={cn(
                     "truncate font-semibold tracking-tight text-foreground",
-                    isNarrowRail ? "text-xs" : "text-sm",
+                    isNarrowRail ? "text-sm" : "text-base",
                   )}
                 >
                   {t("workspace.conversations")}
                 </h2>
-                <span className="py-0.2 shrink-0 rounded-full bg-primary/10 px-1.5 text-[11px] font-bold text-primary tabular">
+                <span className="shrink-0 text-sm font-medium text-muted-foreground tabular">
                   {order.length}
                 </span>
               </div>
@@ -484,10 +486,10 @@ export function ConversationRail({
                 aria-selected={activeTab === "all"}
                 onClick={() => setActiveTab("all")}
                 className={cn(
-                  "shrink-0 rounded-full font-medium transition-colors",
+                  "shrink-0 rounded-md font-medium transition-colors",
                   isNarrowRail ? "px-2.5 py-0.5 text-[12px]" : "px-3 py-1 text-xs",
                   activeTab === "all"
-                    ? "bg-primary-lt font-semibold text-primary shadow-2xs"
+                    ? "bg-chat-ink font-semibold text-surface"
                     : "text-muted-foreground hover:bg-chat-panel-left-hover hover:text-foreground",
                 )}
               >
@@ -499,16 +501,16 @@ export function ConversationRail({
                 aria-selected={activeTab === "unread"}
                 onClick={() => setActiveTab("unread")}
                 className={cn(
-                  "flex shrink-0 items-center gap-1 rounded-full font-medium transition-colors",
+                  "flex shrink-0 items-center gap-1 rounded-md font-medium transition-colors",
                   isNarrowRail ? "px-2.5 py-0.5 text-[12px]" : "px-3 py-1 text-xs",
                   activeTab === "unread"
-                    ? "bg-primary-lt font-semibold text-primary shadow-2xs"
+                    ? "bg-chat-ink font-semibold text-surface"
                     : "text-muted-foreground hover:bg-chat-panel-left-hover hover:text-foreground",
                 )}
               >
                 {t("workspace.filter-unread")}
                 {unreadCount > 0 && (
-                  <span className="py-0.2 rounded-full bg-primary/15 px-1.5 text-[11px] font-bold text-primary">
+                  <span className="rounded-full bg-primary px-1.5 text-[11px] font-bold text-primary-foreground">
                     {unreadCount}
                   </span>
                 )}
@@ -520,7 +522,7 @@ export function ConversationRail({
                   aria-selected={activeTab === "sla"}
                   onClick={() => setActiveTab("sla")}
                   className={cn(
-                    "flex shrink-0 items-center gap-1 rounded-full font-medium transition-colors",
+                    "flex shrink-0 items-center gap-1 rounded-md font-medium transition-colors",
                     isNarrowRail ? "px-2.5 py-0.5 text-[12px]" : "px-3 py-1 text-xs",
                     activeTab === "sla"
                       ? "bg-warning-soft font-semibold text-warning-text"
@@ -540,7 +542,7 @@ export function ConversationRail({
                   aria-selected={activeTab === "waiting"}
                   onClick={() => setActiveTab("waiting")}
                   className={cn(
-                    "flex shrink-0 items-center gap-1 rounded-full font-medium transition-colors",
+                    "flex shrink-0 items-center gap-1 rounded-md font-medium transition-colors",
                     isNarrowRail ? "px-2.5 py-0.5 text-[12px]" : "px-3 py-1 text-xs",
                     activeTab === "waiting"
                       ? "bg-surface-3 font-semibold text-foreground shadow-2xs"
@@ -560,7 +562,7 @@ export function ConversationRail({
                 value={filter}
                 onChange={(event) => setFilter(event.target.value)}
                 placeholder={t("labels.search")}
-                className="h-8.5 rounded-full border-border/40 bg-chat-panel-left-search ps-8 pe-7 text-xs shadow-none transition-all placeholder:text-muted-foreground focus-visible:border-primary/50 focus-visible:bg-chat-panel-left-search"
+                className="h-9 rounded-lg border-chat-rule bg-chat-panel-left-search ps-8 pe-7 text-[13px] shadow-none transition-all placeholder:text-muted-foreground focus-visible:border-primary/60 focus-visible:bg-chat-panel-left-search"
                 aria-label={t("labels.search")}
               />
               {filter && (
@@ -597,7 +599,7 @@ export function ConversationRail({
           </div>
         ) : (
           <ScrollArea className="min-h-0 flex-1">
-            <div className="flex flex-col gap-1 p-2">
+            <div className="flex flex-col gap-0.5 px-2 pt-1 pb-3">
               {filtered.map((id) => (
                 <RailItem
                   key={id}

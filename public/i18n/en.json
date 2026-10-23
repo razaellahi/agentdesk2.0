@@ -1776,7 +1776,6 @@
       "already-on": "The customer is already on {{channel}} in this conversation.",
       "sends-to": "Sends to"
     },
-    "other-channels": "Other channels",
     "show-folded-pane": "Show {{name}} side by side",
     "folded-panes": "More side-by-side conversations",
     "seen-by": "Seen by {{count}} people",
@@ -1811,7 +1810,17 @@
       "role-barge-in": "Joined in",
       "consult-ready": "Consult ready: transfer or conference"
     },
-    "end-call": "End call"
+    "end-call": "End call",
+    "reply-on-channel": "Reply on {{channel}}",
+    "answering-channel": "Answering a {{channel}} message",
+    "popped-out-title": "Conversation open in a floating window",
+    "popped-out-title_other": "Conversations open in floating windows",
+    "popped-out-hint": "Bring it back here to keep working in the main view.",
+    "popped-out-hint_other": "Bring one back here to keep working in the main view.",
+    "bring-back": "Bring back",
+    "bring-back-named": "Bring back {{name}}",
+    "popped-out-title_one": "Conversation open in a floating window",
+    "popped-out-hint_one": "Bring it back here to keep working in the main view."
   },
   "recordings": {
     "calling": "Calling",

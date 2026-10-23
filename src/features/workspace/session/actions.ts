@@ -337,11 +337,26 @@ export function sendCommentAction(
   message: CimMessage,
   action: "like" | "hide" | "unhide" | "delete",
 ) {
+  // A like cannot be taken back: liking a liked comment does nothing (source commentAction).
+  if (action === "like" && message.isLiked) return;
   const conversation = getConversation(conversationId);
-  if (!conversation || !ensureConnected()) return;
+  if (!conversation) return;
+  // Say why nothing happened, as the source does: no server, no comment or post id, or the comment's
+  // channel session is no longer live.
+  if (!socketManager.connected) {
+    toast.error(t("snackbar.Unable-to-connect-with-server"));
+    return;
+  }
+  if (!message.header.providerMessageId || !message.body.postId) {
+    toast.error(t("snackbar.Unable-to-process-the-request"));
+    return;
+  }
   const session = originalChannelSession(conversation, message);
+  if (!session) {
+    toast.error(t("snackbar.Requested-session-not-available-at-the-moment"));
+    return;
+  }
   if (
-    !session ||
     !mayActOnComment(message, session, action) ||
     !mayCompose(
       {

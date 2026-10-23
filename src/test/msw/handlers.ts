@@ -1,4 +1,5 @@
 import { delay, http, HttpResponse, type HttpHandler } from "msw";
+import { springSalePost } from "./liveConversations";
 import {
   listAnnouncements,
   markAnnouncementSeen,
@@ -575,22 +576,24 @@ export const handlers: HttpHandler[] = [
     }
     return undefined;
   }),
-  http.get("*/social-media-post", () =>
-    HttpResponse.json({
-      socialMediaPost: {
-        username: "Support",
-        text: "Account support update",
-        permalinkUrl: "https://example.com/post",
-        comments: [
-          {
-            id: "comment-1",
-            username: "Amina",
-            text: "I have a question",
-            subComments: [{ username: "Support", text: "We are here to help" }],
+  http.get("*/social-media-post", ({ request }) =>
+    new URL(request.url).searchParams.get("postId") === "post-spring-sale"
+      ? HttpResponse.json(springSalePost)
+      : HttpResponse.json({
+          socialMediaPost: {
+            username: "Support",
+            text: "Account support update",
+            permalinkUrl: "https://example.com/post",
+            comments: [
+              {
+                id: "comment-1",
+                username: "Amina",
+                text: "I have a question",
+                subComments: [{ username: "Support", text: "We are here to help" }],
+              },
+            ],
           },
-        ],
-      },
-    }),
+        }),
   ),
   // Development fixtures use the source service contracts; no production fallbacks.
   http.get("*/vrs/recording/download/:id", ({ params }) =>

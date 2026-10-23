@@ -35,15 +35,20 @@ export function suggestionText(suggestion: unknown): string {
 }
 
 /**
- * Bot suggestions for the agent's next reply: the ones on the last customer message that has any,
- * so they stay up after the agent answers (unified-agent's lastCustomerMessageSuggestions pipe).
+ * The last customer message that has bot suggestions: they stay up after the agent answers
+ * (unified-agent's lastCustomerMessageSuggestions pipe).
  */
-export function lastCustomerSuggestions(messages: CimMessage[]): unknown[] {
+export function lastSuggestionMessage(messages: CimMessage[]): CimMessage | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i];
     if (!message) continue;
     if (lower(message.header?.sender?.type) === "customer" && (message.botSuggestions?.length ?? 0) > 0)
-      return message.botSuggestions ?? [];
+      return message;
   }
-  return [];
+  return undefined;
+}
+
+/** Bot suggestions for the agent's next reply: the ones on the last customer message that has any. */
+export function lastCustomerSuggestions(messages: CimMessage[]): unknown[] {
+  return lastSuggestionMessage(messages)?.botSuggestions ?? [];
 }

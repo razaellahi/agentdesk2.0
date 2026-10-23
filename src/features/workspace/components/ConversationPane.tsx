@@ -1,12 +1,11 @@
 import { EmptyConversationArt } from "./EmptyConversationArt";
-import { ArrowLeft, Pause, Play, Timer, UserRound } from "lucide-react";
+import { ArrowLeft, Pause, Play, Timer } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { confirm, dismissConfirm } from "@/components/common/confirm";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { useDeskSettings } from "@/core/agent-settings";
 import { usePermission } from "@/core/auth";
 import { useCallStore, voiceCommand } from "@/features/voice";
 import { formatDuration } from "@/core/i18n";
@@ -17,9 +16,9 @@ import { useMaskedValue } from "../hooks/useMaskedValue";
 import { usePastActivities } from "../hooks/usePastActivities";
 import { useSessionEvent } from "../hooks/useSessionEvent";
 import { isVoiceSession } from "../model/conversation";
-import { visibleAgents } from "../model/participants";
 import { parseConversationInsight } from "../model/conversationInsight";
 import { channelLabel } from "../model/display";
+import { channelAccent } from "../model/channelIcons";
 import {
   leaveConversation,
   pauseConversation,
@@ -55,7 +54,6 @@ export function ConversationPane({
 }) {
   const { t } = useTranslation();
   const conversation = useConversation(conversationId);
-  const settings = useDeskSettings();
   const typing = useBefore(conversation?.typingUntil);
   const firstName = useMaskedValue(conversation?.customer.firstName, "firstName", "manage_in_conversation");
   const lastName = useMaskedValue(conversation?.customer.lastName, "lastName", "manage_in_conversation");
@@ -136,7 +134,6 @@ export function ConversationPane({
       ? [channelLabel(activeSession.channel.channelType.name), activeIdentifier].filter(Boolean).join(" · ")
       : "";
   const wrapUpOpen = conversation.wrapUp.show;
-  const collaborators = visibleAgents(conversation);
 
   const insight = parseConversationInsight(conversation.activeConversationData);
   const sentiment = insight.sentiment;
@@ -209,6 +206,7 @@ export function ConversationPane({
       <span className="h-5 w-px bg-border" aria-hidden />
     </div>
   );
+  const accent = channelAccent(activeSession?.channel.channelType.name);
 
   return (
     <section
@@ -221,11 +219,11 @@ export function ConversationPane({
       {/* Header */}
       <header
         className={cn(
-          "sticky top-0 z-20 border-b border-border/40 bg-chat-panel-middle-header backdrop-blur-sm",
+          "sticky top-0 z-20 border-b border-chat-rule/70 bg-chat-panel-middle-header backdrop-blur-sm",
           signal && "shadow-[inset_0_3px_0_var(--warn)]",
         )}
       >
-        <div className="flex h-14 items-center justify-between gap-2 px-3 sm:px-4">
+        <div className="flex h-16 items-center justify-between gap-2 px-3 sm:px-4">
           {/* Left section: Identity & Channel */}
           <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-2.5">
             {board && (
@@ -251,70 +249,79 @@ export function ConversationPane({
                 <ArrowLeft className="size-4" />
               </Button>
             )}
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => setInfo(true)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  setInfo(true);
-                }
-              }}
-              className="group -mx-1.5 -my-1 flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-xl px-1.5 py-1 transition-colors hover:bg-surface-2/70 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none sm:gap-2.5"
-              title={t("chat-features.customer-info.info")}
-            >
-              <CustomerAvatar
-                name={displayName}
-                size={isUltraNarrow ? "sm" : "md"}
-                className="shrink-0 transition-transform group-hover:scale-105"
+            {/* A stretched button over the whole identity, so the "+N" channels chip inside it is its own control. */}
+            <div className="group relative -mx-1.5 -my-1 flex min-w-0 flex-1 items-center rounded-lg px-1.5 py-1 transition-colors hover:bg-surface-2/70">
+              <button
+                type="button"
+                onClick={() => setInfo(true)}
+                aria-label={displayName}
+                title={t("chat-features.customer-info.info")}
+                className="absolute inset-0 cursor-pointer rounded-lg focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
               />
-              <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-                  <span className="max-w-full truncate text-start text-[16px] font-medium tracking-tight text-foreground transition-colors group-hover:text-primary">
-                    {displayName}
-                  </span>
-                  {sentiment && !narrow && (
-                    <span
-                      className={cn(
-                        "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium capitalize",
-                        sentiment === "positive" && "bg-success-soft text-success-text",
-                        sentiment === "negative" && "bg-destructive-soft text-destructive-text",
-                        sentiment === "neutral" && "bg-surface-2 text-muted-foreground",
-                      )}
-                    >
-                      {sentiment === "positive" ? "😊" : sentiment === "negative" ? "⚠️" : "😐"} {sentiment}
+              <div className="pointer-events-none relative flex min-w-0 flex-1 items-center gap-3">
+                <CustomerAvatar name={displayName} size={isUltraNarrow ? "sm" : "lg"} className="shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+                    <span className="max-w-full truncate text-start text-[17px] leading-tight font-semibold tracking-tight text-foreground">
+                      {displayName}
                     </span>
-                  )}
-                  {sentiment && narrow && !isUltraNarrow && (
-                    <span
-                      className={cn(
-                        "inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium",
-                        sentiment === "positive" && "bg-success-soft text-success-text",
-                        sentiment === "negative" && "bg-destructive-soft text-destructive-text",
-                        sentiment === "neutral" && "bg-surface-2 text-muted-foreground",
-                      )}
-                      title={`Sentiment: ${sentiment}`}
-                    >
-                      {sentiment === "positive" ? "😊" : sentiment === "negative" ? "⚠️" : "😐"}
+                    {sentiment && !narrow && (
+                      <span
+                        className={cn(
+                          "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium capitalize",
+                          sentiment === "positive" && "bg-success-soft text-success-text",
+                          sentiment === "negative" && "bg-destructive-soft text-destructive-text",
+                          sentiment === "neutral" && "bg-surface-2 text-muted-foreground",
+                        )}
+                      >
+                        {sentiment === "positive" ? "😊" : sentiment === "negative" ? "⚠️" : "😐"} {sentiment}
+                      </span>
+                    )}
+                    {sentiment && narrow && !isUltraNarrow && (
+                      <span
+                        className={cn(
+                          "inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-[11px] font-medium",
+                          sentiment === "positive" && "bg-success-soft text-success-text",
+                          sentiment === "negative" && "bg-destructive-soft text-destructive-text",
+                          sentiment === "neutral" && "bg-surface-2 text-muted-foreground",
+                        )}
+                        title={`Sentiment: ${sentiment}`}
+                      >
+                        {sentiment === "positive" ? "😊" : sentiment === "negative" ? "⚠️" : "😐"}
+                      </span>
+                    )}
+                    {signal && (
+                      <span
+                        role="status"
+                        className="shrink-0 rounded-full bg-warning px-2 py-0.5 text-[11px] font-bold text-on-warning tabular"
+                      >
+                        {t("workspace.new-messages", { count: conversation.unread })}
+                      </span>
+                    )}
+                  </div>
+                  {/* No truncate here: it would clip the badge's ring. The text truncates on its own. */}
+                  <p className="mt-1 flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground">
+                    {activeSession && (
+                      <span
+                        className="inline-flex h-5 shrink-0 items-center gap-1.5 rounded-md ps-1 pe-2 text-[12px] font-semibold"
+                        style={{
+                          color: accent,
+                          backgroundColor: `color-mix(in oklab, ${accent} 12%, transparent)`,
+                        }}
+                      >
+                        <ChannelBadge
+                          channelType={activeSession.channel.channelType}
+                          size="sm"
+                          className="size-4"
+                        />
+                        {channelLabel(activeSession.channel.channelType.name)}
+                      </span>
+                    )}
+                    <span className="truncate">
+                      {typing ? channelLine : [activeIdentifier].filter(Boolean).join(" · ")}
                     </span>
-                  )}
-                  {signal && (
-                    <span
-                      role="status"
-                      className="shrink-0 rounded-full bg-warning px-2 py-0.5 text-[11px] font-bold text-on-warning tabular"
-                    >
-                      {t("workspace.new-messages", { count: conversation.unread })}
-                    </span>
-                  )}
+                  </p>
                 </div>
-                {/* No truncate here: it would clip the badge's ring. The text truncates on its own. */}
-                <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                  {activeSession && (
-                    <ChannelBadge channelType={activeSession.channel.channelType} size="sm" />
-                  )}
-                  <span className="truncate">{channelLine}</span>
-                </p>
               </div>
             </div>
           </div>
@@ -366,16 +373,6 @@ export function ConversationPane({
             <Play className="me-1 size-3 fill-current" />
             {t("chat-features.interactions.resume-conversation")}
           </Button>
-        </div>
-      )}
-
-      {/* Collaborating agents; a supervisor monitoring silently is never shown. */}
-      {settings.conversationParticipants && collaborators.length > 0 && (
-        <div className="flex items-center gap-1.5 border-b border-border/40 bg-surface-2/60 px-3.5 py-1 text-xs text-muted-foreground">
-          <UserRound className="size-3 text-primary" />
-          <span className="font-medium text-foreground/80">
-            {collaborators.map((p) => p.participant.keycloakUser.username).join(", ")}
-          </span>
         </div>
       )}
 

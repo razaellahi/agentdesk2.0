@@ -1,30 +1,16 @@
 import { UserRound } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 
-/** Curated Google Material 3 color palettes for customer avatars. */
-const AVATAR_PALETTES = [
-  "bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 ring-blue-500/20",
-  "bg-teal-100 text-teal-800 dark:bg-teal-950/80 dark:text-teal-300 ring-teal-500/20",
-  "bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 ring-purple-500/20",
-  "bg-amber-100 text-amber-900 dark:bg-amber-950/80 dark:text-amber-300 ring-amber-500/20",
-  "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 ring-emerald-500/20",
-  "bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 ring-rose-500/20",
-  "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-300 ring-indigo-500/20",
-  "bg-cyan-100 text-cyan-900 dark:bg-cyan-950/80 dark:text-cyan-300 ring-cyan-500/20",
-] as const;
-
-/** Deterministic hash from name/identifier to palette index. */
+/**
+ * Customer avatars are one quiet tone: colour in the conversation list is kept for what needs attention
+ * (channel, SLA, unread), so a monogram never competes with it. A customer who is not identified gets a
+ * dashed outline instead of a fill.
+ */
 export function getAvatarColor(name?: string | null): string {
   if (!name || isUnidentified(name)) {
-    return "bg-surface-2 text-muted-foreground ring-border/40";
+    return "bg-transparent text-muted-foreground ring-1 ring-dashed ring-chat-rule";
   }
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = (hash << 5) - hash + name.charCodeAt(i);
-    hash |= 0;
-  }
-  const index = Math.abs(hash) % AVATAR_PALETTES.length;
-  return AVATAR_PALETTES[index] ?? AVATAR_PALETTES[0];
+  return "bg-chat-avatar text-chat-avatar-foreground";
 }
 
 /** Check if name represents an unidentified, masked, or anonymous customer. */
@@ -77,10 +63,7 @@ const SIZE_CLASSES: Record<AvatarSize, { container: string; text: string; icon: 
   xl: { container: "size-12", text: "text-base font-bold", icon: "size-6" },
 };
 
-/**
- * Premium Google Material Design 3 customer avatar with deterministic colors,
- * clean monogram typography, and subtle inner ring.
- */
+/** A customer's monogram in a round, single-tone avatar. */
 export function CustomerAvatar({
   name,
   size = "md",
@@ -97,7 +80,7 @@ export function CustomerAvatar({
   return (
     <span
       className={cn(
-        "relative grid shrink-0 place-items-center rounded-full font-medium tracking-tight ring-1 transition-colors select-none ring-inset",
+        "relative grid shrink-0 place-items-center rounded-full font-semibold tracking-tight transition-colors select-none",
         sizeConfig.container,
         sizeConfig.text,
         colorClass,

@@ -18,7 +18,7 @@ import {
   SquareArrowOutUpRight,
   UserRound,
   UsersRound,
-  X,
+  LogOut,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -258,8 +258,8 @@ export function ConversationActions({
       onSelect: onToggleInfo,
     });
 
-  // Who is in the conversation. A consulted agent waiting to take over makes it stand out:
-  // the consult is completed from their row.
+  // Who is in the conversation. A consulted agent waiting to take over keeps the button in the header (the
+  // consult is completed from their row), but it is not coloured: it looks like every other control.
   if (conversation.roomInfo !== "FAKE_CONVERSATION")
     actions.push({
       id: "participants",
@@ -268,7 +268,6 @@ export function ConversationActions({
       icon: UsersRound,
       priority: 7,
       pinned: consulted.length > 0,
-      tone: consulted.length > 0 ? "primary" : undefined,
       onSelect: () => setParticipantsOpen(true),
     });
   if (wrapUpAvailable)
@@ -292,7 +291,7 @@ export function ConversationActions({
     actions.push({
       id: "leave",
       label: t("chat-features.interactions.leave-conversation"),
-      icon: X,
+      icon: LogOut,
       priority: 10,
       tone: "danger",
       onSelect: onLeave,
@@ -496,7 +495,7 @@ export function ConversationActions({
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem disabled={!canLeave && active} variant="destructive" onSelect={onLeave}>
-                      <X className="size-4" aria-hidden />
+                      <LogOut className="size-4" aria-hidden />
                       {t("chat-features.interactions.leave-conversation")}
                     </DropdownMenuItem>
                   </>

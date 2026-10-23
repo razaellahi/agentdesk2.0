@@ -56,6 +56,10 @@ export class MockAgentManager {
       this.completeConsult(event, payload);
       return;
     }
+    if (event === "publishCimEvent") {
+      this.echoCommentAction(payload);
+      return;
+    }
     if (event !== "changeAgentState") return;
     const change = payload as {
       action?: string;
@@ -80,6 +84,35 @@ export class MockAgentManager {
       };
     } else return;
     this.dispatch("agentPresence", { agentPresence: this.presence });
+  }
+
+  /**
+   * A like, hide or delete on a social comment comes back from the server as the same event, and only then
+   * marks the comment; echo it so the demo's comment actions take effect.
+   */
+  private echoCommentAction(payload: unknown) {
+    const request = payload as {
+      conversationId?: string;
+      roomInfo?: unknown;
+      cimEvent?: { name?: string; data?: { body?: { type?: string; itemType?: string } } };
+    };
+    const body = request.cimEvent?.data?.body;
+    if (
+      !request.conversationId ||
+      request.cimEvent?.name !== "AGENT_MESSAGE" ||
+      body?.type !== "COMMENT" ||
+      !["LIKE", "HIDE", "DELETE"].includes(body.itemType ?? "")
+    )
+      return;
+    setTimeout(
+      () =>
+        this.dispatch("onCimEvent", {
+          conversationId: request.conversationId,
+          roomInfo: request.roomInfo,
+          cimEvent: JSON.stringify(request.cimEvent),
+        }),
+      400,
+    );
   }
 
   /** A finished consult: the chat goes to the consulted agent, or they join it as a second primary. */
