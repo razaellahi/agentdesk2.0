@@ -1266,11 +1266,11 @@
     },
     "caps-lock-on": "Caps Lock is on",
     "trouble-signing-in": "Trouble signing in? Contact your administrator.",
-    "hero-subtitle": "Voice, chat, email and social channels, unified with the context your agents need to answer well.",
     "hero-secure": "Secure sign-in",
     "hero-title-lead": "Every",
     "hero-title-accent": "conversation,",
-    "hero-title-rest": "one calm workspace."
+    "hero-title-rest": "one complete workspace.",
+    "hero-subtitle": "Voice, chat, and email with QM, WFM, supervisor monitoring, and admin tools unified in one seamless hub."
   },
   "errors": {
     "config-invalid": "Configuration problem",
